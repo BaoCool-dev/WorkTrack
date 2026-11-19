@@ -33,7 +33,13 @@ export function ActivateView() {
   )
 }
 
-function LinkProblem({ title, description = t.linkMissing }: { title: string; description?: string }) {
+function LinkProblem({
+  title,
+  description = t.linkMissing,
+}: {
+  title: string
+  description?: string
+}) {
   const navigate = useNavigate()
   return (
     <EmptyState
@@ -101,7 +107,15 @@ function VerifiedActivation({ token }: { token: string }) {
   return <ActivateForm token={token} email={verify.data.email} fullName={verify.data.fullName} />
 }
 
-function ActivateForm({ token, email, fullName }: { token: string; email: string; fullName: string }) {
+function ActivateForm({
+  token,
+  email,
+  fullName,
+}: {
+  token: string
+  email: string
+  fullName: string
+}) {
   const navigate = useNavigate()
   const toast = useToast()
   const {

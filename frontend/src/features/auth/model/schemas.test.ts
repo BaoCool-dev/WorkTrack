@@ -35,6 +35,9 @@ describe('passwordSchema (khớp quy tắc backend)', () => {
 describe('activateSchema', () => {
   it('hai mật khẩu không khớp → lỗi ở ô nhập lại', () => {
     const r = activateSchema.safeParse({ password: 'Matkhau123', confirm: 'Matkhau124' })
-    expect(r.error?.issues[0]).toMatchObject({ path: ['confirm'], message: 'Hai mật khẩu chưa khớp.' })
+    expect(r.error?.issues[0]).toMatchObject({
+      path: ['confirm'],
+      message: 'Hai mật khẩu chưa khớp.',
+    })
   })
 })

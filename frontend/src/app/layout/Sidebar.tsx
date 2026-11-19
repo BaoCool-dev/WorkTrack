@@ -29,7 +29,10 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav aria-label={messages.shell.mainNav} className="flex flex-1 flex-col gap-4 overflow-y-auto">
+      <nav
+        aria-label={messages.shell.mainNav}
+        className="flex flex-1 flex-col gap-4 overflow-y-auto"
+      >
         {MENU_GROUPS.map((group) => {
           const groupItems = items.filter((m) => m.group === group)
           if (groupItems.length === 0) return null

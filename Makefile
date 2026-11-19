@@ -29,7 +29,7 @@ test-integration:
 
 lint:
 	cd $(BACKEND) && golangci-lint run
-	cd $(FRONTEND) && npm run lint && npm run typecheck
+	cd $(FRONTEND) && npm run lint && npm run typecheck && npm run format:check
 
 sqlc:
 	cd $(BACKEND) && sqlc generate

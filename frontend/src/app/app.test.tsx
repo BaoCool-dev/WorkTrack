@@ -34,7 +34,9 @@ describe('Route guard [CF-01]', () => {
 
   it('đang kiểm tra phiên → hiện skeleton có nhãn, không nháy trang đăng nhập', () => {
     setup('/', 'manager')
-    expect(screen.getByRole('status', { name: 'Đang kiểm tra phiên đăng nhập…' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('status', { name: 'Đang kiểm tra phiên đăng nhập…' }),
+    ).toBeInTheDocument()
   })
 
   it('Manager gõ thẳng /admin/users → trạng thái không có quyền nêu vai trò', async () => {
@@ -82,9 +84,7 @@ describe('Sidebar theo vai trò [CF-01]', () => {
 
   it('trang chủ chào theo tên và vai trò', async () => {
     setup('/', 'member')
-    expect(
-      await screen.findByRole('heading', { name: 'Xin chào, Đỗ Thu Hà' }),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Xin chào, Đỗ Thu Hà' })).toBeInTheDocument()
     expect(screen.getByText('Bạn đang đăng nhập với vai trò Thành viên.')).toBeInTheDocument()
   })
 })
@@ -103,9 +103,7 @@ describe('Đăng nhập [CF-01][UC01]', () => {
     setup('/login')
     await user.click(await screen.findByRole('button', { name: 'Đăng nhập' }))
     expect(screen.getByLabelText('Email')).toHaveAccessibleDescription('Vui lòng nhập email.')
-    expect(screen.getByLabelText('Mật khẩu')).toHaveAccessibleDescription(
-      'Vui lòng nhập mật khẩu.',
-    )
+    expect(screen.getByLabelText('Mật khẩu')).toHaveAccessibleDescription('Vui lòng nhập mật khẩu.')
     expect(login).not.toHaveBeenCalled()
   })
 
@@ -275,7 +273,9 @@ describe('Kích hoạt tài khoản [CF-01][UC02]', () => {
     )
     const { router } = setup('/activate?token=tok-abc')
     expect(await screen.findByText('Đỗ Thu Hà')).toBeInTheDocument()
-    expect(screen.getByText(/Tài khoản:/)).toHaveTextContent('Tài khoản: Đỗ Thu Hà · ha.do@worktrack.local')
+    expect(screen.getByText(/Tài khoản:/)).toHaveTextContent(
+      'Tài khoản: Đỗ Thu Hà · ha.do@worktrack.local',
+    )
     expect(router.state.location.search).toBe('')
 
     await user.type(screen.getByLabelText('Mật khẩu mới'), 'matkhau123')

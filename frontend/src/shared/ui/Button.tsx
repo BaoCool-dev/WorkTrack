@@ -5,7 +5,8 @@ import { cn } from '@/shared/lib/cn'
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-hover border border-accent hover:border-accent-hover',
+  primary:
+    'bg-accent text-white hover:bg-accent-hover border border-accent hover:border-accent-hover',
   secondary: 'bg-surface text-ink border border-line-strong hover:bg-subtle',
   ghost: 'bg-transparent text-ink-muted border border-transparent hover:bg-subtle',
   danger: 'bg-surface text-bad border border-bad-border hover:bg-bad-bg',

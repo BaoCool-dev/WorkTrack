@@ -21,12 +21,10 @@ export const routes: RouteObject[] = [
           { index: true, element: <HomePage /> },
           // Guard dùng chung luật với sidebar (menu.ts) — gõ thẳng URL cũng bị chặn ở UI;
           // backend vẫn là nơi chặn thật.
-          ...MENU.filter((m) => m.path !== '/').map(
-            (m): RouteObject => ({
-              element: <RequireAccess rule={m.access} />,
-              children: [{ path: m.path, element: <PlaceholderPage title={m.label} /> }],
-            }),
-          ),
+          ...MENU.filter((m) => m.path !== '/').map((m): RouteObject => ({
+            element: <RequireAccess rule={m.access} />,
+            children: [{ path: m.path, element: <PlaceholderPage title={m.label} /> }],
+          })),
           { path: '*', element: <NotFoundPage /> },
         ],
       },

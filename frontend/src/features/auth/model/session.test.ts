@@ -17,7 +17,9 @@ describe('session', () => {
   })
 
   it('start: còn cookie hợp lệ → authenticated và giữ token trong bộ nhớ', async () => {
-    server.use(mock.post(`${API}/api/v1/auth/refresh`, () => HttpResponse.json(makeSession('manager'))))
+    server.use(
+      mock.post(`${API}/api/v1/auth/refresh`, () => HttpResponse.json(makeSession('manager'))),
+    )
     const s = createSession()
     await s.start()
     expect(s.getSnapshot().status).toBe('authenticated')
@@ -72,7 +74,9 @@ describe('session', () => {
     server.use(
       mock.post(`${API}/api/v1/auth/login`, () =>
         HttpResponse.json(
-          { error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng' } },
+          {
+            error: { code: 'AUTH_INVALID_CREDENTIALS', message: 'Email hoặc mật khẩu không đúng' },
+          },
           { status: 401 },
         ),
       ),
