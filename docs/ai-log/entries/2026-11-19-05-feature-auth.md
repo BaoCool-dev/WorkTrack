@@ -45,9 +45,11 @@ Làm trọn CF-01 (xác thực và phân quyền) ở chế độ tự chạy: b
 | File `dto.go`, `auth_handler.go` chưa gofmt sau khi sửa bằng sed | Sửa máy móc không chạy formatter | `golangci-lint run` (gofmt) | `gofmt -w` |
 | Gọi `server.listen({ onUnhandledRequest: 'error' })` theo API MSW v2 trong khi dự án dùng MSW 3.0.7 (đã đổi tên thành `onUnhandledFrame`) | AI mặc định API phiên bản cũ, chưa đối chiếu file `.d.ts` của bản cài | `tsc -b --noEmit` báo TS2353 | Đọc `node_modules/msw/lib/_chunks/shared-options.d.ts`, đổi sang `onUnhandledFrame: 'error'` |
 | `useSyncExternalStore(session.subscribe, …)` với phương thức khai báo kiểu method bị `unbound-method` báo; đếm ký tự bằng `[...v]` bị `no-misused-spread` báo | AI viết object literal dạng method và spread chuỗi theo thói quen | `make lint` (eslint) | Đổi sang arrow function; dùng `Array.from(v).length` (đếm code point, khớp `utf8.RuneCountInString` của backend) |
+| Dùng `t.Context()` trong `t.Cleanup` để `DROP SCHEMA` schema tạm của test tích hợp; lỗi bị nuốt (`_, _ =`) | AI không nhớ rằng `t.Context()` bị hủy trước khi Cleanup chạy | Chạy `go test -tags=integration` với `TEST_DATABASE_URL` trên PostgreSQL Homebrew: schema `it_*` còn sót trong CSDL dev | Dùng `context.WithTimeout(context.Background(), 10s)` và báo lỗi bằng `t.Errorf`; test ping cũng dùng chung `testDSN` để chạy được khi không có Docker |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - `golangci-lint run ./...` → 0 issues; `go test ./...` → tất cả gói ok (backend).
 - Smoke test tay trên PostgreSQL + Mailpit Homebrew (B12), API chạy `:18080` với JWT secret sinh tạm: `make migrate-up`, `make seed` (4 tài khoản); đăng nhập admin 200 + cookie `Secure` path `/api/v1/auth`; `/auth/me` 200; `GET /users` trả `{items,page,pageSize,total}`; tạo tài khoản 201 và Mailpit nhận thư "Kích hoạt tài khoản WorkTrack"; refresh 200; member gọi `/users` → 403 `FORBIDDEN`; sai mật khẩu 5 lần → lần 5, 6 trả 423; logout 204; log API không chứa mật khẩu.
 - Frontend: `make lint` (eslint + `tsc -b`) sạch; `make test` → vitest 71/71 ca xanh.
+- Test tích hợp trên máy (B12): `TEST_DATABASE_URL=postgres://…@localhost:5432/worktrack go test -tags=integration ./...` → mọi gói ok (3 test postgres PASS), không còn schema tạm sót lại.

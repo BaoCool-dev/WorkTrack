@@ -3,6 +3,7 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,7 +62,13 @@ func newTestPool(t *testing.T) *pgxpool.Pool {
 		t.Fatalf("create schema: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = admin.Exec(t.Context(), "DROP SCHEMA "+schema+" CASCADE")
+		// t.Context() đã bị hủy trước khi Cleanup chạy → dùng context riêng,
+		// nếu không DROP SCHEMA thất bại im lặng và schema tạm bị bỏ lại.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if _, err := admin.Exec(ctx, "DROP SCHEMA "+schema+" CASCADE"); err != nil {
+			t.Errorf("drop schema %s: %v", schema, err)
+		}
 		admin.Close()
 	})
 
