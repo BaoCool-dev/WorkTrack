@@ -60,8 +60,13 @@ func (s *Service) Login(ctx context.Context, email, password string) (Session, e
 		return Session{}, domain.ErrInvalidCredentials
 	}
 	if !s.hasher.Compare(u.PasswordHash, password) {
-		lockedUntil, err := s.users.RegisterLoginFailure(ctx, u.ID, domain.MaxFailedLogins, now.Add(domain.LoginLockDuration))
-		if err != nil {
+		lockedUntil, err := s.users.RegisterLoginFailure(ctx, u.ID, now, domain.MaxFailedLogins, domain.LoginLockDuration)
+		switch {
+		case errors.Is(err, domain.ErrAccountLocked): // request song song vừa khóa
+			return Session{}, err
+		case errors.Is(err, domain.ErrUserNotFound): // bị xóa giữa chừng: vẫn lỗi chung, không lộ trạng thái
+			return Session{}, domain.ErrInvalidCredentials
+		case err != nil:
 			return Session{}, fmt.Errorf("auth.Login: register failure: %w", err)
 		}
 		if lockedUntil != nil && now.Before(*lockedUntil) {

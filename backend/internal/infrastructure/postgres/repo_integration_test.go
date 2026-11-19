@@ -65,18 +65,31 @@ func TestUserRepo_CreateActivateLogin_CF01(t *testing.T) {
 
 	lock := now.Add(domain.LoginLockDuration)
 	for i := 1; i < domain.MaxFailedLogins; i++ {
-		got, err := repo.RegisterLoginFailure(ctx, id, domain.MaxFailedLogins, lock)
+		got, err := repo.RegisterLoginFailure(ctx, id, now, domain.MaxFailedLogins, domain.LoginLockDuration)
 		if err != nil || got != nil {
 			t.Fatalf("lần sai %d: locked=%v err=%v, want chưa khóa", i, got, err)
 		}
 	}
-	got, err := repo.RegisterLoginFailure(ctx, id, domain.MaxFailedLogins, lock)
+	got, err := repo.RegisterLoginFailure(ctx, id, now, domain.MaxFailedLogins, domain.LoginLockDuration)
 	if err != nil || got == nil || !got.Equal(lock) {
 		t.Fatalf("lần sai thứ 5: locked=%v err=%v", got, err)
 	}
 	u, _ = repo.GetByEmail(ctx, "An.Nguyen@WorkTrack.local")
 	if u.FailedLoginCount != 0 || u.LockedUntil == nil || !u.LockedUntil.Equal(lock) || u.PasswordHash != "bcrypt-hash" {
 		t.Fatalf("sau khi sai: %+v", u)
+	}
+	// Đang khóa: lần sai tiếp theo không cộng dồn, không gia hạn khóa (B8).
+	if _, err := repo.RegisterLoginFailure(ctx, id, now.Add(time.Minute), domain.MaxFailedLogins, domain.LoginLockDuration); !errors.Is(err, domain.ErrAccountLocked) {
+		t.Fatalf("sai khi đang khóa: %v, want ErrAccountLocked", err)
+	}
+	if u, _ = repo.GetByID(ctx, id); u.FailedLoginCount != 0 || !u.LockedUntil.Equal(lock) {
+		t.Fatalf("đang khóa thì không được đổi bộ đếm/hạn khóa: %+v", u)
+	}
+	if _, err := repo.RegisterLoginFailure(ctx, uuid.New(), now, domain.MaxFailedLogins, domain.LoginLockDuration); !errors.Is(err, domain.ErrUserNotFound) {
+		t.Fatalf("user không tồn tại: %v", err)
+	}
+	if _, err := repo.RegisterLoginFailure(ctx, id, now, 0, domain.LoginLockDuration); err == nil {
+		t.Fatal("maxFailures = 0 phải bị từ chối")
 	}
 	if err := repo.RecordLoginSuccess(ctx, id, now); !errors.Is(err, domain.ErrAccountLocked) {
 		t.Fatalf("đang khóa thì không được ghi thành công: %v", err)
@@ -163,28 +176,37 @@ func TestUserRepo_RegisterLoginFailure_Concurrent_CF01_B8(t *testing.T) {
 	}
 
 	lock := now.Add(domain.LoginLockDuration)
+	n := 2 * domain.MaxFailedLogins
 	var wg sync.WaitGroup
-	errs := make(chan error, domain.MaxFailedLogins)
-	for range domain.MaxFailedLogins {
+	errs := make(chan error, n)
+	for range n {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := repo.RegisterLoginFailure(ctx, id, domain.MaxFailedLogins, lock)
+			_, err := repo.RegisterLoginFailure(ctx, id, now, domain.MaxFailedLogins, domain.LoginLockDuration)
 			errs <- err
 		}()
 	}
 	wg.Wait()
 	close(errs)
+	locked := 0
 	for err := range errs {
-		if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrAccountLocked):
+			locked++
+		case err != nil:
 			t.Fatal(err)
 		}
+	}
+	if locked != n-domain.MaxFailedLogins {
+		t.Fatalf("%d request bị từ chối vì đang khóa, want %d", locked, n-domain.MaxFailedLogins)
 	}
 	u, err := repo.GetByID(ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !u.IsLocked(now) {
-		t.Fatalf("%d lần sai song song phải khóa tài khoản: %+v", domain.MaxFailedLogins, u)
+	// Đúng 5 lần được tính: khóa một lần tới lock, bộ đếm về 0, không gia hạn hay cộng dồn.
+	if !u.IsLocked(now) || !u.LockedUntil.Equal(lock) || u.FailedLoginCount != 0 {
+		t.Fatalf("%d lần sai song song: %+v", n, u)
 	}
 }

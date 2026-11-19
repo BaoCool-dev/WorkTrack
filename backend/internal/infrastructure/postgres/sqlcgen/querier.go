@@ -27,6 +27,7 @@ type Querier interface {
 	RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) (int64, error)
 	// B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
 	// Lần sai thứ @max_failures khóa tới @lock_until và đặt lại bộ đếm. Vế phải SET đọc giá trị cũ của hàng.
+	// Đang khóa tại @now → không cập nhật (0 dòng): lần sai trong lúc khóa không cộng dồn, không gia hạn khóa.
 	RegisterLoginFailure(ctx context.Context, arg RegisterLoginFailureParams) (pgtype.Timestamptz, error)
 	RevokeRefreshTokenFamily(ctx context.Context, arg RevokeRefreshTokenFamilyParams) error
 	// Thu hồi nguyên tử: 0 dòng nghĩa là token đã bị dùng (xoay vòng B4).

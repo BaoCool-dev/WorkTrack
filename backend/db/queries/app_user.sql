@@ -54,13 +54,14 @@ WHERE id = @id AND status = 'pending';
 -- name: RegisterLoginFailure :one
 -- B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
 -- Lần sai thứ @max_failures khóa tới @lock_until và đặt lại bộ đếm. Vế phải SET đọc giá trị cũ của hàng.
+-- Đang khóa tại @now → không cập nhật (0 dòng): lần sai trong lúc khóa không cộng dồn, không gia hạn khóa.
 UPDATE app_user
 SET failed_login_count = CASE WHEN failed_login_count + 1 >= @max_failures::int THEN 0
                               ELSE failed_login_count + 1 END,
     locked_until = CASE WHEN failed_login_count + 1 >= @max_failures::int THEN @lock_until::timestamptz
                         ELSE locked_until END,
     updated_at = now()
-WHERE id = @id
+WHERE id = @id AND (locked_until IS NULL OR locked_until <= @now::timestamptz)
 RETURNING locked_until;
 
 -- name: RecordLoginSuccess :execrows

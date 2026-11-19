@@ -390,3 +390,27 @@ func TestLogin_LockedByConcurrentRequest_ReturnsLocked_CF01_B8(t *testing.T) {
 		t.Fatal("không được ghi đăng nhập thành công khi đã bị khóa")
 	}
 }
+
+// Request sai mật khẩu đọc user trước khi một request song song khóa → vẫn báo đang khóa, không cộng dồn (B8).
+func TestLogin_WrongPasswordWhileLockedConcurrently_ReturnsLocked_CF01_B8(t *testing.T) {
+	u := activeUser(domain.RoleMember)
+	e := newEnv(u)
+	until := e.now.Add(domain.LoginLockDuration)
+	e.users.afterGet = func(stored *domain.User) { stored.LockedUntil = &until }
+	if _, err := e.svc.Login(context.Background(), u.Email, "saimatkhau1"); !errors.Is(err, domain.ErrAccountLocked) {
+		t.Fatalf("got %v, want ErrAccountLocked", err)
+	}
+	if got := e.users.byID[u.ID]; got.FailedLoginCount != 0 || !got.LockedUntil.Equal(until) {
+		t.Fatalf("không được cộng dồn/gia hạn khi đang khóa: %+v", got)
+	}
+}
+
+// Tài khoản bị xóa giữa lúc đọc và lúc ghi lần sai → lỗi chung, không lộ 404.
+func TestLogin_UserDeletedDuringWrongPassword_GenericError_CF01(t *testing.T) {
+	u := activeUser(domain.RoleMember)
+	e := newEnv(u)
+	e.users.afterGet = func(stored *domain.User) { delete(e.users.byID, stored.ID) }
+	if _, err := e.svc.Login(context.Background(), u.Email, "saimatkhau1"); !errors.Is(err, domain.ErrInvalidCredentials) {
+		t.Fatalf("got %v, want ErrInvalidCredentials", err)
+	}
+}

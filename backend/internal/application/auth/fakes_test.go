@@ -86,10 +86,17 @@ func (f *fakeUsers) Activate(_ context.Context, id uuid.UUID, h []byte, pw strin
 }
 
 // RegisterLoginFailure mô phỏng câu UPDATE … CASE của Postgres.
-func (f *fakeUsers) RegisterLoginFailure(_ context.Context, id uuid.UUID, maxFailures int, lockUntil time.Time) (*time.Time, error) {
+func (f *fakeUsers) RegisterLoginFailure(_ context.Context, id uuid.UUID, now time.Time, maxFailures int, lockFor time.Duration) (*time.Time, error) {
 	f.failCalls++
-	u := f.byID[id]
+	u, ok := f.byID[id]
+	if !ok {
+		return nil, domain.ErrUserNotFound
+	}
+	if u.IsLocked(now) {
+		return nil, domain.ErrAccountLocked
+	}
 	if u.FailedLoginCount+1 >= maxFailures {
+		lockUntil := now.Add(lockFor)
 		u.FailedLoginCount, u.LockedUntil = 0, &lockUntil
 	} else {
 		u.FailedLoginCount++

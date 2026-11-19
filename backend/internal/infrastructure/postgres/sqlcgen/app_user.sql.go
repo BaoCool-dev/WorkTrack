@@ -298,7 +298,7 @@ SET failed_login_count = CASE WHEN failed_login_count + 1 >= $1::int THEN 0
     locked_until = CASE WHEN failed_login_count + 1 >= $1::int THEN $2::timestamptz
                         ELSE locked_until END,
     updated_at = now()
-WHERE id = $3
+WHERE id = $3 AND (locked_until IS NULL OR locked_until <= $4::timestamptz)
 RETURNING locked_until
 `
 
@@ -306,12 +306,19 @@ type RegisterLoginFailureParams struct {
 	MaxFailures int32              `json:"maxFailures"`
 	LockUntil   pgtype.Timestamptz `json:"lockUntil"`
 	ID          uuid.UUID          `json:"id"`
+	Now         pgtype.Timestamptz `json:"now"`
 }
 
 // B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
 // Lần sai thứ @max_failures khóa tới @lock_until và đặt lại bộ đếm. Vế phải SET đọc giá trị cũ của hàng.
+// Đang khóa tại @now → không cập nhật (0 dòng): lần sai trong lúc khóa không cộng dồn, không gia hạn khóa.
 func (q *Queries) RegisterLoginFailure(ctx context.Context, arg RegisterLoginFailureParams) (pgtype.Timestamptz, error) {
-	row := q.db.QueryRow(ctx, registerLoginFailure, arg.MaxFailures, arg.LockUntil, arg.ID)
+	row := q.db.QueryRow(ctx, registerLoginFailure,
+		arg.MaxFailures,
+		arg.LockUntil,
+		arg.ID,
+		arg.Now,
+	)
 	var locked_until pgtype.Timestamptz
 	err := row.Scan(&locked_until)
 	return locked_until, err

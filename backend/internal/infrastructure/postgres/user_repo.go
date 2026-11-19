@@ -86,13 +86,23 @@ func (r *UserRepo) Activate(ctx context.Context, id uuid.UUID, h []byte, passwor
 }
 
 // RegisterLoginFailure tăng bộ đếm trong một câu UPDATE nên các request song song không ghi đè nhau (B8).
-func (r *UserRepo) RegisterLoginFailure(ctx context.Context, id uuid.UUID, maxFailures int, lockUntil time.Time) (*time.Time, error) {
+// Không có dòng nào được cập nhật: user không còn → ErrUserNotFound, ngược lại đang khóa → ErrAccountLocked.
+func (r *UserRepo) RegisterLoginFailure(ctx context.Context, id uuid.UUID, now time.Time, maxFailures int, lockFor time.Duration) (*time.Time, error) {
+	if maxFailures < 1 || maxFailures > domain.MaxFailedLogins {
+		return nil, fmt.Errorf("postgres.UserRepo.RegisterLoginFailure: maxFailures %d ngoài khoảng 1..%d", maxFailures, domain.MaxFailedLogins)
+	}
 	locked, err := r.q.RegisterLoginFailure(ctx, sqlcgen.RegisterLoginFailureParams{
-		ID: id, MaxFailures: int32(min(maxFailures, domain.MaxFailedLogins)), //nolint:gosec // chặn trên bởi MaxFailedLogins
-		LockUntil: ts(lockUntil),
+		ID: id, MaxFailures: int32(maxFailures), //nolint:gosec // đã kiểm 1..MaxFailedLogins ở trên
+		LockUntil: ts(now.Add(lockFor)), Now: ts(now),
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		if _, getErr := r.q.GetUserByID(ctx, id); errors.Is(getErr, pgx.ErrNoRows) {
+			return nil, domain.ErrUserNotFound
+		}
+		return nil, domain.ErrAccountLocked
+	}
 	if err != nil {
-		return nil, fmt.Errorf("postgres.UserRepo.RegisterLoginFailure: %w", notFound(err))
+		return nil, fmt.Errorf("postgres.UserRepo.RegisterLoginFailure: %w", err)
 	}
 	return timePtr(locked), nil
 }
