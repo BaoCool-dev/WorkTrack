@@ -13,12 +13,15 @@ import (
 type Querier interface {
 	// Chỉ kích hoạt khi token còn đúng (tránh dùng một token hai lần đồng thời).
 	ActivateUser(ctx context.Context, arg ActivateUserParams) (int64, error)
+	CountUsers(ctx context.Context) (int64, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UUID, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (GetRefreshTokenByHashRow, error)
 	GetUserByActivationTokenHash(ctx context.Context, tokenHash []byte) (GetUserByActivationTokenHashRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
+	// B9: phân trang offset; mới tạo trước.
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
 	RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) error
 	RevokeRefreshTokenFamily(ctx context.Context, arg RevokeRefreshTokenFamilyParams) error
 	// Thu hồi nguyên tử: 0 dòng nghĩa là token đã bị dùng (xoay vòng B4).

@@ -23,6 +23,7 @@ Làm trọn CF-01 (xác thực và phân quyền) ở chế độ tự chạy: b
 ## Nội dung AI tạo ra
 <!-- Liệt kê theo file/phần: AI viết gì. Có thể kèm git diff --stat của commit AI. -->
 - **Lát 1 — CSDL + domain:** migration `20261119092421_create_auth_tables.sql` (bảng `role` có sẵn 4 vai trò, `app_user` với ràng buộc trạng thái/mật khẩu, token kích hoạt lưu SHA-256, `refresh_token` theo họ `family_id`); truy vấn sqlc `app_user.sql`, `refresh_token.sql`; override uuid trong `sqlc.yaml`; `domain/user.go` (vai trò, chính sách mật khẩu B8, khóa 15 phút sau 5 lần sai, chuẩn hóa email), `domain/errors.go`, test bảng `user_test.go`.
+- **Lát 2 — application:** `application/authz` (ma trận quyền theo vai trò, CEO kế thừa quyền Admin + xem mọi dự án/Dashboard công ty — B2; `Can/Require/PermissionsOf`), `application/securetoken` (token ngẫu nhiên 32 byte + SHA-256), `application/auth` (port + use case Login/Refresh xoay vòng phát hiện dùng lại → thu hồi cả họ/Logout/Me/InspectActivation/Activate), `domain/page.go`, `domain/refresh_token.go`; truy vấn `ListUsers`/`CountUsers`; test với port giả lập (auth 91,6%, authz 100%).
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -32,6 +33,7 @@ Làm trọn CF-01 (xác thực và phân quyền) ở chế độ tự chạy: b
 ## Lỗi / ảo giác của AI
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
+| Test dùng chuỗi `"hash:matkhau123"` làm PasswordHash bị gosec G101 báo “hardcoded credentials” | AI viết literal trông giống mật khẩu trong test | `golangci-lint run` | Đổi sang hằng `testPassword` + hàm `fakeHash()` |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->

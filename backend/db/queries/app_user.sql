@@ -80,3 +80,14 @@ SET full_name = EXCLUDED.full_name,
     activation_expires_at = NULL,
     updated_at = now()
 RETURNING id;
+
+-- name: ListUsers :many
+-- B9: phân trang offset; mới tạo trước.
+SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at
+FROM app_user u
+JOIN role r ON r.id = u.role_id
+ORDER BY u.created_at DESC, u.id
+LIMIT @page_limit OFFSET @page_offset;
+
+-- name: CountUsers :one
+SELECT count(*) FROM app_user;

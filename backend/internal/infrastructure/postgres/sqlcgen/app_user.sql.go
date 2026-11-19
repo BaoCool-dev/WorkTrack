@@ -39,6 +39,17 @@ func (q *Queries) ActivateUser(ctx context.Context, arg ActivateUserParams) (int
 	return result.RowsAffected(), nil
 }
 
+const countUsers = `-- name: CountUsers :one
+SELECT count(*) FROM app_user
+`
+
+func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO app_user (email, full_name, role_id, activation_token_hash, activation_expires_at, created_by)
 VALUES (
@@ -196,6 +207,58 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at
+FROM app_user u
+JOIN role r ON r.id = u.role_id
+ORDER BY u.created_at DESC, u.id
+LIMIT $2 OFFSET $1
+`
+
+type ListUsersParams struct {
+	PageOffset int32 `json:"pageOffset"`
+	PageLimit  int32 `json:"pageLimit"`
+}
+
+type ListUsersRow struct {
+	ID          uuid.UUID          `json:"id"`
+	Email       string             `json:"email"`
+	FullName    string             `json:"fullName"`
+	RoleCode    string             `json:"roleCode"`
+	Status      string             `json:"status"`
+	LastLoginAt pgtype.Timestamptz `json:"lastLoginAt"`
+	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+}
+
+// B9: phân trang offset; mới tạo trước.
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.PageOffset, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUsersRow{}
+	for rows.Next() {
+		var i ListUsersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.FullName,
+			&i.RoleCode,
+			&i.Status,
+			&i.LastLoginAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const recordLoginSuccess = `-- name: RecordLoginSuccess :exec
