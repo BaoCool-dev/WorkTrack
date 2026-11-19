@@ -26,6 +26,8 @@ const (
 	ViewAllProjects      Permission = "projects.view_all"
 	ViewCompanyDashboard Permission = "dashboard.company.view"
 	ViewTeamDashboard    Permission = "dashboard.team.view"
+	// AssignCEORole: chỉ CEO được tạo tài khoản vai trò CEO (Admin không tự nâng quyền lên CEO).
+	AssignCEORole Permission = "users.assign_ceo"
 )
 
 var adminPerms = []Permission{ManageUsers, ManageOrg}
@@ -34,7 +36,7 @@ var adminPerms = []Permission{ManageUsers, ManageOrg}
 // Admin không tạo dự án; chỉ Manager tạo dự án (CLAUDE.md §5.3).
 var matrix = map[domain.Role][]Permission{
 	domain.RoleAdmin:   adminPerms,
-	domain.RoleCEO:     append(slices.Clone(adminPerms), ViewAllProjects, ViewCompanyDashboard),
+	domain.RoleCEO:     append(slices.Clone(adminPerms), AssignCEORole, ViewAllProjects, ViewCompanyDashboard),
 	domain.RoleManager: {CreateProject, ViewTeamDashboard},
 	domain.RoleMember:  {},
 }

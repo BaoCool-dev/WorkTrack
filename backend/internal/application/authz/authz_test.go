@@ -18,6 +18,7 @@ func TestCan_Matrix_CF01_B2(t *testing.T) {
 		{authz.CreateProject, []domain.Role{domain.RoleManager}},
 		{authz.ViewAllProjects, []domain.Role{domain.RoleCEO}},
 		{authz.ViewCompanyDashboard, []domain.Role{domain.RoleCEO}},
+		{authz.AssignCEORole, []domain.Role{domain.RoleCEO}},
 		{authz.ViewTeamDashboard, []domain.Role{domain.RoleManager}},
 	}
 	for _, tc := range cases {

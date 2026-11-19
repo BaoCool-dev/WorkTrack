@@ -4,6 +4,8 @@ package domain
 const (
 	DefaultPageSize = 20
 	MaxPageSize     = 100
+	// MaxPage giữ offset (MaxPage*MaxPageSize) trong phạm vi int32 của PostgreSQL.
+	MaxPage = 1_000_000
 )
 
 // PageRequest là yêu cầu phân trang đã chuẩn hóa.
@@ -16,6 +18,9 @@ type PageRequest struct {
 func NewPageRequest(page, pageSize int) PageRequest {
 	if page < 1 {
 		page = 1
+	}
+	if page > MaxPage {
+		page = MaxPage
 	}
 	if pageSize < 1 {
 		pageSize = DefaultPageSize

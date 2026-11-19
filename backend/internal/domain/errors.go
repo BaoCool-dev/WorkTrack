@@ -19,4 +19,6 @@ var (
 	ErrActivationTokenInvalid = errors.New("activation token invalid or expired")
 	ErrUserAlreadyActive      = errors.New("user already active")
 	ErrRefreshTokenNotFound   = errors.New("refresh token not found")
+	ErrEmailDeliveryFailed    = errors.New("email delivery failed")
+	ErrInvalidFullName        = errors.New("full name is empty or too long")
 )

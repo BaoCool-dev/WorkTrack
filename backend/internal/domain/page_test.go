@@ -15,6 +15,7 @@ func TestNewPageRequest_Normalize_B9(t *testing.T) {
 		{3, 10, 3, 10, 20},
 		{2, 101, 2, 100, 100},
 		{1, 100, 1, 100, 0},
+		{5_000_000, 100, 1_000_000, 100, 99_999_900},
 	}
 	for _, c := range cases {
 		p := domain.NewPageRequest(c.page, c.size)
