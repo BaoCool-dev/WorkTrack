@@ -20,7 +20,7 @@ trên PostgreSQL local, `TEST_DATABASE_URL` trỏ tới CSDL dev; mỗi lần ch
 | `make cover` (gói cốt lõi domain + application) | ✅ 94,0% |
 | `gitleaks detect --no-banner` | ✅ no leaks found (25 commit) |
 | `python3 scripts/ai-log/ai_log.py check` | ✅ OK (6 entry, 30 lỗi/ảo giác đã ghi); cảnh báo còn lại: mục "Phần tôi đã sửa" chưa điền ở các entry |
-| `docker build`, `make test-integration` (testcontainers) | ⏳ chạy trong CI của PR — xem mục "CI" |
+| `docker build`, `make test-integration` (testcontainers, `-race`) | ✅ pass trong CI (PR #2, run 44596162316) |
 
 ## Bảo mật / Validate / UX
 | Hạng mục | Ca đã kiểm | Kết quả | Test hoặc minh chứng |
@@ -47,6 +47,7 @@ trên PostgreSQL local, `TEST_DATABASE_URL` trỏ tới CSDL dev; mỗi lần ch
 | 3 | Test integration để sót schema tạm; test ping cần Docker mới chạy được | Thấp | 762f62c |
 | 4 | Trang đăng nhập/kích hoạt có `AuthCard` lồng nhau, câu chữ lặp, thiếu favicon (ui-reviewer) | Thấp | 5a04d55 |
 | 5 | Giả định và việc hoãn sau review chưa ghi vào `docs/decisions.md` mục C | Thấp | ceb77a5 |
+| 6 | 7 file frontend chưa định dạng Prettier → CI Frontend đỏ; `make lint` local không chạy `format:check` | Thấp | fb59d71 (định dạng + thêm `format:check` vào `make lint`) |
 
 ## Còn tồn đọng
 - **Người dùng cần làm:**
@@ -68,5 +69,8 @@ trên PostgreSQL local, `TEST_DATABASE_URL` trỏ tới CSDL dev; mỗi lần ch
   - fake `Activate` trong test bỏ qua tham số `now`.
 - **Khoảng trống test:** chưa có E2E Playwright tự động; luồng UI đã đi tay bằng Playwright MCP.
 
-## CI
-Sẽ cập nhật sau khi push và CI của PR chạy xong.
+## CI (PR #2)
+| Lần chạy | Commit | Backend | Frontend | gitleaks | Docker build |
+|---|---|---|---|---|---|
+| 44595719632 | 8c8a06a | ✅ | ❌ `prettier --check`: 7 file | ✅ | ⚪ bỏ qua (phụ thuộc Frontend) |
+| 44596162316 | fb59d71 | ✅ (gồm integration testcontainers `-race`: `ok …/postgres`) | ✅ | ✅ | ✅ |
