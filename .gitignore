@@ -1,0 +1,30 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Claude Code — cấu hình cá nhân
+.claude/settings.local.json
+.claude/claude-security-guidance.local.md
+CLAUDE.local.md
+
+# Go
+backend/bin/
+backend/coverage.out
+*.test
+
+# Node / Vite
+node_modules/
+frontend/dist/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+.idea/
+
+# Nhật ký AI — prompt thô do hook ghi (chỉ ở máy cá nhân)
+.ai-log/
+dist/
