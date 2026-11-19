@@ -17,6 +17,12 @@ services:
       timeout: 3s
       retries: 10
 
+  mailpit:
+    image: axllent/mailpit:v1.34
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # giao diện xem thư (B7)
+
   api:
     build: ./backend
     environment:
@@ -24,11 +30,18 @@ services:
       HTTP_ADDR: ':8080'
       DATABASE_URL: postgres://${POSTGRES_USER:-worktrack}:${POSTGRES_PASSWORD:-worktrack}@postgres:5432/${POSTGRES_DB:-worktrack}?sslmode=disable
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET phải đặt trong .env (tối thiểu 32 byte)}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
+      SMTP_HOST: mailpit
+      SMTP_PORT: '1025'
+      SMTP_FROM: ${SMTP_FROM:-WorkTrack <no-reply@worktrack.local>}
     ports:
       - '8080:8080'
     depends_on:
       postgres:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:8080/readyz']
       interval: 10s

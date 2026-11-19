@@ -12,7 +12,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/account"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/auth"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/email"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/security"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/transport/httpapi"
 )
 
@@ -50,9 +57,14 @@ func run() error {
 	}
 	cancel()
 
+	deps, err := buildDeps(cfg, pool)
+	if err != nil {
+		return err
+	}
+
 	srv := &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           httpapi.NewRouter(httpapi.Deps{DB: pool, CORSOrigin: cfg.CORSOrigin}),
+		Handler:           httpapi.NewRouter(deps),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      35 * time.Second,
@@ -82,4 +94,33 @@ func run() error {
 	}
 	slog.Info("shutdown complete")
 	return nil
+}
+
+// buildDeps lắp adapter hạ tầng vào use case (composition root).
+func buildDeps(cfg config, pool *pgxpool.Pool) (httpapi.Deps, error) {
+	jwt, err := security.NewJWT([]byte(cfg.JWTSecret), cfg.AccessTTL)
+	if err != nil {
+		return httpapi.Deps{}, fmt.Errorf("jwt: %w", err)
+	}
+	mailer, err := email.NewSMTPMailer(email.Config{
+		Host:     cfg.SMTPHost,
+		Port:     cfg.SMTPPort,
+		From:     cfg.SMTPFrom,
+		Username: cfg.SMTPUsername,
+		Password: cfg.SMTPPassword,
+	})
+	if err != nil {
+		return httpapi.Deps{}, fmt.Errorf("mailer: %w", err)
+	}
+
+	users := postgres.NewUserRepo(pool)
+	now := time.Now
+	return httpapi.Deps{
+		DB:         pool,
+		CORSOrigin: cfg.CORSOrigin,
+		Auth:       auth.NewService(users, postgres.NewRefreshTokenRepo(pool), security.NewBcryptHasher(bcrypt.DefaultCost), jwt, now),
+		Accounts:   account.NewService(users, mailer, cfg.AppBaseURL, now, slog.Default()),
+		Tokens:     jwt,
+		Now:        now,
+	}, nil
 }
