@@ -61,3 +61,9 @@ Theo skill `worktrack-domain` (vai trò, công việc cha/con, WIP, Log time, ng
 | 2026-11-19 | chore/scaffold | Thêm biến môi trường `CORS_ORIGIN` (mặc định `http://localhost:5173`, một origin) | FE (5173) gọi API (8080) khác origin; Claude không sửa được `.env.example` → người dùng tự thêm dòng này | |
 | 2026-11-19 | chore/scaffold | `make lint` gọi `npm run typecheck` (`tsc -b`) thay cho `tsc --noEmit` | tsconfig gốc chỉ có `references`, `tsc --noEmit` không kiểm tra file nào | |
 | 2026-11-19 | chore/scaffold | Test tích hợp testcontainers và docker build chỉ chạy trong CI | Máy dev chưa cài Docker | |
+| 2026-11-19 | feature/auth | Giới hạn tần suất bằng token bucket trong bộ nhớ, khóa theo IP lấy từ `RemoteAddr` (không tin `X-Forwarded-For`): đăng nhập/kích hoạt 10 lượt, hồi 1 lượt/6 giây; làm mới 30 lượt, hồi 1 lượt/2 giây; vượt → 429 `RATE_LIMITED` + `Retry-After` | Một tiến trình API, không cần Redis; tránh giả mạo IP qua header | |
+| 2026-11-19 | feature/auth | Kiểm tra token kích hoạt bằng `POST /auth/activation/verify` (token trong body) thay vì GET có query | Không để token lọt vào URL, log truy cập, lịch sử trình duyệt | |
+| 2026-11-19 | feature/auth | Cookie refresh luôn `Secure`, không có cờ tắt cho dev | Chrome/Firefox coi `http://localhost` là ngữ cảnh an toàn; giữ nguyên B4 | |
+| 2026-11-19 | feature/auth | Biến môi trường mới: `JWT_SECRET` (bắt buộc, ≥ 32 byte), `ACCESS_TOKEN_TTL` (mặc định 15m), `APP_BASE_URL`, `SMTP_HOST/PORT/FROM/USERNAME/PASSWORD` (mặc định Mailpit `localhost:1025`) | Claude không sửa được `.env.example`/`.env` → người dùng tự thêm (sinh secret: `openssl rand -hex 32`) | |
+| 2026-11-19 | feature/auth | `make seed` chỉ tạo 4 tài khoản; 2 dự án mẫu của B11 dời sang nhánh feature/projects | Bảng dự án chưa tồn tại ở CF-01 | |
+| 2026-11-19 | feature/auth | Mật khẩu seed sinh ngẫu nhiên mỗi lần chạy (chạy lại = đặt lại mật khẩu) | Không có mật khẩu cố định nào nằm trong repo | |

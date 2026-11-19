@@ -7,16 +7,43 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/authz"
 )
 
 // Deps là các phụ thuộc router cần, inject từ main.
 type Deps struct {
 	DB         Pinger
 	CORSOrigin string
+
+	Auth     AuthService
+	Accounts AccountService
+	Tokens   TokenVerifier
+
+	// Now mặc định time.Now; test truyền đồng hồ giả.
+	Now func() time.Time
+	// LoginLimit / RefreshLimit: giới hạn tần suất theo IP. Bỏ trống → mặc định.
+	LoginLimit   RateLimit
+	RefreshLimit RateLimit
 }
+
+var (
+	defaultLoginLimit   = RateLimit{Burst: 10, Every: 6 * time.Second}
+	defaultRefreshLimit = RateLimit{Burst: 30, Every: 2 * time.Second}
+)
 
 // NewRouter dựng toàn bộ route của API.
 func NewRouter(d Deps) http.Handler {
+	if d.Now == nil {
+		d.Now = time.Now
+	}
+	if d.LoginLimit.Burst == 0 {
+		d.LoginLimit = defaultLoginLimit
+	}
+	if d.RefreshLimit.Burst == 0 {
+		d.RefreshLimit = defaultRefreshLimit
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(requestIDHeader)
@@ -29,8 +56,34 @@ func NewRouter(d Deps) http.Handler {
 	r.Get("/healthz", h.healthz)
 	r.Get("/readyz", h.readyz)
 
-	r.Route("/api/v1", func(_ chi.Router) {
-		// Các route nghiệp vụ được thêm ở các nhánh tính năng.
+	v := newValidator()
+	ah := &authHandler{svc: d.Auth, validate: v, now: d.Now}
+	uh := &userHandler{svc: d.Accounts, validate: v}
+	loginRL := newRateLimiter(d.LoginLimit, d.Now)
+	refreshRL := newRateLimiter(d.RefreshLimit, d.Now)
+
+	r.Route("/api/v1", func(r chi.Router) {
+		// Công khai (có giới hạn tần suất).
+		r.Route("/auth", func(r chi.Router) {
+			r.With(loginRL.middleware).Post("/login", ah.login)
+			r.With(loginRL.middleware).Post("/activation/verify", ah.verifyActivation)
+			r.With(loginRL.middleware).Post("/activation", ah.activate)
+			r.With(refreshRL.middleware).Post("/refresh", ah.refresh)
+			r.Post("/logout", ah.logout)
+		})
+
+		// Cần đăng nhập.
+		r.Group(func(r chi.Router) {
+			r.Use(requireAuth(d.Tokens, d.Now))
+			r.Get("/auth/me", ah.me)
+
+			r.Route("/users", func(r chi.Router) {
+				r.Use(requirePermission(authz.ManageUsers))
+				r.Get("/", uh.list)
+				r.Post("/", uh.create)
+				r.Post("/{userID}/activation-email", uh.resendActivation)
+			})
+		})
 	})
 
 	return r
