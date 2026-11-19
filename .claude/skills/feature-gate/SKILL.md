@@ -7,7 +7,7 @@ description: Cổng kiểm tra cuối một nhánh tính năng WorkTrack trướ
 
 Quy ước dự án: **một tính năng = một nhánh = một PR**. Chưa qua cổng này thì **không** mở PR và **không** tạo nhánh tính năng tiếp theo.
 
-Kết quả là file `docs/gates/<loai>-<ten>.md (vd. `feature/kanban` → `feature-kanban.md`)` (minh chứng cho kiểm thử M27–M32 và vấn đáp), commit cùng nhánh; phần tóm tắt dán vào mô tả PR. Báo cáo **kết quả thật** của lệnh đã chạy — không viết "chắc là pass".
+Kết quả là file `docs/gates/<loai>-<ten>.md` (vd. `feature/kanban` → `feature-kanban.md`) (minh chứng cho kiểm thử M27–M32 và vấn đáp), commit cùng nhánh; phần tóm tắt dán vào mô tả PR. Báo cáo **kết quả thật** của lệnh đã chạy — không viết "chắc là pass".
 
 ## 0. Chuẩn bị
 ```bash
@@ -64,7 +64,7 @@ Chạy app (`make dev`) và đi qua từng luồng theo artboard trong `docs/des
 - [ ] Agent `qa-tester`: mọi acceptance criteria của tính năng có test (ca dương + âm + biên), cập nhật `docs/testing/traceability-matrix.md`.
 - [ ] Mọi commit có AI đều có trailer `AI-Log`; `python3 scripts/ai-log/ai_log.py check` không báo lỗi; mục "Phần tôi đã sửa" đã điền.
 
-## 6. Báo cáo cổng → `docs/gates/<loai>-<ten>.md (vd. `feature/kanban` → `feature-kanban.md`)`
+## 6. Báo cáo cổng → `docs/gates/<loai>-<ten>.md` (vd. `feature/kanban` → `feature-kanban.md`)
 ```markdown
 # Gate: feature/<tên> — <CF-xx, UCxx>
 **Ngày:** YYYY-MM-DD · **Commit cuối:** <hash ngắn> · **Kết luận:** ĐẠT / CHƯA ĐẠT
@@ -91,6 +91,6 @@ Lỗi Critical/Blocker còn tồn → **CHƯA ĐẠT**. Lỗi nhỏ còn tồn �
 
 ## 7. Sau khi ĐẠT
 1. Commit báo cáo: `docs(gate): kết quả kiểm tra feature/<tên> [CF-xx]` (kèm `AI-Log` nếu AI soạn báo cáo).
-2. `git push -u origin <nhánh>` → hỏi người dùng trước khi push.
-3. Mở PR → hỏi người dùng trước: `gh pr create --base main --title "<tiêu đề>" --body-file <file tạm chứa: mục tiêu, mã CF/UC, bảng Tự động + Bảo mật/Validate/UX từ báo cáo gate, lỗi đã sửa>`.
+2. `git push -u origin <nhánh>` → hỏi người dùng trước khi push. Ở **chế độ tự chạy** (`CLAUDE.md` §7c): push luôn, không hỏi.
+3. Mở PR → hỏi người dùng trước (chế độ tự chạy: không hỏi, thêm `--draft`, `--base <nhánh trước>`): `gh pr create --base main --title "<tiêu đề>" --body-file <file tạm chứa: mục tiêu, mã CF/UC, bảng Tự động + Bảo mật/Validate/UX từ báo cáo gate, lỗi đã sửa>`.
 4. **Người dùng** tự review và merge. Sau khi merge: `git switch main && git pull`, rồi mới tạo nhánh tính năng tiếp theo từ `main` mới.

@@ -81,16 +81,11 @@ Trước khi báo "xong" một việc: **`make lint` và `make test` phải xanh
 12. **Không sửa migration đã áp dụng.** Tạo migration mới.
 13. **Toàn bộ chữ hiển thị cho người dùng bằng tiếng Việt**, giữ thuật ngữ quen thuộc (Kanban, Story Point, Log time, Dashboard).
 
-## 6. Việc CHƯA CHỐT — phải hỏi, không được đoán
+## 6. Quyết định đã chốt và mặc định tạm
 
-- Tỷ lệ quy đổi **Story Point ↔ giờ** (BRD có ghi chú 1 SP : 4 giờ nhưng chưa chốt).
-- **Ma trận phân quyền hợp nhất 4 vai trò** (CEO kế thừa quyền Admin tới đâu).
-- Tên gói tầng ứng dụng: mặc định `internal/application`, chờ xác nhận.
-- Ngưỡng giờ **đúng bằng 20%** thuộc mức vàng hay đỏ (tạm: ≥ 20% là đỏ) — xem `docs/design/design-system.md` §10.
-- Mã lỗi hiển thị cho người dùng: thiết kế ghi dạng "WT-5031", API đang dùng mã chữ (`TASK_WIP_LIMIT`). Cần chốt có ánh xạ sang mã số không.
-- JWT (đang tạm chọn): Access 15 phút, Refresh 7 ngày, HS256; Access giữ trong bộ nhớ React, Refresh trong cookie HttpOnly + Secure + SameSite=Strict.
-
-Gặp các điểm này: dừng, hỏi **một lần, kèm 2–3 phương án**, rồi làm theo câu trả lời.
+**`docs/decisions.md` là nguồn sự thật cho mọi lựa chọn.** Đọc file này đầu mỗi phiên.
+- Mục **A (đã chốt)** và **B (mặc định tạm)**: dùng luôn, **không hỏi lại** người dùng.
+- Gặp lựa chọn chưa có trong file: xem §7c.
 
 ## 7. Cách làm việc với Claude trong repo này
 
@@ -120,6 +115,26 @@ Dùng `git add <đường dẫn cụ thể>`; xem `git status` trước khi add.
 - **ĐƯỢC:** giải thích khái niệm và tài liệu thư viện, gợi ý hướng làm bằng lời hoặc mã giả, review code người dùng viết (chỉ ra lỗi + lý do), viết và chạy test, chạy `feature-gate`, trả lời câu hỏi chuẩn bị vấn đáp.
 - Mọi hỗ trợ trên nhánh này vẫn ghi vào nhật ký AI với `type: review` hoặc `type: test`, để minh bạch phần nào người dùng tự làm.
 - Kiểm tra nhánh hiện tại bằng `git branch --show-current` trước khi sửa file.
+
+## 7c. Chế độ tự chạy (người dùng không ngồi trước máy)
+
+Áp dụng khi prompt có cụm **"chế độ tự chạy"** hoặc phiên chạy bằng `scripts/auto-run.sh`.
+
+**Không hỏi người dùng.** Không dùng câu hỏi trắc nghiệm, không chờ xác nhận. Gặp lựa chọn:
+1. Có trong `docs/decisions.md` mục A/B → làm theo.
+2. Không có → chọn phương án **phổ biến nhất, an toàn nhất, ít phụ thuộc nhất**, phù hợp CLAUDE.md; ghi **một dòng** vào `docs/decisions.md` mục C (ngày, nhánh, giả định, lý do) và nhắc lại trong mô tả PR.
+3. Cần thư viện ngoài danh sách mục A → chỉ thêm khi thư viện chuẩn không làm được, giấy phép MIT/Apache-2.0/BSD, được duy trì; ghi vào mục C.
+
+**Được làm không cần hỏi:** sửa file trong repo; chạy build/test/lint; `docker compose up` cho môi trường dev; `make migrate-up` trên CSDL dev; tạo nhánh; commit (kèm nhật ký AI); `git push` **nhánh tính năng của chính phiên đó**; `gh pr create`.
+
+**Tuyệt đối không:** push hoặc merge vào `main`; force-push; `gh pr merge`; xóa dữ liệu hay volume; sửa migration đã commit ở nhánh trước; đổi quyết định mục A; viết code sản phẩm trên nhánh `feature/kanban*`.
+
+**Dừng hẳn và ghi báo cáo** (`docs/gates/<nhanh>.md`, kết luận CHƯA ĐẠT, nêu rõ cần người dùng làm gì) khi:
+- `feature-gate` vẫn đỏ sau 3 lần sửa;
+- việc tiếp theo là `feature/kanban` (người dùng tự code);
+- thiếu thứ chỉ người dùng cấp được (API key Gemini, quyền GitHub…) — trừ khi làm tiếp được bằng giả lập.
+
+**Mỗi nhánh kết thúc bằng:** `feature-gate` ĐẠT → commit báo cáo gate + nhật ký AI → `git push -u origin <nhanh>` → `gh pr create --base <nhánh trước> --draft` với mô tả gồm: mục tiêu, mã CF/UC, tóm tắt gate, các giả định mục C. PR để **draft**; người dùng review, chuyển sang Ready và merge theo thứ tự.
 
 ## 8. Bản đồ skill / agent
 
