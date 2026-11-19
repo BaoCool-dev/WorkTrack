@@ -7,10 +7,18 @@ FRONTEND := frontend
 DATABASE_URL ?= postgres://worktrack:worktrack@localhost:5432/worktrack?sslmode=disable
 CORE_PKGS ?= ./internal/domain/... ./internal/application/...
 
-.PHONY: dev test test-integration lint sqlc migrate-up migrate-down migrate-new cover tools
+.PHONY: dev dev-local seed test test-integration lint sqlc migrate-up migrate-down migrate-new cover tools
 
 dev:
 	docker compose up --build
+
+# Không Docker (B12): API go run + web npm run dev, đọc .env.
+dev-local:
+	./scripts/dev-local.sh
+
+# Dữ liệu mẫu (B11): 1 tài khoản mỗi vai trò, mật khẩu in ra màn hình.
+seed:
+	./scripts/seed.sh
 
 test:
 	cd $(BACKEND) && go test ./...
