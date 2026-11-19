@@ -53,6 +53,12 @@ for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$ONLY" ] && [ "$b" != "$ONLY
 [ "$DRY" = 1 ] && exit 0
 
 # ---- Kiểm tra trước khi chạy ----------------------------------------------------
+# Dùng đăng nhập claude.ai (gói Pro/Max) thay vì API key: ở chế độ -p, ANTHROPIC_API_KEY được ưu tiên
+# nếu có trong môi trường. Đặt USE_API_KEY=1 nếu thật sự muốn tính phí theo API key.
+if [ -z "${USE_API_KEY:-}" ] && { [ -n "${ANTHROPIC_API_KEY:-}" ] || [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; }; then
+  echo "ℹ Bỏ qua ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN trong môi trường — dùng đăng nhập claude.ai."
+  unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+fi
 need() { command -v "$1" >/dev/null || { echo "✗ Thiếu lệnh: $1"; exit 1; }; }
 need claude; need git; need gh; need go; need node; need python3
 if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
