@@ -41,7 +41,8 @@ SET status = 'active',
     failed_login_count = 0,
     locked_until = NULL,
     updated_at = now()
-WHERE id = @id AND activation_token_hash = @token_hash AND status = 'pending';
+WHERE id = @id AND activation_token_hash = @token_hash AND status = 'pending'
+  AND activation_expires_at > @now;
 
 -- name: SetActivationToken :execrows
 UPDATE app_user
@@ -50,20 +51,26 @@ SET activation_token_hash = @token_hash,
     updated_at = now()
 WHERE id = @id AND status = 'pending';
 
--- name: UpdateLoginFailure :exec
+-- name: RegisterLoginFailure :one
+-- B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
+-- Lần sai thứ @max_failures khóa tới @lock_until và đặt lại bộ đếm. Vế phải SET đọc giá trị cũ của hàng.
 UPDATE app_user
-SET failed_login_count = @failed_login_count,
-    locked_until = sqlc.narg(locked_until),
+SET failed_login_count = CASE WHEN failed_login_count + 1 >= @max_failures::int THEN 0
+                              ELSE failed_login_count + 1 END,
+    locked_until = CASE WHEN failed_login_count + 1 >= @max_failures::int THEN @lock_until::timestamptz
+                        ELSE locked_until END,
     updated_at = now()
-WHERE id = @id;
+WHERE id = @id
+RETURNING locked_until;
 
--- name: RecordLoginSuccess :exec
+-- name: RecordLoginSuccess :execrows
+-- Không ghi nếu một request song song vừa khóa tài khoản (0 dòng → coi như đang khóa).
 UPDATE app_user
 SET failed_login_count = 0,
     locked_until = NULL,
     last_login_at = @logged_in_at,
     updated_at = now()
-WHERE id = @id;
+WHERE id = @id AND (locked_until IS NULL OR locked_until <= @logged_in_at);
 
 -- name: UpsertSeedUser :one
 -- Chỉ dùng cho make seed (môi trường dev).

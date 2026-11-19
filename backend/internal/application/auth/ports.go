@@ -18,9 +18,14 @@ type UserStore interface {
 	GetByID(ctx context.Context, id uuid.UUID) (domain.User, error)
 	// GetByActivationTokenHash trả domain.ErrUserNotFound khi không có.
 	GetByActivationTokenHash(ctx context.Context, tokenHash []byte) (domain.User, error)
-	// Activate đặt mật khẩu và chuyển sang active nếu token còn khớp; ngược lại domain.ErrActivationTokenInvalid.
-	Activate(ctx context.Context, id uuid.UUID, tokenHash []byte, passwordHash string) error
-	UpdateLoginFailure(ctx context.Context, id uuid.UUID, count int, lockedUntil *time.Time) error
+	// Activate đặt mật khẩu và chuyển sang active nếu token còn khớp và còn hạn tại now;
+	// ngược lại domain.ErrActivationTokenInvalid.
+	Activate(ctx context.Context, id uuid.UUID, tokenHash []byte, passwordHash string, now time.Time) error
+	// RegisterLoginFailure tăng bộ đếm sai mật khẩu nguyên tử; lần thứ maxFailures khóa tới lockUntil
+	// và đặt lại bộ đếm. Trả locked_until sau cập nhật (nil nếu chưa từng khóa).
+	RegisterLoginFailure(ctx context.Context, id uuid.UUID, maxFailures int, lockUntil time.Time) (*time.Time, error)
+	// RecordLoginSuccess đặt lại bộ đếm; trả domain.ErrAccountLocked nếu tài khoản đang bị khóa tại at
+	// (một request song song vừa khóa).
 	RecordLoginSuccess(ctx context.Context, id uuid.UUID, at time.Time) error
 }
 

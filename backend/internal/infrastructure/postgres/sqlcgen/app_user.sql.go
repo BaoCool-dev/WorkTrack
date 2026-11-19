@@ -22,17 +22,24 @@ SET status = 'active',
     locked_until = NULL,
     updated_at = now()
 WHERE id = $2 AND activation_token_hash = $3 AND status = 'pending'
+  AND activation_expires_at > $4
 `
 
 type ActivateUserParams struct {
-	PasswordHash pgtype.Text `json:"passwordHash"`
-	ID           uuid.UUID   `json:"id"`
-	TokenHash    []byte      `json:"tokenHash"`
+	PasswordHash pgtype.Text        `json:"passwordHash"`
+	ID           uuid.UUID          `json:"id"`
+	TokenHash    []byte             `json:"tokenHash"`
+	Now          pgtype.Timestamptz `json:"now"`
 }
 
 // Chỉ kích hoạt khi token còn đúng (tránh dùng một token hai lần đồng thời).
 func (q *Queries) ActivateUser(ctx context.Context, arg ActivateUserParams) (int64, error) {
-	result, err := q.db.Exec(ctx, activateUser, arg.PasswordHash, arg.ID, arg.TokenHash)
+	result, err := q.db.Exec(ctx, activateUser,
+		arg.PasswordHash,
+		arg.ID,
+		arg.TokenHash,
+		arg.Now,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -261,13 +268,13 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 	return items, nil
 }
 
-const recordLoginSuccess = `-- name: RecordLoginSuccess :exec
+const recordLoginSuccess = `-- name: RecordLoginSuccess :execrows
 UPDATE app_user
 SET failed_login_count = 0,
     locked_until = NULL,
     last_login_at = $1,
     updated_at = now()
-WHERE id = $2
+WHERE id = $2 AND (locked_until IS NULL OR locked_until <= $1)
 `
 
 type RecordLoginSuccessParams struct {
@@ -275,9 +282,39 @@ type RecordLoginSuccessParams struct {
 	ID         uuid.UUID          `json:"id"`
 }
 
-func (q *Queries) RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) error {
-	_, err := q.db.Exec(ctx, recordLoginSuccess, arg.LoggedInAt, arg.ID)
-	return err
+// Không ghi nếu một request song song vừa khóa tài khoản (0 dòng → coi như đang khóa).
+func (q *Queries) RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordLoginSuccess, arg.LoggedInAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const registerLoginFailure = `-- name: RegisterLoginFailure :one
+UPDATE app_user
+SET failed_login_count = CASE WHEN failed_login_count + 1 >= $1::int THEN 0
+                              ELSE failed_login_count + 1 END,
+    locked_until = CASE WHEN failed_login_count + 1 >= $1::int THEN $2::timestamptz
+                        ELSE locked_until END,
+    updated_at = now()
+WHERE id = $3
+RETURNING locked_until
+`
+
+type RegisterLoginFailureParams struct {
+	MaxFailures int32              `json:"maxFailures"`
+	LockUntil   pgtype.Timestamptz `json:"lockUntil"`
+	ID          uuid.UUID          `json:"id"`
+}
+
+// B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
+// Lần sai thứ @max_failures khóa tới @lock_until và đặt lại bộ đếm. Vế phải SET đọc giá trị cũ của hàng.
+func (q *Queries) RegisterLoginFailure(ctx context.Context, arg RegisterLoginFailureParams) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, registerLoginFailure, arg.MaxFailures, arg.LockUntil, arg.ID)
+	var locked_until pgtype.Timestamptz
+	err := row.Scan(&locked_until)
+	return locked_until, err
 }
 
 const setActivationToken = `-- name: SetActivationToken :execrows
@@ -300,25 +337,6 @@ func (q *Queries) SetActivationToken(ctx context.Context, arg SetActivationToken
 		return 0, err
 	}
 	return result.RowsAffected(), nil
-}
-
-const updateLoginFailure = `-- name: UpdateLoginFailure :exec
-UPDATE app_user
-SET failed_login_count = $1,
-    locked_until = $2,
-    updated_at = now()
-WHERE id = $3
-`
-
-type UpdateLoginFailureParams struct {
-	FailedLoginCount int32              `json:"failedLoginCount"`
-	LockedUntil      pgtype.Timestamptz `json:"lockedUntil"`
-	ID               uuid.UUID          `json:"id"`
-}
-
-func (q *Queries) UpdateLoginFailure(ctx context.Context, arg UpdateLoginFailureParams) error {
-	_, err := q.db.Exec(ctx, updateLoginFailure, arg.FailedLoginCount, arg.LockedUntil, arg.ID)
-	return err
 }
 
 const upsertSeedUser = `-- name: UpsertSeedUser :one

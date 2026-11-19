@@ -45,7 +45,7 @@ func notFound(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.ErrUserNotFound
 	}
-	return err
+	return fmt.Errorf("postgres.UserRepo: %w", err)
 }
 
 func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (domain.User, error) {
@@ -72,12 +72,12 @@ func (r *UserRepo) GetByActivationTokenHash(ctx context.Context, h []byte) (doma
 	return toUser(sqlcgen.GetUserByIDRow(row)), nil
 }
 
-func (r *UserRepo) Activate(ctx context.Context, id uuid.UUID, h []byte, passwordHash string) error {
+func (r *UserRepo) Activate(ctx context.Context, id uuid.UUID, h []byte, passwordHash string, now time.Time) error {
 	n, err := r.q.ActivateUser(ctx, sqlcgen.ActivateUserParams{
-		ID: id, TokenHash: h, PasswordHash: pgtype.Text{String: passwordHash, Valid: true},
+		ID: id, TokenHash: h, PasswordHash: pgtype.Text{String: passwordHash, Valid: true}, Now: ts(now),
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("postgres.UserRepo.Activate: %w", err)
 	}
 	if n == 0 {
 		return domain.ErrActivationTokenInvalid
@@ -85,15 +85,28 @@ func (r *UserRepo) Activate(ctx context.Context, id uuid.UUID, h []byte, passwor
 	return nil
 }
 
-func (r *UserRepo) UpdateLoginFailure(ctx context.Context, id uuid.UUID, count int, lockedUntil *time.Time) error {
-	return r.q.UpdateLoginFailure(ctx, sqlcgen.UpdateLoginFailureParams{
-		ID: id, FailedLoginCount: int32(min(count, domain.MaxFailedLogins)), //nolint:gosec // đã chặn trên bởi MaxFailedLogins
-		LockedUntil: tsPtr(lockedUntil),
+// RegisterLoginFailure tăng bộ đếm trong một câu UPDATE nên các request song song không ghi đè nhau (B8).
+func (r *UserRepo) RegisterLoginFailure(ctx context.Context, id uuid.UUID, maxFailures int, lockUntil time.Time) (*time.Time, error) {
+	locked, err := r.q.RegisterLoginFailure(ctx, sqlcgen.RegisterLoginFailureParams{
+		ID: id, MaxFailures: int32(min(maxFailures, domain.MaxFailedLogins)), //nolint:gosec // chặn trên bởi MaxFailedLogins
+		LockUntil: ts(lockUntil),
 	})
+	if err != nil {
+		return nil, fmt.Errorf("postgres.UserRepo.RegisterLoginFailure: %w", notFound(err))
+	}
+	return timePtr(locked), nil
 }
 
+// RecordLoginSuccess không cập nhật nếu một request song song vừa khóa tài khoản.
 func (r *UserRepo) RecordLoginSuccess(ctx context.Context, id uuid.UUID, at time.Time) error {
-	return r.q.RecordLoginSuccess(ctx, sqlcgen.RecordLoginSuccessParams{ID: id, LoggedInAt: ts(at)})
+	n, err := r.q.RecordLoginSuccess(ctx, sqlcgen.RecordLoginSuccessParams{ID: id, LoggedInAt: ts(at)})
+	if err != nil {
+		return fmt.Errorf("postgres.UserRepo.RecordLoginSuccess: %w", err)
+	}
+	if n == 0 {
+		return domain.ErrAccountLocked
+	}
+	return nil
 }
 
 func (r *UserRepo) Create(ctx context.Context, u account.NewUser) (uuid.UUID, error) {
@@ -105,19 +118,22 @@ func (r *UserRepo) Create(ctx context.Context, u account.NewUser) (uuid.UUID, er
 	if isUniqueViolation(err) {
 		return uuid.Nil, domain.ErrEmailTaken
 	}
-	return id, err
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("postgres.UserRepo.Create: %w", err)
+	}
+	return id, nil
 }
 
 func (r *UserRepo) List(ctx context.Context, p domain.PageRequest) ([]domain.User, int, error) {
 	total, err := r.q.CountUsers(ctx)
 	if err != nil {
-		return nil, 0, fmt.Errorf("count users: %w", err)
+		return nil, 0, fmt.Errorf("postgres.UserRepo.List: count: %w", err)
 	}
 	rows, err := r.q.ListUsers(ctx, sqlcgen.ListUsersParams{
 		PageLimit: int32(p.PageSize), PageOffset: int32(p.Offset()), //nolint:gosec // PageSize ≤ MaxPageSize; offset giới hạn bởi NewPageRequest
 	})
 	if err != nil {
-		return nil, 0, fmt.Errorf("list users: %w", err)
+		return nil, 0, fmt.Errorf("postgres.UserRepo.List: %w", err)
 	}
 	out := make([]domain.User, 0, len(rows))
 	for _, x := range rows {
@@ -133,7 +149,7 @@ func (r *UserRepo) List(ctx context.Context, p domain.PageRequest) ([]domain.Use
 func (r *UserRepo) SetActivationToken(ctx context.Context, id uuid.UUID, h []byte, exp time.Time) error {
 	n, err := r.q.SetActivationToken(ctx, sqlcgen.SetActivationTokenParams{ID: id, TokenHash: h, ExpiresAt: ts(exp)})
 	if err != nil {
-		return err
+		return fmt.Errorf("postgres.UserRepo.SetActivationToken: %w", err)
 	}
 	if n == 0 {
 		return domain.ErrUserAlreadyActive

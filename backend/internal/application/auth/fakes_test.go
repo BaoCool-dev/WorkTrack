@@ -22,6 +22,7 @@ type fakeUsers struct {
 	failCalls  int
 	successAt  *time.Time
 	activateFn func() error
+	afterGet   func(stored *domain.User) // chạy sau khi trả bản sao, giả lập request song song
 }
 
 func newFakeUsers(us ...domain.User) *fakeUsers {
@@ -39,7 +40,11 @@ func (f *fakeUsers) GetByEmail(_ context.Context, email string) (domain.User, er
 	}
 	for _, u := range f.byID {
 		if strings.EqualFold(u.Email, email) {
-			return *u, nil
+			out := *u
+			if f.afterGet != nil {
+				f.afterGet(u)
+			}
+			return out, nil
 		}
 	}
 	return domain.User{}, domain.ErrUserNotFound
@@ -67,7 +72,7 @@ func (f *fakeUsers) GetByActivationTokenHash(_ context.Context, h []byte) (domai
 	return domain.User{}, domain.ErrUserNotFound
 }
 
-func (f *fakeUsers) Activate(_ context.Context, id uuid.UUID, h []byte, pw string) error {
+func (f *fakeUsers) Activate(_ context.Context, id uuid.UUID, h []byte, pw string, _ time.Time) error {
 	if f.activateFn != nil {
 		return f.activateFn()
 	}
@@ -80,16 +85,24 @@ func (f *fakeUsers) Activate(_ context.Context, id uuid.UUID, h []byte, pw strin
 	return nil
 }
 
-func (f *fakeUsers) UpdateLoginFailure(_ context.Context, id uuid.UUID, count int, lockedUntil *time.Time) error {
+// RegisterLoginFailure mô phỏng câu UPDATE … CASE của Postgres.
+func (f *fakeUsers) RegisterLoginFailure(_ context.Context, id uuid.UUID, maxFailures int, lockUntil time.Time) (*time.Time, error) {
 	f.failCalls++
 	u := f.byID[id]
-	u.FailedLoginCount, u.LockedUntil = count, lockedUntil
-	return nil
+	if u.FailedLoginCount+1 >= maxFailures {
+		u.FailedLoginCount, u.LockedUntil = 0, &lockUntil
+	} else {
+		u.FailedLoginCount++
+	}
+	return u.LockedUntil, nil
 }
 
 func (f *fakeUsers) RecordLoginSuccess(_ context.Context, id uuid.UUID, at time.Time) error {
-	f.successAt = &at
 	u := f.byID[id]
+	if u.IsLocked(at) {
+		return domain.ErrAccountLocked
+	}
+	f.successAt = &at
 	u.FailedLoginCount, u.LockedUntil = 0, nil
 	return nil
 }
@@ -156,11 +169,15 @@ func (f *fakeTokens) activeCount() int {
 	return n
 }
 
-type fakeHasher struct{ compares int }
+type fakeHasher struct {
+	compares int
+	lastHash string
+}
 
 func (h *fakeHasher) Hash(pw string) (string, error) { return fakeHash(pw), nil }
 func (h *fakeHasher) Compare(hash, pw string) bool {
 	h.compares++
+	h.lastHash = hash
 	return hash == fakeHash(pw)
 }
 

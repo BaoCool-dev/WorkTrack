@@ -18,13 +18,6 @@ func isUniqueViolation(err error) bool {
 
 func ts(t time.Time) pgtype.Timestamptz { return pgtype.Timestamptz{Time: t, Valid: true} }
 
-func tsPtr(t *time.Time) pgtype.Timestamptz {
-	if t == nil {
-		return pgtype.Timestamptz{}
-	}
-	return ts(*t)
-}
-
 func timePtr(v pgtype.Timestamptz) *time.Time {
 	if !v.Valid {
 		return nil

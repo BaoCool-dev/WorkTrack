@@ -51,6 +51,7 @@ func (s *Service) Login(ctx context.Context, email, password string) (Session, e
 		return Session{}, fmt.Errorf("auth.Login: get user: %w", err)
 	}
 	if u.IsLocked(now) {
+		s.hasher.Compare(s.dummyHash, password) // giữ thời gian phản hồi ngang các nhánh khác
 		return Session{}, domain.ErrAccountLocked
 	}
 	if u.PasswordHash == "" {
@@ -59,11 +60,11 @@ func (s *Service) Login(ctx context.Context, email, password string) (Session, e
 		return Session{}, domain.ErrInvalidCredentials
 	}
 	if !s.hasher.Compare(u.PasswordHash, password) {
-		count, lockedUntil := domain.NextLoginFailure(u.FailedLoginCount, now)
-		if err := s.users.UpdateLoginFailure(ctx, u.ID, count, lockedUntil); err != nil {
-			return Session{}, fmt.Errorf("auth.Login: update failure: %w", err)
+		lockedUntil, err := s.users.RegisterLoginFailure(ctx, u.ID, domain.MaxFailedLogins, now.Add(domain.LoginLockDuration))
+		if err != nil {
+			return Session{}, fmt.Errorf("auth.Login: register failure: %w", err)
 		}
-		if lockedUntil != nil {
+		if lockedUntil != nil && now.Before(*lockedUntil) {
 			return Session{}, domain.ErrAccountLocked
 		}
 		return Session{}, domain.ErrInvalidCredentials
@@ -72,6 +73,9 @@ func (s *Service) Login(ctx context.Context, email, password string) (Session, e
 		return Session{}, err
 	}
 	if err := s.users.RecordLoginSuccess(ctx, u.ID, now); err != nil {
+		if errors.Is(err, domain.ErrAccountLocked) {
+			return Session{}, err
+		}
 		return Session{}, fmt.Errorf("auth.Login: record success: %w", err)
 	}
 	u.FailedLoginCount, u.LockedUntil, u.LastLoginAt = 0, nil, &now
@@ -182,7 +186,7 @@ func (s *Service) Activate(ctx context.Context, raw, password string) error {
 	if err != nil {
 		return fmt.Errorf("auth.Activate: hash: %w", err)
 	}
-	if err := s.users.Activate(ctx, u.ID, securetoken.Hash(raw), hash); err != nil {
+	if err := s.users.Activate(ctx, u.ID, securetoken.Hash(raw), hash, s.now().UTC()); err != nil {
 		if errors.Is(err, domain.ErrActivationTokenInvalid) {
 			return err
 		}

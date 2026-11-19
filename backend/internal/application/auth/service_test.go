@@ -86,13 +86,14 @@ func TestLogin_WrongPassword_FiveTimesLocks_CF01_B8(t *testing.T) {
 	if _, err := e.svc.Login(ctx, u.Email, "sai-mat-khau1"); !errors.Is(err, domain.ErrAccountLocked) {
 		t.Fatalf("lần 5 phải khóa: %v", err)
 	}
-	// Đang khóa: mật khẩu đúng vẫn bị chặn, không so khớp mật khẩu.
+	// Đang khóa: mật khẩu đúng vẫn bị chặn; chỉ so với hash giả (giữ thời gian phản hồi),
+	// không so với hash thật nên không lộ mật khẩu đúng/sai khi đang khóa.
 	before := e.hasher.compares
 	if _, err := e.svc.Login(ctx, u.Email, "matkhau123"); !errors.Is(err, domain.ErrAccountLocked) {
 		t.Fatalf("đang khóa: %v", err)
 	}
-	if e.hasher.compares != before {
-		t.Fatal("không so khớp khi đang khóa")
+	if e.hasher.compares != before+1 || e.hasher.lastHash == u.PasswordHash {
+		t.Fatalf("đang khóa phải so với hash giả, không so với hash thật (compares %d→%d)", before, e.hasher.compares)
 	}
 	// Sau 15 phút: đăng nhập lại được.
 	*e.now = t0.Add(15 * time.Minute)
@@ -373,5 +374,19 @@ func TestActivate_StoreErrors(t *testing.T) {
 	e.users.err = errBoom
 	if _, err := e.svc.InspectActivation(context.Background(), raw); !errors.Is(err, errBoom) {
 		t.Fatalf("inspect: %v", err)
+	}
+}
+
+// Một request song song vừa khóa tài khoản giữa lúc đọc và lúc ghi thành công → vẫn trả bị khóa (B8).
+func TestLogin_LockedByConcurrentRequest_ReturnsLocked_CF01_B8(t *testing.T) {
+	u := activeUser(domain.RoleMember)
+	e := newEnv(u)
+	until := e.now.Add(domain.LoginLockDuration)
+	e.users.afterGet = func(stored *domain.User) { stored.LockedUntil = &until }
+	if _, err := e.svc.Login(context.Background(), u.Email, "matkhau123"); !errors.Is(err, domain.ErrAccountLocked) {
+		t.Fatalf("got %v, want ErrAccountLocked", err)
+	}
+	if e.users.successAt != nil {
+		t.Fatal("không được ghi đăng nhập thành công khi đã bị khóa")
 	}
 }

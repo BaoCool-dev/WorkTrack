@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -22,12 +23,15 @@ type Querier interface {
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	// B9: phân trang offset; mới tạo trước.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
-	RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) error
+	// Không ghi nếu một request song song vừa khóa tài khoản (0 dòng → coi như đang khóa).
+	RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) (int64, error)
+	// B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
+	// Lần sai thứ @max_failures khóa tới @lock_until và đặt lại bộ đếm. Vế phải SET đọc giá trị cũ của hàng.
+	RegisterLoginFailure(ctx context.Context, arg RegisterLoginFailureParams) (pgtype.Timestamptz, error)
 	RevokeRefreshTokenFamily(ctx context.Context, arg RevokeRefreshTokenFamilyParams) error
 	// Thu hồi nguyên tử: 0 dòng nghĩa là token đã bị dùng (xoay vòng B4).
 	RevokeRefreshTokenIfActive(ctx context.Context, arg RevokeRefreshTokenIfActiveParams) (int64, error)
 	SetActivationToken(ctx context.Context, arg SetActivationTokenParams) (int64, error)
-	UpdateLoginFailure(ctx context.Context, arg UpdateLoginFailureParams) error
 	// Chỉ dùng cho make seed (môi trường dev).
 	UpsertSeedUser(ctx context.Context, arg UpsertSeedUserParams) (uuid.UUID, error)
 }

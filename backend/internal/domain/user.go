@@ -100,17 +100,6 @@ func (u User) CheckCanLogin() error {
 	}
 }
 
-// NextLoginFailure tính trạng thái sau một lần sai mật khẩu. Lần sai thứ MaxFailedLogins liên tiếp
-// khóa tài khoản LoginLockDuration và đặt lại bộ đếm (B8).
-func NextLoginFailure(count int, now time.Time) (int, *time.Time) {
-	count++
-	if count >= MaxFailedLogins {
-		until := now.Add(LoginLockDuration)
-		return 0, &until
-	}
-	return count, nil
-}
-
 func NormalizeEmail(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }

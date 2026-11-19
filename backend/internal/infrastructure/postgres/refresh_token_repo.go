@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,10 +25,13 @@ func NewRefreshTokenRepo(db sqlcgen.DBTX) *RefreshTokenRepo {
 }
 
 func (r *RefreshTokenRepo) Insert(ctx context.Context, t domain.RefreshToken) error {
-	return r.q.InsertRefreshToken(ctx, sqlcgen.InsertRefreshTokenParams{
+	if err := r.q.InsertRefreshToken(ctx, sqlcgen.InsertRefreshTokenParams{
 		ID: t.ID, UserID: t.UserID, FamilyID: t.FamilyID, TokenHash: t.TokenHash,
 		ExpiresAt: ts(t.ExpiresAt), CreatedAt: ts(t.CreatedAt),
-	})
+	}); err != nil {
+		return fmt.Errorf("postgres.RefreshTokenRepo.Insert: %w", err)
+	}
+	return nil
 }
 
 func (r *RefreshTokenRepo) GetByHash(ctx context.Context, h []byte) (domain.RefreshToken, error) {
@@ -36,7 +40,7 @@ func (r *RefreshTokenRepo) GetByHash(ctx context.Context, h []byte) (domain.Refr
 		return domain.RefreshToken{}, domain.ErrRefreshTokenNotFound
 	}
 	if err != nil {
-		return domain.RefreshToken{}, err
+		return domain.RefreshToken{}, fmt.Errorf("postgres.RefreshTokenRepo.GetByHash: %w", err)
 	}
 	return domain.RefreshToken{
 		ID: row.ID, UserID: row.UserID, FamilyID: row.FamilyID, TokenHash: h,
@@ -46,9 +50,15 @@ func (r *RefreshTokenRepo) GetByHash(ctx context.Context, h []byte) (domain.Refr
 
 func (r *RefreshTokenRepo) RevokeIfActive(ctx context.Context, id uuid.UUID, at time.Time) (bool, error) {
 	n, err := r.q.RevokeRefreshTokenIfActive(ctx, sqlcgen.RevokeRefreshTokenIfActiveParams{ID: id, RevokedAt: ts(at)})
-	return n == 1, err
+	if err != nil {
+		return false, fmt.Errorf("postgres.RefreshTokenRepo.RevokeIfActive: %w", err)
+	}
+	return n == 1, nil
 }
 
 func (r *RefreshTokenRepo) RevokeFamily(ctx context.Context, familyID uuid.UUID, at time.Time) error {
-	return r.q.RevokeRefreshTokenFamily(ctx, sqlcgen.RevokeRefreshTokenFamilyParams{FamilyID: familyID, RevokedAt: ts(at)})
+	if err := r.q.RevokeRefreshTokenFamily(ctx, sqlcgen.RevokeRefreshTokenFamilyParams{FamilyID: familyID, RevokedAt: ts(at)}); err != nil {
+		return fmt.Errorf("postgres.RefreshTokenRepo.RevokeFamily: %w", err)
+	}
+	return nil
 }

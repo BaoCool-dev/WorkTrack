@@ -69,25 +69,6 @@ func TestUserIsLocked_CF01_B8(t *testing.T) {
 	}
 }
 
-func TestNextLoginFailure_LocksAfterFiveConsecutive_CF01_B8(t *testing.T) {
-	now := time.Date(2026, 11, 19, 10, 0, 0, 0, time.UTC)
-	count := 0
-	var lockedUntil *time.Time
-	for i := 1; i <= 4; i++ {
-		count, lockedUntil = domain.NextLoginFailure(count, now)
-		if count != i || lockedUntil != nil {
-			t.Fatalf("lần sai %d: count=%d locked=%v, want %d và chưa khóa", i, count, lockedUntil, i)
-		}
-	}
-	count, lockedUntil = domain.NextLoginFailure(count, now)
-	if lockedUntil == nil || !lockedUntil.Equal(now.Add(15*time.Minute)) {
-		t.Fatalf("lần sai 5: locked=%v, want %v", lockedUntil, now.Add(15*time.Minute))
-	}
-	if count != 0 {
-		t.Fatalf("lần sai 5: count=%d, want reset về 0 để tính lại sau khi hết khóa", count)
-	}
-}
-
 func TestUserCanLogin_Status_CF01(t *testing.T) {
 	tests := []struct {
 		status domain.UserStatus
