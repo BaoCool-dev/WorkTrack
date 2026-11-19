@@ -15,7 +15,7 @@ trang tạm hiển thị `/healthz`), `docker-compose.yml`, CI GitHub Actions. K
 | Coverage `internal/transport/httpapi` | ✅ 86,7% |
 | `make cover` (gói cốt lõi domain/application) | ⚪ 0,0% — N/A: hai gói chưa có code ở nhánh scaffold |
 | `gitleaks detect --no-banner` | ✅ no leaks found |
-| `python3 scripts/ai-log/ai_log.py check` | ✅ OK (cảnh báo ở 3 entry cũ, không thuộc nhánh này) |
+| `python3 scripts/ai-log/ai_log.py check` | ⚠️ commit scaffold OK; 2 commit sau (`eb87fb2`, `492046e`) báo thiếu trailer AI-Log — xem "Còn tồn đọng" |
 | `make test-integration` (testcontainers `/readyz` ↔ PostgreSQL thật) | ✅ pass trong CI (job Backend, PR #1); chưa chạy local (máy chưa có Docker) |
 | `docker build` (api + web) | ✅ pass trong CI (job Docker build, PR #1) · `make dev` chưa chạy local (máy chưa có Docker) |
 
@@ -48,4 +48,5 @@ CI trên PR #1 (run 44492683481): Backend ✅ · Frontend ✅ · gitleaks ✅ ·
 - `make sqlc` báo "no queries" vì `db/queries/` còn trống — bình thường cho tới `feature/auth`.
 - `make cover` 0% vì domain/application chưa có code — ngưỡng 70% áp dụng từ `feature/auth`.
 - Nhật ký AI: entry 02, 03 và 04 (scaffold) chưa điền "Phần tôi đã sửa / hoàn thiện" → người dùng review rồi commit riêng với trailer `Human-Edit: yes` (mẫu hai commit).
+- Commit `eb87fb2` và `492046e` có dòng `AI-Log` nằm ngoài khối trailer (dòng trống trước `Co-Authored-By`) → `ai_log.py check` báo ✗. Claude không được force-push; người dùng chọn: (a) reword hai commit rồi force-push nhánh này trước khi merge, hoặc (b) chấp nhận — nội dung `AI-Log` vẫn có trong message và entry 04 đã ghi lỗi. Đề xuất thêm: hook `commit-msg` kiểm tra bằng `git interpret-trailers --parse` thay vì grep.
 - Giả định Claude tự chọn: `docs/decisions.md` mục C (5 dòng, nhánh chore/scaffold) → người dùng duyệt khi review PR.
