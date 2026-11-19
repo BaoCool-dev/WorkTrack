@@ -9,6 +9,7 @@
 #   ./scripts/auto-run.sh --from feature/auth  # bỏ qua các nhánh trước (đã xong), chạy tiếp từ nhánh này
 #   ./scripts/auto-run.sh --base <nhánh>       # đổi nhánh gốc (mặc định: main ở giai đoạn 1, feature/kanban ở giai đoạn 2)
 #
+# Chế độ quyền mặc định: auto (đặt PERMISSION_MODE=acceptEdits để chặt hơn). Nếu bản Claude Code chưa hỗ trợ "auto" ở chế độ -p, đặt PERMISSION_MODE=acceptEdits.
 # Log từng nhánh: .ai-log/runs/<nhanh>.jsonl (không commit). Mac được giữ thức trong lúc chạy.
 set -uo pipefail
 
@@ -53,8 +54,14 @@ for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$ONLY" ] && [ "$b" != "$ONLY
 
 # ---- Kiểm tra trước khi chạy ----------------------------------------------------
 need() { command -v "$1" >/dev/null || { echo "✗ Thiếu lệnh: $1"; exit 1; }; }
-need claude; need git; need gh; need go; need node; need docker; need python3
-docker info >/dev/null 2>&1 || { echo "✗ Docker chưa chạy — mở Docker Desktop."; exit 1; }
+need claude; need git; need gh; need go; need node; need python3
+if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+  ENV_NOTE="Máy có Docker: chạy được make dev và make test-integration ở máy."
+else
+  echo "⚠ Không có Docker — dùng PostgreSQL/Mailpit cài bằng Homebrew (docs/decisions.md B12)."
+  ENV_NOTE="Máy KHÔNG có Docker (docs/decisions.md B12): dùng PostgreSQL và Mailpit cài bằng Homebrew theo .env; chạy app bằng make dev-local; test tích hợp và docker build chỉ chạy trong CI — sau khi push, kiểm tra CI bằng gh pr checks / gh run view và ghi kết quả vào báo cáo gate."
+  pg_isready -h localhost -p 5432 >/dev/null 2>&1 || echo "⚠ PostgreSQL ở localhost:5432 chưa sẵn sàng — brew services start postgresql@16"
+fi
 gh auth status >/dev/null 2>&1 || { echo "✗ Chưa đăng nhập gh — chạy: gh auth login"; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "✗ Có thay đổi chưa commit. Commit hoặc stash trước."; git status --short; exit 1; }
 [ "$(git config core.hooksPath)" = ".githooks" ] || git config core.hooksPath .githooks
@@ -75,6 +82,7 @@ for item in "${PLAN[@]}"; do
 
   PROMPT="Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng, người dùng không có mặt.
 Nhánh hiện tại: $BR (mọc từ $BASE). PR sẽ tạo với --base $BASE --draft.
+Môi trường: $ENV_NOTE
 
 Phạm vi nhánh này: $SCOPE
 
@@ -89,7 +97,7 @@ Quy trình bắt buộc:
 Cuối cùng in đúng một dòng: GATE=ĐẠT hoặc GATE=CHƯA_ĐẠT."
 
   claude -p "$PROMPT" \
-    --permission-mode acceptEdits \
+    --permission-mode "${PERMISSION_MODE:-auto}" \
     --disallowedTools "AskUserQuestion" \
     --max-turns "$MAX_TURNS" \
     --output-format stream-json --verbose \

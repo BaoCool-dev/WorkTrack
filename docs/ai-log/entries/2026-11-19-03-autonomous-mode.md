@@ -36,3 +36,15 @@ Cho Claude Code tự làm lần lượt các nhánh tính năng mà không hỏi
 - `bash -n scripts/auto-run.sh`; `--dry-run` cho giai đoạn 1 và 2 in đúng kế hoạch.
 - `python3 -m json.tool .claude/settings.json`.
 - Chưa chạy thật `claude -p` — chạy lần đầu trên máy người dùng.
+
+## Bổ sung 19/11 16:15 — chạy không cần Docker, sửa hook trailer
+**Prompt:**
+> hiện tại chưa cần tới docker chạy trên local trước được không
+
+**AI tạo ra:** quyết định B12 (PostgreSQL + Mailpit qua Homebrew, test tích hợp chạy ở CI, `make dev-local`); `auto-run.sh` không bắt buộc Docker, dùng `--permission-mode auto`; hook `commit-msg` đọc trailer bằng `git interpret-trailers`; skill `ai-usage-log` yêu cầu trailer liền với `Co-Authored-By`.
+
+**Lỗi của AI:**
+| Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
+|---|---|---|---|
+| Hook `commit-msg` cho qua 2 commit (`fix(ci)`, `docs(gate)`) mà git không nhận trailer `AI-Log`, vì `Co-Authored-By` nằm ở đoạn riêng phía sau | Hook tìm chữ "AI-Log:" ở bất kỳ dòng nào, trong khi git chỉ đọc trailer ở đoạn cuối | `ai_log.py check` báo 2 commit thiếu AI-Log | Hook dùng `git interpret-trailers --parse`; viết lại message 2 commit (gộp trailer vào đoạn cuối) |
+| Script bắt buộc Docker dù người dùng chưa cần | Giả định môi trường dev luôn có Docker | Script dừng ở "Thiếu lệnh: docker" | Docker thành tùy chọn (B12) |

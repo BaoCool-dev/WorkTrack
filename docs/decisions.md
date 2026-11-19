@@ -51,6 +51,7 @@ Theo skill `worktrack-domain` (vai trò, công việc cha/con, WIP, Log time, ng
 | B9 | Phân trang | `?page=1&pageSize=20`, tối đa 100; trả `{items, page, pageSize, total}` | mọi danh sách |
 | B10 | Múi giờ | Lưu UTC, hiển thị `Asia/Ho_Chi_Minh` | mọi nhánh |
 | B11 | Dữ liệu mẫu | `make seed` tạo 1 tài khoản mỗi vai trò + 2 dự án mẫu, tên người Việt giả; mật khẩu dev in ra màn hình, không commit | auth trở đi |
+| B12 | Môi trường dev trên máy | **Chưa dùng Docker ở máy.** PostgreSQL 16 và Mailpit cài bằng Homebrew (`localhost:5432`, SMTP `localhost:1025`, xem thư `http://localhost:8025`), cấu hình qua `.env`. Thêm `make dev-local` (API `go run` + web `npm run dev`, không cần Docker). Test tích hợp testcontainers và `docker build` chạy trong CI; trong báo cáo gate ghi "⏳ chạy trong CI" và kiểm tra job CI xanh thay cho chạy ở máy. `make dev`/`docker-compose.yml` giữ nguyên cho khi có Docker | auth trở đi |
 
 ## C. Giả định Claude tự chọn khi chạy
 | Ngày | Nhánh | Giả định | Lý do | Người dùng duyệt |

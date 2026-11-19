@@ -50,7 +50,12 @@ git commit -m "feat(timesheet): chặn log giờ âm [CF-08][UC07]" \
 AI-Log: docs/ai-log/entries/2026-11-20-01-log-time.md"
 ```
 - Tiêu đề: Conventional Commits + mã yêu cầu.
-- Trailer `AI-Assisted` + `AI-Log` ở **đoạn cuối** commit message. Hook git `commit-msg` sẽ chặn nếu thiếu `AI-Log` hoặc file nhật ký chưa được commit/stage.
+- Trailer `AI-Assisted` + `AI-Log` ở **đoạn cuối** commit message, **liền với** `Co-Authored-By` (nếu có) — không có dòng trống xen giữa, vì git chỉ đọc trailer ở đoạn cuối. Ví dụ đoạn cuối đúng:
+  ```
+  AI-Assisted: Claude Code (claude-opus-5-5)
+  AI-Log: docs/ai-log/entries/2026-11-20-01-log-time.md
+  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+  ``` Hook git `commit-msg` sẽ chặn nếu thiếu `AI-Log` hoặc file nhật ký chưa được commit/stage.
 - **Không ghi hash vào entry** — liên kết đi theo chiều commit → entry, script đọc ngược từ `git log`.
 - Nhật ký (`docs/ai-log/entries/`) đi cùng commit lên GitHub. Prompt thô (`.ai-log/`) thì **không** — chỉ trích prompt chính vào entry.
 - Không `git push`, không `--no-verify`.
