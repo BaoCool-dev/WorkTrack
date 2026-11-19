@@ -1,5 +1,5 @@
 # Gate: chore/scaffold — khung dự án (không có CF/UC nghiệp vụ)
-**Ngày:** 2026-11-19 · **Commit cuối:** (commit scaffold đầu tiên trên nhánh) · **Kết luận:** ĐẠT (kèm ghi chú — xem "Còn tồn đọng")
+**Ngày:** 2026-11-19 · **Commit cuối:** eb87fb2 · **Kết luận:** ĐẠT (kèm ghi chú — xem "Còn tồn đọng")
 
 Phạm vi: khung backend Go (Clean Architecture, chi, pgxpool, slog JSON + request ID, graceful shutdown, `/healthz`, `/readyz`),
 khung frontend (Vite + React 19 + TS strict + Tailwind v4, theme theo `docs/design/design-system.md` §1, React Router + TanStack Query,
@@ -17,7 +17,9 @@ trang tạm hiển thị `/healthz`), `docker-compose.yml`, CI GitHub Actions. K
 | `gitleaks detect --no-banner` | ✅ no leaks found |
 | `python3 scripts/ai-log/ai_log.py check` | ✅ OK (cảnh báo ở 3 entry cũ, không thuộc nhánh này) |
 | `make test-integration` (testcontainers `/readyz` ↔ PostgreSQL thật) | ✅ pass trong CI (job Backend, PR #1); chưa chạy local (máy chưa có Docker) |
-| `make dev` / `docker build` | ⏳ chưa chạy local (máy chưa có Docker) — job `docker` trong CI build cả 2 image |
+| `docker build` (api + web) | ✅ pass trong CI (job Docker build, PR #1) · `make dev` chưa chạy local (máy chưa có Docker) |
+
+CI trên PR #1 (run 44492683481): Backend ✅ · Frontend ✅ · gitleaks ✅ · Docker build ✅
 
 ## Bảo mật / Validate / UX
 | Hạng mục | Ca đã kiểm | Kết quả | Test hoặc minh chứng |
