@@ -55,3 +55,8 @@ Theo skill `worktrack-domain` (vai trò, công việc cha/con, WIP, Log time, ng
 ## C. Giả định Claude tự chọn khi chạy
 | Ngày | Nhánh | Giả định | Lý do | Người dùng duyệt |
 |---|---|---|---|---|
+| 2026-11-19 | chore/scaffold | Ghim `typescript ~6.0.3` thay vì bản 7.x mới nhất | typescript-eslint chỉ hỗ trợ peer `<6.1`; giữ ESLint theo mục A | |
+| 2026-11-19 | chore/scaffold | Tra phiên bản qua registry (npm, proxy.golang.org, Docker Hub) và tài liệu chính thức thay cho Context7 | Phiên làm việc không có Context7 MCP; người dùng đã đồng ý trong phiên | |
+| 2026-11-19 | chore/scaffold | Thêm biến môi trường `CORS_ORIGIN` (mặc định `http://localhost:5173`, một origin) | FE (5173) gọi API (8080) khác origin; Claude không sửa được `.env.example` → người dùng tự thêm dòng này | |
+| 2026-11-19 | chore/scaffold | `make lint` gọi `npm run typecheck` (`tsc -b`) thay cho `tsc --noEmit` | tsconfig gốc chỉ có `references`, `tsc --noEmit` không kiểm tra file nào | |
+| 2026-11-19 | chore/scaffold | Test tích hợp testcontainers và docker build chỉ chạy trong CI | Máy dev chưa cài Docker | |
