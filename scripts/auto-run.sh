@@ -6,19 +6,21 @@
 #   ./scripts/auto-run.sh --phase 2            # giai đoạn 2 (sau khi bạn code xong feature/kanban)
 #   ./scripts/auto-run.sh --only feature/org   # chạy lại đúng một nhánh
 #   ./scripts/auto-run.sh --dry-run            # chỉ in kế hoạch
+#   ./scripts/auto-run.sh --from feature/auth  # bỏ qua các nhánh trước (đã xong), chạy tiếp từ nhánh này
 #   ./scripts/auto-run.sh --base <nhánh>       # đổi nhánh gốc (mặc định: main ở giai đoạn 1, feature/kanban ở giai đoạn 2)
 #
 # Log từng nhánh: .ai-log/runs/<nhanh>.jsonl (không commit). Mac được giữ thức trong lúc chạy.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
-PHASE=1; ONLY=""; DRY=0; BASE_ARG=""; MAX_TURNS="${MAX_TURNS:-300}"
+PHASE=1; ONLY=""; DRY=0; BASE_ARG=""; FROM=""; MAX_TURNS="${MAX_TURNS:-300}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --phase) PHASE="$2"; shift 2 ;;
     --only) ONLY="$2"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     --base) BASE_ARG="$2"; shift 2 ;;
+    --from) FROM="$2"; shift 2 ;;
     *) echo "Tham số không hợp lệ: $1"; exit 2 ;;
   esac
 done
@@ -64,6 +66,7 @@ command -v caffeinate >/dev/null && { caffeinate -dims -w $$ & }
 BASE="$START_BASE"
 for item in "${PLAN[@]}"; do
   BR="${item%%|*}"; SCOPE="${item#*|}"
+  if [ -n "$FROM" ]; then if [ "$BR" = "$FROM" ]; then FROM=""; else BASE="$BR"; continue; fi; fi
   if [ -n "$ONLY" ] && [ "$BR" != "$ONLY" ]; then BASE="$BR"; continue; fi
   echo; echo "================ $BR  (từ $BASE) ================"
 
