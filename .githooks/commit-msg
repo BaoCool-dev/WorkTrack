@@ -12,7 +12,18 @@ if printf '%s\n' "$msg" | grep -qiE '^AI-Assisted:'; then has_ai=1; fi
 if printf '%s\n' "$msg" | grep -qiE '^Co-Authored-By:.*(Claude|Copilot|Gemini|GPT|Cursor)'; then has_ai=1; fi
 [ "$has_ai" -eq 0 ] && exit 0
 
-log_path="$(printf '%s\n' "$msg" | sed -nE 's/^AI-Log:[[:space:]]*(.+)$/\1/p' | head -1 | tr -d '\r')"
+# Đọc trailer đúng như git đọc: chỉ đoạn CUỐI của message được tính là trailer.
+log_path="$(git interpret-trailers --parse "$msg_file" | sed -nE 's/^AI-Log:[[:space:]]*(.+)$/\1/p' | head -1 | tr -d '\r')"
+if [ -z "$log_path" ] && printf '%s\n' "$msg" | grep -qE '^AI-Log:'; then
+  cat >&2 <<'EOF'
+✗ Có dòng "AI-Log:" nhưng git không nhận là trailer — nó không nằm trong đoạn CUỐI của commit message.
+  Đặt mọi trailer liền nhau ở đoạn cuối, không có dòng trống xen giữa:
+    AI-Assisted: Claude Code (claude-opus-5-5)
+    AI-Log: docs/ai-log/entries/<file>.md
+    Co-Authored-By: Claude ...
+EOF
+  exit 1
+fi
 if [ -z "$log_path" ]; then
   cat >&2 <<'EOF'
 ✗ Commit có AI hỗ trợ nhưng thiếu trailer "AI-Log:".

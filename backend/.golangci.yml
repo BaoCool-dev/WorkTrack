@@ -1,0 +1,53 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - depguard
+    - errorlint
+    - gosec
+    - misspell
+    - noctx
+    - revive
+    - sqlclosecheck
+    - unconvert
+  settings:
+    depguard:
+      rules:
+        # Clean Architecture: domain/application không phụ thuộc hạ tầng.
+        inner-layers:
+          files:
+            - "**/internal/domain/**"
+            - "**/internal/application/**"
+          deny:
+            - pkg: "net/http"
+              desc: "domain/application không import net/http"
+            - pkg: "github.com/go-chi/chi"
+              desc: "domain/application không import chi"
+            - pkg: "github.com/jackc/pgx"
+              desc: "domain/application không import pgx"
+            - pkg: "github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure"
+              desc: "dùng port (interface), không import infrastructure"
+            - pkg: "github.com/BaoCool-dev/WorkTrack/backend/internal/transport"
+              desc: "application không import transport"
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+  exclusions:
+    generated: strict
+    paths:
+      - internal/infrastructure/postgres/sqlcgen
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/BaoCool-dev/WorkTrack/backend

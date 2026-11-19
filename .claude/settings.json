@@ -109,7 +109,6 @@
       "Bash(gh issue create:*)",
       "Read(./**)",
       "Edit(./**)",
-      "Write(./**)",
       "WebSearch",
       "WebFetch"
     ],

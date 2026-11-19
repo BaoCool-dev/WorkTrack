@@ -51,7 +51,13 @@ Theo skill `worktrack-domain` (vai trò, công việc cha/con, WIP, Log time, ng
 | B9 | Phân trang | `?page=1&pageSize=20`, tối đa 100; trả `{items, page, pageSize, total}` | mọi danh sách |
 | B10 | Múi giờ | Lưu UTC, hiển thị `Asia/Ho_Chi_Minh` | mọi nhánh |
 | B11 | Dữ liệu mẫu | `make seed` tạo 1 tài khoản mỗi vai trò + 2 dự án mẫu, tên người Việt giả; mật khẩu dev in ra màn hình, không commit | auth trở đi |
+| B12 | Môi trường dev trên máy | **Chưa dùng Docker ở máy.** PostgreSQL 16 và Mailpit cài bằng Homebrew (`localhost:5432`, SMTP `localhost:1025`, xem thư `http://localhost:8025`), cấu hình qua `.env`. Thêm `make dev-local` (API `go run` + web `npm run dev`, không cần Docker). Test tích hợp testcontainers và `docker build` chạy trong CI; trong báo cáo gate ghi "⏳ chạy trong CI" và kiểm tra job CI xanh thay cho chạy ở máy. `make dev`/`docker-compose.yml` giữ nguyên cho khi có Docker | auth trở đi |
 
 ## C. Giả định Claude tự chọn khi chạy
 | Ngày | Nhánh | Giả định | Lý do | Người dùng duyệt |
 |---|---|---|---|---|
+| 2026-11-19 | chore/scaffold | Ghim `typescript ~6.0.3` thay vì bản 7.x mới nhất | typescript-eslint chỉ hỗ trợ peer `<6.1`; giữ ESLint theo mục A | |
+| 2026-11-19 | chore/scaffold | Tra phiên bản qua registry (npm, proxy.golang.org, Docker Hub) và tài liệu chính thức thay cho Context7 | Phiên làm việc không có Context7 MCP; người dùng đã đồng ý trong phiên | |
+| 2026-11-19 | chore/scaffold | Thêm biến môi trường `CORS_ORIGIN` (mặc định `http://localhost:5173`, một origin) | FE (5173) gọi API (8080) khác origin; Claude không sửa được `.env.example` → người dùng tự thêm dòng này | |
+| 2026-11-19 | chore/scaffold | `make lint` gọi `npm run typecheck` (`tsc -b`) thay cho `tsc --noEmit` | tsconfig gốc chỉ có `references`, `tsc --noEmit` không kiểm tra file nào | |
+| 2026-11-19 | chore/scaffold | Test tích hợp testcontainers và docker build chỉ chạy trong CI | Máy dev chưa cài Docker | |

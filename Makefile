@@ -21,7 +21,7 @@ test-integration:
 
 lint:
 	cd $(BACKEND) && golangci-lint run
-	cd $(FRONTEND) && npm run lint && npx tsc --noEmit
+	cd $(FRONTEND) && npm run lint && npm run typecheck
 
 sqlc:
 	cd $(BACKEND) && sqlc generate
