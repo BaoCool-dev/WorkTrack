@@ -10,20 +10,22 @@ export function ForbiddenState() {
   const navigate = useNavigate()
   const role = user ? messages.roles[user.role] : ''
   return (
-    <EmptyState
-      icon={Lock}
-      title={messages.access.forbiddenTitle}
-      description={messages.access.forbiddenReason(role)}
-      actions={
-        <Button
-          variant="secondary"
-          onClick={() => {
-            void navigate('/')
-          }}
-        >
-          {messages.access.backToMine}
-        </Button>
-      }
-    />
+    <div className="flex flex-col px-5 py-6">
+      <EmptyState
+        icon={Lock}
+        title={messages.access.forbiddenTitle}
+        description={messages.access.forbiddenReason(role)}
+        actions={
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void navigate('/')
+            }}
+          >
+            {messages.access.backToMine}
+          </Button>
+        }
+      />
+    </div>
   )
 }

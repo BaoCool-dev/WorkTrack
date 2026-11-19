@@ -65,6 +65,7 @@ export const messages = {
     linkMissing:
       'Hãy mở đúng liên kết trong email kích hoạt. Nếu liên kết đã hết hạn, nhờ quản trị viên gửi lại.',
     linkInvalidTitle: 'Liên kết kích hoạt không dùng được',
+    verifyFailedTitle: 'Chưa kiểm tra được liên kết kích hoạt',
     goToLogin: 'Về trang đăng nhập',
   },
   access: {

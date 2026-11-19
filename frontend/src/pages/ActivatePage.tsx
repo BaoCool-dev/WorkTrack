@@ -1,10 +1,6 @@
-import { ActivateView, AuthCard } from '@/features/auth'
-import { messages } from '@/shared/lib/messages'
+import { ActivateView } from '@/features/auth'
 
+// ActivateView tự dựng AuthCard (tiêu đề h1) — không bọc thêm khung ở đây.
 export function ActivatePage() {
-  return (
-    <AuthCard title={messages.auth.activateTitle} subtitle={messages.auth.activateSubtitle}>
-      <ActivateView />
-    </AuthCard>
-  )
+  return <ActivateView />
 }

@@ -90,6 +90,12 @@ describe('Sidebar theo vai trò [CF-01]', () => {
 })
 
 describe('Đăng nhập [CF-01][UC01]', () => {
+  it('câu "Chưa có tài khoản?" chỉ hiện một lần', async () => {
+    setup('/login')
+    await screen.findByRole('button', { name: 'Đăng nhập' })
+    expect(screen.getAllByText(/Chưa có tài khoản\?/)).toHaveLength(1)
+  })
+
   it('bỏ trống → báo lỗi dưới ô, không gọi API', async () => {
     const user = userEvent.setup()
     const login = vi.fn()
@@ -163,6 +169,32 @@ describe('Đăng nhập [CF-01][UC01]', () => {
 })
 
 describe('Đăng xuất [CF-01]', () => {
+  it('đang đăng xuất → nút bị khóa, bấm lần hai không gọi API lần nữa', async () => {
+    const user = userEvent.setup()
+    let release: () => void = () => undefined
+    const logout = vi.fn(
+      () =>
+        new Promise<HttpResponse<null>>((resolve) => {
+          release = () => {
+            resolve(new HttpResponse(null, { status: 204 }))
+          }
+        }),
+    )
+    server.use(mock.post(`${API}/api/v1/auth/logout`, logout))
+    const { router } = setup('/', 'member')
+    const button = await screen.findByRole('button', { name: 'Đăng xuất' })
+    await user.click(button)
+    await waitFor(() => {
+      expect(button).toBeDisabled()
+    })
+    await user.click(button)
+    release()
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/login')
+    })
+    expect(logout).toHaveBeenCalledTimes(1)
+  })
+
   it('bấm Đăng xuất → gọi API, toast, về /login', async () => {
     const user = userEvent.setup()
     const logout = vi.fn(() => new HttpResponse(null, { status: 204 }))
@@ -178,6 +210,28 @@ describe('Đăng xuất [CF-01]', () => {
 })
 
 describe('Kích hoạt tài khoản [CF-01][UC02]', () => {
+  it('chỉ có một tiêu đề trang (không lồng khung)', async () => {
+    setup('/activate')
+    await screen.findByRole('heading', { name: 'Thiếu liên kết kích hoạt' })
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+
+  it('lỗi mạng khi kiểm tra liên kết → báo lỗi tải và cho thử lại', async () => {
+    const user = userEvent.setup()
+    let calls = 0
+    server.use(
+      mock.post(`${API}/api/v1/auth/activation/verify`, () => {
+        calls++
+        return calls === 1
+          ? HttpResponse.error()
+          : HttpResponse.json({ email: 'ha.do@worktrack.local', fullName: 'Đỗ Thu Hà' })
+      }),
+    )
+    setup('/activate?token=tok-abc')
+    await user.click(await screen.findByRole('button', { name: 'Thử lại' }))
+    expect(await screen.findByText('Đỗ Thu Hà')).toBeInTheDocument()
+  })
+
   it('thiếu token → báo thiếu liên kết, có nút về đăng nhập', async () => {
     setup('/activate')
     expect(

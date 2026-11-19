@@ -57,7 +57,6 @@ export function LoginForm() {
       <Button type="submit" loading={isSubmitting}>
         {isSubmitting ? t.submittingLogin : t.submitLogin}
       </Button>
-      <p className="text-sm text-ink-faint">{t.noAccount}</p>
     </form>
   )
 }

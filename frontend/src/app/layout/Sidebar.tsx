@@ -1,4 +1,5 @@
 import { Clock, LogOut } from 'lucide-react'
+import { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router'
 import { canAccess, useAuth } from '@/features/auth'
 import { cn } from '@/shared/lib/cn'
@@ -11,6 +12,7 @@ export function Sidebar() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
+  const [loggingOut, setLoggingOut] = useState(false)
   if (!user) return null
   const role = messages.roles[user.role]
   const items = MENU.filter((m) => canAccess(user, m.access))
@@ -74,13 +76,17 @@ export function Sidebar() {
           type="button"
           aria-label={messages.auth.logout}
           title={messages.auth.logout}
+          disabled={loggingOut}
+          aria-busy={loggingOut}
           onClick={() => {
+            setLoggingOut(true)
+            // session.logout luôn xóa phiên cục bộ kể cả khi API lỗi → không cần nhánh catch.
             void logout().then(() => {
               toast.show(messages.auth.loggedOut)
               void navigate('/login', { replace: true })
             })
           }}
-          className="flex size-10 items-center justify-center rounded-md text-ink-muted hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent"
+          className="flex size-10 items-center justify-center rounded-md text-ink-muted hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:text-disabled disabled:hover:bg-transparent"
         >
           <LogOut size={16} strokeWidth={2} aria-hidden />
         </button>

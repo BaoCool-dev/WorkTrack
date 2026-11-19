@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { useNavigate, useSearchParams } from 'react-router'
 import { ApiError } from '@/shared/api/http'
 import { messages } from '@/shared/lib/messages'
-import { Button, EmptyState, Input, Skeleton, useToast } from '@/shared/ui'
+import { Button, EmptyState, ErrorState, Input, Skeleton, useToast } from '@/shared/ui'
 import { authApi } from '../api/auth'
 import { activateSchema, type ActivateValues } from '../model/schemas'
 import { AuthCard } from './AuthCard'
@@ -77,6 +77,20 @@ function VerifiedActivation({ token }: { token: string }) {
   }
   if (verify.isError) {
     const err = verify.error
+    // Lỗi mạng / máy chủ (không phải 4xx) → liên kết có thể vẫn đúng: cho thử lại thay vì báo hỏng.
+    const transient = !(err instanceof ApiError) || err.status === 0 || err.status >= 500
+    if (transient) {
+      return (
+        <ErrorState
+          title={t.verifyFailedTitle}
+          description={err instanceof ApiError ? err.message : messages.errors.unknown}
+          errorRef={err instanceof ApiError ? err.code : undefined}
+          onRetry={() => {
+            void verify.refetch()
+          }}
+        />
+      )
+    }
     return (
       <LinkProblem
         title={t.linkInvalidTitle}
