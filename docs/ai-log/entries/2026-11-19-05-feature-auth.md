@@ -28,6 +28,7 @@ Làm trọn CF-01 (xác thực và phân quyền) ở chế độ tự chạy: b
 - **Lát 4 — adapter hạ tầng:** `infrastructure/security` (bcrypt, JWT HS256 kiểm tra độ dài secret ≥ 32 byte), `infrastructure/email` (SMTP gửi email kích hoạt, giờ hiển thị `Asia/Ho_Chi_Minh`) kèm test.
 - **Lát 5 — HTTP API:** `transport/httpapi`: `POST /auth/login|refresh|logout|activation/verify|activation`, `GET /auth/me`, `GET|POST /users`, `POST /users/{id}/activation-email`; middleware `requireAuth` (Bearer) và `requirePermission` (gọi `authz.Require`); giới hạn tần suất token bucket theo IP (`RemoteAddr`) trả 429 + `Retry-After`; cookie refresh `wt_refresh` luôn `Secure; HttpOnly; SameSite=Strict; Path=/api/v1/auth`; bảng ánh xạ lỗi domain → HTTP duy nhất ở `writeError`; decode JSON chặn trường lạ, body > 1 MB, dữ liệu thừa. Test API `auth_api_test.go` (ma trận 401/403 đủ 4 vai trò × 3 endpoint `/users`, 7 trường hợp `/auth/me`, cookie, 423, 429).
 - **Lát 6 — wiring + công cụ dev:** `cmd/api/config.go` (JWT_SECRET bắt buộc ≥ 32 byte, ACCESS_TOKEN_TTL, APP_BASE_URL, SMTP_*), `main.go` lắp repo/bcrypt/JWT/mailer vào use case; `cmd/seed` (4 tài khoản tên Việt giả, mật khẩu ngẫu nhiên 96 bit in ra màn hình, từ chối khi `APP_ENV=production`); `scripts/dev-local.sh`, `scripts/seed.sh`, target `make dev-local`, `make seed`; thêm dịch vụ Mailpit và biến auth vào `docker-compose.yml`.
+- **Lát 7 — frontend nền:** `shared/api/http.ts` thêm `configureHttpAuth` (token chỉ trong bộ nhớ), tùy chọn `json`/`auth`, gắn Bearer, 401 → làm mới một lần rồi gửi lại, 204 → `undefined`, lỗi mạng → `ApiError` `NETWORK`; MSW (`src/test/server.ts`, `setup.ts` chặn request không có handler); chuỗi tiếng Việt cho đăng nhập/kích hoạt/menu trong `messages.ts`; test `http.test.ts` (7 ca).
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -40,6 +41,7 @@ Làm trọn CF-01 (xác thực và phân quyền) ở chế độ tự chạy: b
 | Test dùng chuỗi `"hash:matkhau123"` làm PasswordHash bị gosec G101 báo “hardcoded credentials” | AI viết literal trông giống mật khẩu trong test | `golangci-lint run` | Đổi sang hằng `testPassword` + hàm `fakeHash()` |
 | Cookie refresh đặt `Secure: h.secureCookie` (tắt được qua cấu hình) bị gosec G124 báo | AI thêm cờ cấu hình "cho tiện dev" làm yếu quyết định B4 | `golangci-lint run` | Bỏ cờ, luôn `Secure: true` (trình duyệt coi `http://localhost` là ngữ cảnh an toàn); test dựng cookie bằng header thay cho `http.Cookie` |
 | File `dto.go`, `auth_handler.go` chưa gofmt sau khi sửa bằng sed | Sửa máy móc không chạy formatter | `golangci-lint run` (gofmt) | `gofmt -w` |
+| Gọi `server.listen({ onUnhandledRequest: 'error' })` theo API MSW v2 trong khi dự án dùng MSW 3.0.7 (đã đổi tên thành `onUnhandledFrame`) | AI mặc định API phiên bản cũ, chưa đối chiếu file `.d.ts` của bản cài | `tsc -b --noEmit` báo TS2353 | Đọc `node_modules/msw/lib/_chunks/shared-options.d.ts`, đổi sang `onUnhandledFrame: 'error'` |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->

@@ -67,3 +67,5 @@ Theo skill `worktrack-domain` (vai trò, công việc cha/con, WIP, Log time, ng
 | 2026-11-19 | feature/auth | Biến môi trường mới: `JWT_SECRET` (bắt buộc, ≥ 32 byte), `ACCESS_TOKEN_TTL` (mặc định 15m), `APP_BASE_URL`, `SMTP_HOST/PORT/FROM/USERNAME/PASSWORD` (mặc định Mailpit `localhost:1025`) | Claude không sửa được `.env.example`/`.env` → người dùng tự thêm (sinh secret: `openssl rand -hex 32`) | |
 | 2026-11-19 | feature/auth | `make seed` chỉ tạo 4 tài khoản; 2 dự án mẫu của B11 dời sang nhánh feature/projects | Bảng dự án chưa tồn tại ở CF-01 | |
 | 2026-11-19 | feature/auth | Mật khẩu seed sinh ngẫu nhiên mỗi lần chạy (chạy lại = đặt lại mật khẩu) | Không có mật khẩu cố định nào nằm trong repo | |
+| 2026-11-19 | feature/auth | Thêm `react-hook-form` 7.92 + `zod` 4.6 + `@hookform/resolvers` 7.0 (MIT) cho form đăng nhập/kích hoạt; `lucide-react` 1.76 (ISC) cho icon; `msw` 3.0 (MIT, dev) giả lập API trong test | Đều nằm trong danh sách đề xuất của `frontend/CLAUDE.md`; ISC tương đương MIT | |
+| 2026-11-19 | feature/auth | Chưa cài `zustand` | CF-01 không có UI state dùng chung; phiên đăng nhập là store nhỏ tự viết dùng `useSyncExternalStore` | |
