@@ -8,16 +8,17 @@ Nền tảng web quản trị công việc và cộng tác nội bộ cho doanh 
 Go (chi, pgx, sqlc, goose) · PostgreSQL · WebSocket · React 19 + TypeScript + Vite + TailwindCSS v4 · Docker · GitHub Actions · Google Gemini API
 
 ## Trạng thái
-Đang thiết lập dự án. Mã nguồn được phát triển theo từng nhánh tính năng (xem `CLAUDE.md` §7b).
+Đang thiết lập dự án. Mã nguồn được phát triển theo từng nhánh tính năng (mỗi tính năng một nhánh, kiểm tra xong mới merge).
 
 ## Tài liệu
-| File | Nội dung |
+| Đường dẫn | Nội dung |
 |---|---|
-| `SETUP-CLAUDE.md` | Cài công cụ và môi trường phát triển (terminal, VS Code) |
-| `DEVELOPMENT.md` | Quy ước code, git, kiểm thử, bảo mật, Definition of Done |
-| `DESIGN.md` | Hệ thống thiết kế giao diện |
-| `docs/ai-log/` | Nhật ký sử dụng AI (AI Usage Log) |
-| `docs/gates/` | Báo cáo kiểm tra từng tính năng trước khi merge |
+| `CONTRIBUTING.md` | Quy ước code, đặt tên, git, kiểm thử, bảo mật, Definition of Done |
+| `docs/setup.md` | Cài môi trường phát triển (terminal, VS Code, Claude Code) |
+| `docs/design/` | Hệ thống thiết kế và 13 artboard giao diện |
+| `docs/ai-log/` | Nhật ký sử dụng AI — mỗi commit có AI hỗ trợ trỏ tới một entry qua trailer `AI-Log` |
+| `docs/gates/` | Báo cáo kiểm tra (bảo mật, validate, UX) từng tính năng trước khi merge |
+| `CLAUDE.md`, `.claude/` | Quy tắc và quy trình dùng AI (Claude Code) trong dự án |
 
 ## Quy ước code
-Go theo Effective Go và Go Code Review Comments (`gofmt`, `golangci-lint`); TypeScript strict + ESLint + Prettier. Chi tiết: `DEVELOPMENT.md`.
+Xem `CONTRIBUTING.md` (§10: quy ước đặt tên). Mỗi tính năng một nhánh `feature/<ten>`, merge vào `main` qua Pull Request sau khi qua kiểm tra.

@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "anthropic.claude-code",
+    "golang.go",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "vitest.explorer",
+    "ms-playwright.playwright",
+    "ms-azuretools.vscode-docker",
+    "github.vscode-github-actions",
+    "editorconfig.editorconfig"
+  ]
+}
