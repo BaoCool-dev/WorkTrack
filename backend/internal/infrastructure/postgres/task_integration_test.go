@@ -123,8 +123,18 @@ func TestTaskRepo_ServiceFlow_CF06(t *testing.T) {
 	if err != nil || mine.Total != 1 || mine.Items[0].ProjectName != "Cổng thông tin" {
 		t.Fatalf("việc của tôi: %+v %v", mine, err)
 	}
+	// Nhận việc không đổi cột (CF-06 chưa có chuyển cột) → việc còn ở nhóm todo, WIP = 0.
+	if n, err := tasks.MyWIP(ctx, mem); err != nil || n != 0 {
+		t.Fatalf("WIP khi còn ở todo: %d %v", n, err)
+	}
+	// Đặt việc vào cột in_progress bằng SQL (giả lập Kanban sau này) → WIP = 1.
+	if _, err := pool.Exec(ctx, `UPDATE task SET column_id = (
+		SELECT id FROM board_column WHERE project_id = $1 AND status_group = 'in_progress' ORDER BY position LIMIT 1
+	) WHERE id = $2`, p.ID, tk.ID); err != nil {
+		t.Fatal(err)
+	}
 	if n, err := tasks.MyWIP(ctx, mem); err != nil || n != 1 {
-		t.Fatalf("WIP: %d %v", n, err)
+		t.Fatalf("WIP khi ở in_progress: %d %v", n, err)
 	}
 
 	// Sửa: bỏ nhãn, đổi SP → chụp lại theo hệ số hiện tại (8).

@@ -44,6 +44,7 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 | Dùng class `text-md` cho tiêu đề panel Cấu hình | AI đoán token cỡ chữ không có trong `theme.css` (chỉ có `text-sm`/`text-base`/`text-lg`) | Tự soát lại theo design-system trước khi chạy test | Đổi sang `text-base` |
 | Test "Công việc của tôi" tìm nút phân trang `/trang 2/i` | AI đoán giao diện `Pagination` thay vì đọc component (chỉ có nút Trang trước/Trang sau) | `vitest` đỏ: không tìm thấy nút | Dùng `messages.pagination.next` |
 | Code frontend Commit 5–6 không qua Prettier, `make lint` đỏ (7 file) | AI chỉ chạy `eslint` + `tsc` riêng ở `frontend/`, không chạy `make lint` (có `prettier --check`) trước khi commit | `make lint` ở gốc repo báo `Code style issues found in 7 files` | `prettier --write` 7 file, chạy lại `make lint` |
+| Test tích hợp `TestTaskRepo_ServiceFlow_CF06` kỳ vọng WIP = 1 ngay sau khi Member nhận việc | AI nhầm "nhận việc" với "bắt đầu làm": `Claim` chỉ gán người nhận, việc vẫn ở cột todo, mà WIP chỉ đếm nhóm `in_progress` (CLAUDE.md §5.6). Test chưa từng chạy cục bộ ở Commit 3 | Gate: chạy test tích hợp trên CSDL local `worktrack_gate_tasks` → `WIP: 0 <nil>` | Sửa kỳ vọng: WIP = 0 khi ở todo; đặt việc vào cột in_progress bằng SQL trong test → WIP = 1. Mã sản phẩm không đổi |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
@@ -54,3 +55,4 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 - Commit 5: `npx tsc --noEmit` → sạch; `npx eslint src` → 0 problems (sau khi sửa `useWatch`); `npx vitest run` → 13 file / 149 test pass.
 - Commit 6: `npx tsc --noEmit` → sạch; `npx eslint src` → 0 problems; `npx vitest run` → 16 file / 168 test pass (LabelsPanel, SettingsPanel, MyTasksView).
 - Sửa định dạng: `npx prettier --write` 7 file → `make lint` sạch (golangci-lint + eslint + tsc + prettier); `make test` → Go ok, Vitest 16 file / 168 test pass.
+- Gate vòng 1: `go test -count=1 -tags integration ./internal/infrastructure/postgres/` trên CSDL local mới `worktrack_gate_tasks` → đỏ (WIP), sau khi sửa test → ok.
