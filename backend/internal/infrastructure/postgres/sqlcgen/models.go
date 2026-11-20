@@ -52,6 +52,12 @@ type JobTitle struct {
 	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
+type Label struct {
+	ID        uuid.UUID          `json:"id"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+}
+
 type Project struct {
 	ID          uuid.UUID          `json:"id"`
 	Name        string             `json:"name"`
@@ -91,6 +97,58 @@ type Skill struct {
 	ID        uuid.UUID          `json:"id"`
 	Name      string             `json:"name"`
 	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+}
+
+type SystemSetting struct {
+	Key       string             `json:"key"`
+	IntValue  int32              `json:"intValue"`
+	UpdatedBy uuid.NullUUID      `json:"updatedBy"`
+	UpdatedAt pgtype.Timestamptz `json:"updatedAt"`
+}
+
+type Task struct {
+	ID               uuid.UUID          `json:"id"`
+	ProjectID        uuid.UUID          `json:"projectId"`
+	ColumnID         uuid.UUID          `json:"columnId"`
+	ParentTaskID     uuid.NullUUID      `json:"parentTaskId"`
+	Title            string             `json:"title"`
+	Description      string             `json:"description"`
+	StoryPoint       pgtype.Int2        `json:"storyPoint"`
+	EstimatedMinutes pgtype.Int4        `json:"estimatedMinutes"`
+	AssigneeID       uuid.NullUUID      `json:"assigneeId"`
+	DueDate          pgtype.Date        `json:"dueDate"`
+	Position         int32              `json:"position"`
+	CreatedBy        uuid.UUID          `json:"createdBy"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamptz `json:"updatedAt"`
+}
+
+type TaskLabel struct {
+	TaskID  uuid.UUID `json:"taskId"`
+	LabelID uuid.UUID `json:"labelId"`
+}
+
+type TaskView struct {
+	ID               uuid.UUID          `json:"id"`
+	ProjectID        uuid.UUID          `json:"projectId"`
+	ProjectName      string             `json:"projectName"`
+	ColumnID         uuid.UUID          `json:"columnId"`
+	ColumnName       string             `json:"columnName"`
+	StatusGroup      string             `json:"statusGroup"`
+	ColumnPosition   int16              `json:"columnPosition"`
+	ParentTaskID     uuid.NullUUID      `json:"parentTaskId"`
+	Title            string             `json:"title"`
+	Description      string             `json:"description"`
+	StoryPoint       pgtype.Int2        `json:"storyPoint"`
+	EstimatedMinutes pgtype.Int4        `json:"estimatedMinutes"`
+	AssigneeID       uuid.NullUUID      `json:"assigneeId"`
+	AssigneeName     string             `json:"assigneeName"`
+	DueDate          pgtype.Date        `json:"dueDate"`
+	Position         int32              `json:"position"`
+	CreatedBy        uuid.UUID          `json:"createdBy"`
+	CreatedByName    string             `json:"createdByName"`
+	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt        pgtype.Timestamptz `json:"updatedAt"`
 }
 
 type UserSkill struct {

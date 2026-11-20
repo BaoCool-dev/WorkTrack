@@ -1,12 +1,17 @@
 import { useParams } from 'react-router'
 import { ProjectDetail } from '@/features/projects'
+import { ProjectTasksPanel } from '@/features/tasks'
 
 export function ProjectDetailPage() {
   const { projectId = '' } = useParams()
   return (
     <div className="px-5 py-3">
       {/* key: đổi dự án thì dựng lại toàn bộ (reset tab, nháp luật chuyển). */}
-      <ProjectDetail key={projectId} projectId={projectId} />
+      <ProjectDetail
+        key={projectId}
+        projectId={projectId}
+        renderTasks={(p, canManage) => <ProjectTasksPanel project={p} canManage={canManage} />}
+      />
     </div>
   )
 }

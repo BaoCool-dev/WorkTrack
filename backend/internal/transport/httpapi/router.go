@@ -20,6 +20,9 @@ type Deps struct {
 	Accounts AccountService
 	Org      OrgService
 	Projects ProjectService
+	Tasks    TaskService
+	Labels   LabelService
+	Settings SettingService
 	Tokens   TokenVerifier
 
 	// Now mặc định time.Now; test truyền đồng hồ giả.
@@ -63,6 +66,7 @@ func NewRouter(d Deps) http.Handler {
 	uh := &userHandler{svc: d.Accounts, validate: v}
 	oh := &orgHandler{svc: d.Org, validate: v}
 	ph := &projectHandler{svc: d.Projects, validate: v}
+	th := &taskHandler{svc: d.Tasks, labels: d.Labels, settings: d.Settings, validate: v}
 	loginRL := newRateLimiter(d.LoginLimit, d.Now)
 	refreshRL := newRateLimiter(d.RefreshLimit, d.Now)
 
@@ -125,8 +129,26 @@ func NewRouter(d Deps) http.Handler {
 					r.Delete("/columns/{columnID}", ph.deleteColumn)
 					r.Put("/column-order", ph.reorderColumns)
 					r.Put("/transitions", ph.replaceTransitions)
+					r.Get("/tasks", th.listProjectTasks)
+					r.Post("/tasks", th.createTask)
 				})
 			})
+
+			// CF-06: công việc cha, nhãn, tham số B1. Quyền kiểm trong service (IDOR → 404).
+			// Không có API chuyển cột — thuộc CF-04 (feature/kanban).
+			r.Route("/tasks/{taskID}", func(r chi.Router) {
+				r.Get("/", th.getTask)
+				r.Put("/", th.updateTask)
+				r.Post("/claim", th.claimTask)
+			})
+			r.Get("/me/tasks", th.listMyTasks)
+			r.Get("/me/wip", th.myWIP)
+			r.Get("/labels", th.listLabels)
+			r.Post("/labels", th.createLabel)
+			r.Put("/labels/{labelID}", th.updateLabel)
+			r.Delete("/labels/{labelID}", th.deleteLabel)
+			r.Get("/settings", th.getSettings)
+			r.Put("/settings", th.updateSettings)
 		})
 	})
 

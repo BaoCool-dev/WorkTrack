@@ -1,5 +1,5 @@
 import { ArrowLeft, FolderX, Pencil } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { useAuth } from '@/features/auth'
 import { ApiError } from '@/shared/api/http'
@@ -19,14 +19,16 @@ const t = messages.projects
 
 const TABS = [
   { value: 'info', label: t.detail.tabs.info },
+  { value: 'tasks', label: t.detail.tabs.tasks },
   { value: 'members', label: t.detail.tabs.members },
   { value: 'columns', label: t.detail.tabs.columns },
   { value: 'transitions', label: t.detail.tabs.transitions },
 ] as const
 type Tab = (typeof TABS)[number]['value']
 
-function parseTab(v: string | null): Tab {
-  return TABS.find((x) => x.value === v)?.value ?? 'info'
+function parseTab(v: string | null, hasTasks: boolean): Tab {
+  const found = TABS.find((x) => x.value === v)?.value ?? 'info'
+  return found === 'tasks' && !hasTasks ? 'info' : found
 }
 
 /** Chỉ Manager phụ trách được sửa — chỉ để ẩn nút; server kiểm lại (R: server là nguồn sự thật). */
@@ -36,12 +38,18 @@ function useCanManage(p: Project | undefined): boolean {
 }
 
 /** Chi tiết + cấu hình dự án (CF-03). Tab lưu trong ?tab để quay lại đúng chỗ. */
-export function ProjectDetail({ projectId }: { projectId: string }) {
+export interface ProjectDetailProps {
+  projectId: string
+  /** Tab Công việc do trang ghép vào (features/tasks) — tránh phụ thuộc vòng projects ↔ tasks. */
+  renderTasks?: (project: Project, canManage: boolean) => ReactNode
+}
+
+export function ProjectDetail({ projectId, renderTasks }: ProjectDetailProps) {
   const project = useProject(projectId)
   const update = useUpdateProject(projectId)
   const canManage = useCanManage(project.data)
   const [params, setParams] = useSearchParams()
-  const tab = parseTab(params.get('tab'))
+  const tab = parseTab(params.get('tab'), renderTasks !== undefined)
   const baseId = useId()
   const [editing, setEditing] = useState(false)
 
@@ -126,7 +134,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
         aria-label={t.detail.tabsLabel}
         className="flex gap-1 border-b border-line"
       >
-        {TABS.map((x) => {
+        {TABS.filter((x) => x.value !== 'tasks' || renderTasks).map((x) => {
           const selected = x.value === tab
           return (
             <button
@@ -153,6 +161,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
       </div>
       <div role="tabpanel" id={`${baseId}-panel`} aria-labelledby={`${baseId}-${tab}-tab`}>
         {tab === 'info' && <InfoPanel project={p} />}
+        {tab === 'tasks' && renderTasks?.(p, canManage)}
         {tab === 'members' && <MembersPanel project={p} canManage={canManage} />}
         {tab === 'columns' && <ColumnsPanel projectId={p.id} canManage={canManage} />}
         {tab === 'transitions' && <TransitionsPanel projectId={p.id} canManage={canManage} />}

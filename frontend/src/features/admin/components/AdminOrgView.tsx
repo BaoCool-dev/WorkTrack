@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router'
 import { cn } from '@/shared/lib/cn'
 import { messages } from '@/shared/lib/messages'
@@ -14,19 +14,27 @@ const TABS = [
   { value: 'job-titles', label: t.tabs.jobTitles },
   { value: 'skills', label: t.tabs.skills },
 ] as const
-type Tab = (typeof TABS)[number]['value']
 
-function parseTab(v: string | null): Tab {
-  return TABS.find((x) => x.value === v)?.value ?? 'users'
+/** Tab do feature khác cấp (vd. Nhãn, Cấu hình của tasks) — ghép ở trang để tránh phụ thuộc vòng. */
+export interface ExtraAdminTab {
+  value: string
+  label: string
+  render: () => ReactNode
+}
+
+export interface AdminOrgViewProps {
+  extraTabs?: readonly ExtraAdminTab[]
 }
 
 /** Màn Nhân sự & phòng ban (artboard 10, CF-02). Tab lưu trong ?tab để quay lại đúng chỗ. */
-export function AdminOrgView() {
+export function AdminOrgView({ extraTabs = [] }: AdminOrgViewProps) {
   const [params, setParams] = useSearchParams()
-  const tab = parseTab(params.get('tab'))
+  const tabs = [...TABS, ...extraTabs]
+  const tab = tabs.find((x) => x.value === params.get('tab'))?.value ?? 'users'
+  const extra = extraTabs.find((x) => x.value === tab)
   const baseId = useId()
 
-  const select = (next: Tab) => {
+  const select = (next: string) => {
     setParams(
       (p) => {
         const q = new URLSearchParams(p)
@@ -45,7 +53,7 @@ export function AdminOrgView() {
         <p className="text-sm text-ink-muted">{t.meta}</p>
       </header>
       <div role="tablist" aria-label={t.tabsLabel} className="flex gap-1 border-b border-line">
-        {TABS.map((x) => {
+        {tabs.map((x) => {
           const selected = x.value === tab
           return (
             <button
@@ -75,6 +83,7 @@ export function AdminOrgView() {
         {tab === 'departments' && <DepartmentsPanel />}
         {tab === 'job-titles' && <CatalogPanel kind="job-titles" />}
         {tab === 'skills' && <CatalogPanel key="skills" kind="skills" />}
+        {extra?.render()}
       </div>
     </div>
   )
