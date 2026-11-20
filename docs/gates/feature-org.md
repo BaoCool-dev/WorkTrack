@@ -36,7 +36,7 @@ Môi trường: máy không có Docker (B12).
 | `gitleaks detect --no-banner` | ✅ no leaks found |
 | `go vet ./...` (kể cả tag `integration`) | ✅ |
 | `python3 scripts/ai-log/ai_log.py check` | ✅ OK; cảnh báo còn lại: mục "Phần tôi đã sửa" chưa điền |
-| `docker build`, `make test-integration` (CI) | xem mục CI bên dưới |
+| `docker build`, `make test-integration` (CI) | ✅ xem mục CI bên dưới |
 
 ## Bảo mật / Validate / UX
 | Hạng mục | Ca đã kiểm | Kết quả | Test hoặc minh chứng |
@@ -94,3 +94,8 @@ Môi trường: máy không có Docker (B12).
     - tổng số hiện hai lần;
     - nhãn mức kỹ năng tiếng Anh (Beginner/Intermediate/Senior, giữ theo yêu cầu CF-02).
 - **Khoảng trống test:** chưa có E2E Playwright tự động; đã đi tay luồng bằng Playwright MCP.
+
+## CI (PR #3)
+| Lần chạy | Commit | Backend (build → lint → test + integration testcontainers, `-race`) | Frontend (build → lint → test) | gitleaks | Docker build |
+|---|---|---|---|---|---|
+| [44646255794](https://github.com/BaoCool-dev/WorkTrack/actions/runs/44646255794) | 25f33c4 | ✅ 1m37s (postgres ok 20,4s) | ✅ 38s | ✅ 10s | ✅ 1m25s |
