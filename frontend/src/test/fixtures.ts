@@ -1,16 +1,17 @@
 import type { CurrentUser, Role, SessionResponse } from '@/features/auth/model/types'
 
 const PERMS: Record<Role, CurrentUser['permissions']> = {
-  admin: ['users.manage', 'org.manage'],
+  admin: ['users.manage', 'org.manage', 'settings.manage'],
   ceo: [
     'users.manage',
     'org.manage',
     'users.assign_ceo',
     'projects.view_all',
     'dashboard.company.view',
+    'settings.manage',
   ],
   manager: ['projects.create', 'projects.view_own', 'dashboard.team.view'],
-  member: ['projects.view_own'],
+  member: ['projects.view_own', 'tasks.claim'],
 }
 
 const NAMES: Record<Role, string> = {

@@ -27,6 +27,7 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 - Commit 2 — tầng application: quyền `settings.manage` (Admin, CEO) và `tasks.claim` (Member) trong `authz`; gói `task` (port Store/Transactor/Projects/Settings, service tạo/sửa/giao/nhận việc/danh sách/của tôi/WIP, kiểm IDOR trả ErrTaskNotFound, khóa dòng khi nhận việc và khi sửa, chụp giờ ước tính khi Story Point đổi); gói `label` (danh mục nhãn, mọi vai trò đọc, Admin/CEO ghi); gói `setting` (đọc/sửa hệ số B1). Test viết trước cho cả ba gói.
 - Commit 3 — Postgres + HTTP: `task_repo.go` (repo công việc/nhãn/cấu hình, transaction `pgx.BeginFunc`, ánh xạ vi phạm FK/unique sang lỗi nghiệp vụ, nạp nhãn theo lô); `project_repo.go` xóa cột còn việc → `COLUMN_HAS_TASKS`; `task_handler.go` (danh sách theo dự án có lọc + phân trang, chi tiết, tạo, sửa, nhận việc, "của tôi", WIP, CRUD nhãn, GET/PUT cấu hình — không có API chuyển cột); 13 mã lỗi CF-06 tiếng Việt trong `errors.go`; route trong `router.go`; wiring `cmd/api/main.go`; `task_api_test.go` (đường đúng, truyền đầu vào, hình dạng JSON, cần đăng nhập, request sai, ánh xạ lỗi, chặn route chuyển cột); `task_integration_test.go` (luồng service thật trên Postgres).
 - Commit 4 — seed: `cmd/seed/main.go` thêm 4 nhãn mẫu và 6 công việc cha mẫu cho 2 dự án mẫu (có việc giao sẵn cho Member, có việc để ở Backlog cho Member tự nhận, có/không hạn chót), tạo qua `task.Service` với vai trò Manager, idempotent theo tiêu đề; `main_test.go` kiểm tiêu đề, Story Point, tham chiếu dự án/nhãn hợp lệ.
+- Commit 5 — frontend tab Công việc của dự án: `features/tasks` (API client, query key + hook TanStack Query, type/schema zod), `ProjectTasksPanel` (bảng lọc theo nhóm trạng thái/người nhận/nhãn, tìm kiếm, phân trang, skeleton/rỗng/lỗi), `TaskFormDialog` (tạo/sửa, Story Point → giờ ước tính theo B1, người nhận, hạn chót, nhãn; lỗi server gắn vào ô), `TaskDetailDialog` (chi tiết, nút Nhận việc cho Member, Sửa cho Manager); `shared/ui/LabelChip`, `formatHours`/`formatMinutesAsHours`; tab "Công việc" ghép vào `ProjectDetail` qua prop `renderTasks` để tránh phụ thuộc vòng; chuỗi tiếng Việt trong `messages.ts`; test RTL + MSW `ProjectTasksPanel.test.tsx`.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -37,6 +38,7 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
 | Query `ListMyTasks`/`CountWIP` sinh tham số `user_id` kiểu `uuid.NullUUID` | AI so sánh `@user_id` với cột nullable `assignee_id` mà không ép kiểu, sqlc suy ra kiểu nullable | Đọc code sinh sau `make sqlc` | Ép `@user_id::uuid`, chạy lại `make sqlc` |
+| `TaskFormDialog` dùng `watch()` của react-hook-form, ESLint cảnh báo `react-hooks/incompatible-library` (React Compiler bỏ qua memo hóa component) | AI dùng mẫu cũ của react-hook-form, không tính tới React Compiler | `eslint src` báo warning | Đổi sang `useWatch({ control, name })` |
 | Test API kỳ vọng mã lỗi `VALIDATION_ERROR` cho query sai | AI đoán tên mã thay vì đọc `errors.go` (mã thật là `VALIDATION_FAILED`) | `go test ./internal/transport/...` đỏ | Sửa kỳ vọng theo mã thật |
 
 ## Kiểm chứng
@@ -45,3 +47,4 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 - Commit 2: `go test ./internal/application/...` → ok (task, label, setting, authz); `golangci-lint run ./internal/application/...` → 0 issues. Trạng thái RED trước khi viết service: `undefined: task.Service`.
 - Commit 3: `make lint` → 0 issues; `make test` → Go ok (gồm `TestTaskAPI_*`), Vitest 12 file / 133 test pass; `go vet -tags=integration ./internal/infrastructure/postgres/` → ok. Test tích hợp `TestTaskRepo_ServiceFlow_CF06` chưa chạy cục bộ (lệnh chạy trên CSDL dev bị chặn bởi quyền phiên tự chạy) — chạy trong CI.
 - Commit 4: `go test ./cmd/seed/` → ok; `make seed` trên CSDL dev → "Công việc mẫu: 4 nhãn, 6 công việc (mới tạo 6)", chạy lại → "mới tạo 0" (idempotent); `make lint` → sạch; `make test` → Go ok, Vitest 133 pass.
+- Commit 5: `npx tsc --noEmit` → sạch; `npx eslint src` → 0 problems (sau khi sửa `useWatch`); `npx vitest run` → 13 file / 149 test pass.

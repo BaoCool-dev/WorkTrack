@@ -1,4 +1,4 @@
-import { formatDate, formatNumber, formatTimestampDate } from './format'
+import { formatDate, formatHours, formatMinutesAsHours, formatNumber, formatTimestampDate } from './format'
 
 describe('formatNumber', () => {
   it('dùng dấu chấm phân cách hàng nghìn kiểu vi-VN', () => {
@@ -22,5 +22,18 @@ describe('formatDate', () => {
 describe('formatTimestampDate', () => {
   it('định dạng mốc thời gian ISO theo kiểu dd/mm/yyyy', () => {
     expect(formatTimestampDate('2026-11-20T05:00:00Z')).toMatch(/^\d{2}\/\d{2}\/\d{4}$/)
+  })
+})
+
+describe('formatHours', () => {
+  it('giờ nguyên và thập phân dấu phẩy, tối đa 1 chữ số', () => {
+    expect(formatHours(16)).toBe('16h')
+    expect(formatHours(14.5)).toBe('14,5h')
+    expect(formatHours(1.25)).toBe('1,3h')
+    expect(formatHours(0)).toBe('0h')
+  })
+  it('đổi phút sang giờ', () => {
+    expect(formatMinutesAsHours(960)).toBe('16h')
+    expect(formatMinutesAsHours(870)).toBe('14,5h')
   })
 })

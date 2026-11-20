@@ -9,6 +9,8 @@ export type Permission =
   | 'projects.view_own'
   | 'dashboard.team.view'
   | 'dashboard.company.view'
+  | 'settings.manage'
+  | 'tasks.claim'
 
 export interface CurrentUser {
   id: string
