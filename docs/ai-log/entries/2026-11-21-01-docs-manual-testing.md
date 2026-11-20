@@ -48,4 +48,4 @@ Viết `docs/testing/manual-test-guide.md` — hướng dẫn kiểm thử thủ
 - Chạy mọi khối bash/sql của tài liệu theo thứ tự (trừ các khối đánh dấu `verify:skip`: tạo user/CSDL, `cp .env.example`, `make dev-local`, psql tương tác, reset toàn bộ). Kết quả khớp mô tả trong tài liệu; khối §7.3 lỗi lần đầu (xem bảng trên), sau sửa chạy lại 3 lần → ROLLBACK sạch.
 - `make seed` chạy riêng một lần trước (mật khẩu đổi mỗi lần chạy).
 - Lệnh xóa dữ liệu (§7.4 `goose reset`) không chạy — phiên tự chạy không được xóa dữ liệu; đã kiểm cú pháp bằng `goose --help`.
-- Không sửa code sản phẩm → `make lint`, `make test` chạy lại ở gate (xem `docs/gates/docs-manual-testing.md`).
+- Gate: `make lint` exit 0; `make test` exit 0 (Go ok, Vitest 16 file / 171 test); `gitleaks` no leaks; `ai_log.py check` OK. Báo cáo `docs/gates/docs-manual-testing.md` → ĐẠT.
