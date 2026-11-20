@@ -401,6 +401,7 @@ export const messages = {
       emptyHintManager:
         'Tạo công việc đầu tiên; công việc mới nằm ở cột đầu tiên của nhóm "Chưa làm".',
       emptyHint: 'Dự án chưa có công việc nào. Quản lý dự án sẽ tạo và giao việc.',
+      viewMine: 'Xem công việc của tôi',
       noMatchTitle: 'Không có công việc phù hợp',
       noMatchHint: 'Thử đổi từ khóa hoặc xóa bộ lọc.',
       total: (n: string) => `${n} công việc`,
@@ -425,7 +426,11 @@ export const messages = {
       dueDate: 'Hạn chót',
       labels: 'Nhãn',
       labelsHint: 'Chọn tối đa 10 nhãn.',
-      noLabels: 'Chưa có nhãn nào. Admin tạo nhãn ở trang Tổ chức.',
+      noLabels: 'Chưa có nhãn nào. Admin tạo nhãn ở trang Nhân sự & phòng ban › tab Nhãn.',
+      labelsLoading: 'Đang tải danh mục nhãn…',
+      labelsError: 'Không tải được danh mục nhãn. Đóng hộp thoại và mở lại để thử lại.',
+      membersLoading: 'Đang tải danh sách thành viên…',
+      membersError: 'Không tải được danh sách thành viên — chỉ chọn được "Chưa giao".',
       titleRequired: 'Vui lòng nhập tên công việc.',
       titleTooLong: 'Tên công việc tối đa 200 ký tự.',
       descriptionTooLong: 'Mô tả tối đa 5000 ký tự.',
@@ -481,6 +486,7 @@ export const messages = {
       removeHint: 'Nhãn đang gắn vào công việc thì không xóa được.',
       removeInUse: (n: string) =>
         `Nhãn đang gắn vào ${n} công việc — gỡ nhãn khỏi công việc trước khi xóa.`,
+      removeBlocked: 'Không xóa được vì nhãn đang được dùng.',
       nameRequired: 'Vui lòng nhập tên nhãn.',
       nameTooLong: 'Tên nhãn tối đa 100 ký tự.',
       save: 'Lưu',

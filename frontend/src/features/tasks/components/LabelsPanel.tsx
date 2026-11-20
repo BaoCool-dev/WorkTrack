@@ -1,4 +1,4 @@
-import { Plus, Tags } from 'lucide-react'
+import { Plus, Tags, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { useCan } from '@/features/auth'
 import { ApiError } from '@/shared/api/http'
@@ -127,11 +127,12 @@ export function LabelsPanel() {
   )
 }
 
-/** Xác nhận xóa; nhãn đang dùng thì báo trước, lỗi LABEL_IN_USE từ server hiện ngay trong hộp thoại. */
+/** Xác nhận xóa; nhãn đang dùng thì khóa nút kèm lý do, lỗi LABEL_IN_USE từ server (dữ liệu cũ) hiện ngay trong hộp thoại. */
 function DeleteLabelDialog({ label, onClose }: { label: Label; onClose: () => void }) {
   const remove = useDeleteLabel()
   const toast = useToast()
   const [error, setError] = useState<string | null>(null)
+  const inUse = label.taskCount > 0
   const confirm = async () => {
     setError(null)
     try {
@@ -147,15 +148,25 @@ function DeleteLabelDialog({ label, onClose }: { label: Label; onClose: () => vo
       open
       onClose={onClose}
       title={t.removeTitle(label.name)}
-      description={
-        label.taskCount > 0 ? t.removeInUse(formatNumber(label.taskCount)) : t.removeHint
+      description={inUse ? t.removeInUse(formatNumber(label.taskCount)) : t.removeHint}
+      icon={<Trash2 size={16} strokeWidth={2} aria-hidden className="text-bad" />}
+      body={
+        error ? (
+          <FormAlert message={error} />
+        ) : inUse ? (
+          <p className="text-sm text-ink-muted">{t.removeBlocked}</p>
+        ) : undefined
       }
-      body={error ? <FormAlert message={error} /> : undefined}
     >
       <Button variant="secondary" onClick={onClose}>
         {messages.common.cancel}
       </Button>
-      <Button variant="danger" loading={remove.isPending} onClick={() => void confirm()}>
+      <Button
+        variant="danger"
+        disabled={inUse}
+        loading={remove.isPending}
+        onClick={() => void confirm()}
+      >
         {t.remove}
       </Button>
     </Dialog>

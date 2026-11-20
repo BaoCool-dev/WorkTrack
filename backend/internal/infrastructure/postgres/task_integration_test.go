@@ -4,6 +4,7 @@ package postgres
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,6 +136,20 @@ func TestTaskRepo_ServiceFlow_CF06(t *testing.T) {
 	}
 	if n, err := tasks.MyWIP(ctx, mem); err != nil || n != 1 {
 		t.Fatalf("WIP khi ở in_progress: %d %v", n, err)
+	}
+	// Việc con ở cột in_progress không tính vào WIP (CLAUDE.md §5.6).
+	if _, err := pool.Exec(ctx, `INSERT INTO task (project_id, column_id, parent_task_id, title, assignee_id, created_by)
+		SELECT project_id, column_id, id, 'Việc con', $2, $3 FROM task WHERE id = $1`, tk.ID, memID, memID); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := tasks.MyWIP(ctx, mem); err != nil || n != 1 {
+		t.Fatalf("WIP đếm cả việc con: %d %v", n, err)
+	}
+	// Việc con có Story Point → CHECK ck_task_story_point_parent_only chặn (CLAUDE.md §5.4).
+	if _, err := pool.Exec(ctx, `INSERT INTO task (project_id, column_id, parent_task_id, title, story_point, created_by)
+		SELECT project_id, column_id, id, 'Con có SP', 3, $2 FROM task WHERE id = $1`, tk.ID, memID); err == nil ||
+		!strings.Contains(err.Error(), "ck_task_story_point_parent_only") {
+		t.Fatalf("con có SP phải bị CHECK chặn: %v", err)
 	}
 
 	// Sửa: bỏ nhãn, đổi SP → chụp lại theo hệ số hiện tại (8).

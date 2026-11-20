@@ -169,6 +169,9 @@ export function TaskFormDialog({ projectId, task, save, onClose }: TaskFormDialo
             label={t.assignee}
             options={assigneeOptions}
             error={errors.assigneeId?.message}
+            hint={
+              members.isPending ? t.membersLoading : members.isError ? t.membersError : undefined
+            }
             {...register('assigneeId')}
           />
           <fieldset
@@ -177,11 +180,15 @@ export function TaskFormDialog({ projectId, task, save, onClose }: TaskFormDialo
             aria-invalid={labelsError ? true : false}
           >
             <legend className="mb-1 text-sm font-semibold text-ink-muted">{t.labels}</legend>
-            {labels.data && labels.data.length === 0 ? (
+            {labels.isPending ? (
+              <p className="text-sm text-ink-faint">{t.labelsLoading}</p>
+            ) : labels.isError ? (
+              <p className="text-sm text-bad">{t.labelsError}</p>
+            ) : labels.data.length === 0 ? (
               <p className="text-sm text-ink-faint">{t.noLabels}</p>
             ) : (
               <div className="flex flex-wrap gap-x-4 gap-y-2">
-                {(labels.data ?? []).map((l) => (
+                {labels.data.map((l) => (
                   <label key={l.id} className="flex min-h-10 items-center gap-2 text-base text-ink">
                     <input
                       type="checkbox"

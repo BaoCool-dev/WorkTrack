@@ -1,7 +1,7 @@
 -- name: ListBoardColumns :many
 -- CF-03, CF-06: task_count đếm cả việc cha và con nằm trong cột (cột còn việc không xóa được).
 SELECT c.id, c.project_id, c.name, c.position, c.status_group,
-       (SELECT count(*) FROM task t WHERE t.column_id = c.id) AS task_count
+       (SELECT count(*) FROM task t WHERE t.column_id = c.id AND t.project_id = c.project_id) AS task_count
 FROM board_column c
 WHERE c.project_id = @project_id
 ORDER BY c.position;

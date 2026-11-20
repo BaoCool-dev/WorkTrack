@@ -375,3 +375,29 @@ func TestTaskAPI_ErrorMapping_CF06(t *testing.T) {
 		t.Fatalf("setting: %d %s", rec.Code, errCode(t, rec))
 	}
 }
+
+// Quyền do service quyết định; handler phải trả 403 FORBIDDEN cho mọi thao tác ghi bị từ chối.
+func TestTaskAPI_ForbiddenWrites_CF06(t *testing.T) {
+	id := uuid.NewString()
+	cases := []struct {
+		name, method, path, body, token string
+	}{
+		{"Member sửa công việc", http.MethodPut, "/api/v1/tasks/" + id, `{"title":"x","labelIds":[]}`, "valid-member"},
+		{"CEO sửa công việc", http.MethodPut, "/api/v1/tasks/" + id, `{"title":"x","labelIds":[]}`, "valid-ceo"},
+		{"CEO nhận việc", http.MethodPost, "/api/v1/tasks/" + id + "/claim", "", "valid-ceo"},
+		{"Manager nhận việc", http.MethodPost, "/api/v1/tasks/" + id + "/claim", "", "valid-manager"},
+		{"Member tạo công việc", http.MethodPost, "/api/v1/projects/" + id + "/tasks", `{"title":"x","labelIds":[]}`, "valid-member"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := &fakeTasks{err: domain.ErrForbidden}
+			rec := newTaskAPI(t, f).do(t, tc.method, tc.path, tc.body, withToken(tc.token))
+			if rec.Code != http.StatusForbidden || errCode(t, rec) != "FORBIDDEN" {
+				t.Fatalf("status %d code %s", rec.Code, errCode(t, rec))
+			}
+			if f.calls != 1 {
+				t.Fatalf("service phải được gọi đúng 1 lần, gọi %d", f.calls)
+			}
+		})
+	}
+}

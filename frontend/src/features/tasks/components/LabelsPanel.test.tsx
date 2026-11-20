@@ -102,10 +102,24 @@ describe('Tab Nhãn trong Quản trị (CF-06)', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true')
   })
 
-  it('xóa nhãn đang dùng: báo trước số công việc, lỗi LABEL_IN_USE hiện trong hộp thoại', async () => {
+  it('xóa nhãn đang dùng: báo số công việc, khóa nút Xóa kèm lý do', async () => {
+    mockLabels()
+    setup()
+    const user = userEvent.setup()
+    const table = await screen.findByRole('table', { name: t.tableLabel })
+    const row = within(table).getByText('Backend').closest('tr')
+    if (!row) throw new Error('row')
+    await user.click(within(row).getByRole('button', { name: t.remove }))
+    const dialog = await screen.findByRole('dialog', { name: t.removeTitle('Backend') })
+    expect(within(dialog).getByText(t.removeInUse('2'))).toBeInTheDocument()
+    expect(within(dialog).getByText(t.removeBlocked)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: t.remove })).toBeDisabled()
+  })
+
+  it('server trả LABEL_IN_USE (danh mục cũ) → lỗi hiện trong hộp thoại', async () => {
     mockLabels()
     server.use(
-      mock.delete(`${API}/api/v1/labels/l-1`, () =>
+      mock.delete(`${API}/api/v1/labels/l-2`, () =>
         HttpResponse.json(
           { error: { code: 'LABEL_IN_USE', message: 'Nhãn đang được dùng' } },
           { status: 409 },
@@ -115,11 +129,10 @@ describe('Tab Nhãn trong Quản trị (CF-06)', () => {
     setup()
     const user = userEvent.setup()
     const table = await screen.findByRole('table', { name: t.tableLabel })
-    const row = within(table).getByText('Backend').closest('tr')
+    const row = within(table).getByText('Frontend').closest('tr')
     if (!row) throw new Error('row')
     await user.click(within(row).getByRole('button', { name: t.remove }))
-    const dialog = await screen.findByRole('dialog', { name: t.removeTitle('Backend') })
-    expect(within(dialog).getByText(t.removeInUse('2'))).toBeInTheDocument()
+    const dialog = await screen.findByRole('dialog', { name: t.removeTitle('Frontend') })
     await user.click(within(dialog).getByRole('button', { name: t.remove }))
     expect(await within(dialog).findByText('Nhãn đang được dùng')).toBeInTheDocument()
   })

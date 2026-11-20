@@ -1,5 +1,7 @@
 import { ListTodo, Plus, Search } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { Link } from 'react-router'
+import { useCan } from '@/features/auth'
 import { PAGE_SIZE, STATUS_GROUPS, useProjectMembers, type Project } from '@/features/projects'
 import { ApiError } from '@/shared/api/http'
 import { formatNumber } from '@/shared/lib/format'
@@ -61,6 +63,7 @@ export function ProjectTasksPanel({ project, canManage }: ProjectTasksPanelProps
     setPage(1)
   }
 
+  const isMember = useCan('tasks.claim')
   const addButton = canManage && (
     <Button
       icon={<Plus size={16} strokeWidth={2} aria-hidden />}
@@ -99,7 +102,18 @@ export function ProjectTasksPanel({ project, canManage }: ProjectTasksPanelProps
         icon={ListTodo}
         title={t.emptyTitle}
         description={canManage ? t.emptyHintManager : t.emptyHint}
-        actions={addButton}
+        actions={
+          canManage ? (
+            addButton
+          ) : isMember ? (
+            <Link
+              to="/my-tasks"
+              className="inline-flex h-10 items-center rounded-md border border-line-strong bg-surface px-4 text-base font-semibold text-ink hover:bg-subtle focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {t.viewMine}
+            </Link>
+          ) : undefined
+        }
       />
     )
   else

@@ -87,7 +87,7 @@ func (q *Queries) DeleteWorkflowTransitions(ctx context.Context, projectID uuid.
 
 const listBoardColumns = `-- name: ListBoardColumns :many
 SELECT c.id, c.project_id, c.name, c.position, c.status_group,
-       (SELECT count(*) FROM task t WHERE t.column_id = c.id) AS task_count
+       (SELECT count(*) FROM task t WHERE t.column_id = c.id AND t.project_id = c.project_id) AS task_count
 FROM board_column c
 WHERE c.project_id = $1
 ORDER BY c.position

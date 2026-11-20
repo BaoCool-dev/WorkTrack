@@ -88,6 +88,29 @@ describe('Tab Công việc của dự án (CF-06)', () => {
     expect(screen.getByText(t.list.emptyHintManager)).toBeInTheDocument()
   })
 
+  it('rỗng: Member thấy "Backlog đang trống" và liên kết Xem công việc của tôi', async () => {
+    mockProject([])
+    setup('member')
+    expect(await screen.findByText(t.list.emptyTitle)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: t.list.viewMine })).toHaveAttribute('href', '/my-tasks')
+    expect(screen.queryByRole('button', { name: t.list.add })).not.toBeInTheDocument()
+  })
+
+  it('form tạo việc: danh mục nhãn lỗi tải thì báo rõ, vẫn gửi được form', async () => {
+    mockProject([])
+    server.use(
+      mock.get(`${API}/api/v1/labels`, () =>
+        HttpResponse.json({ error: { code: 'INTERNAL', message: 'x' } }, { status: 500 }),
+      ),
+    )
+    setup('manager')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: t.list.add }))
+    const dialog = await screen.findByRole('dialog', { name: t.form.createTitle })
+    expect(await within(dialog).findByText(t.form.labelsError)).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: t.form.create })).toBeEnabled()
+  })
+
   it('lỗi tải hiện mã lỗi và nút Thử lại', async () => {
     mockProject([])
     server.use(

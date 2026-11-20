@@ -389,14 +389,29 @@ func TestUpdate_PermissionAndNotFound_CF06(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
 	created := e.create(t, task.Input{Title: "x"})
-	_, err := e.svc.Update(ctx, e.member, created.ID, task.Input{Title: "hack"})
-	expectErr(t, err, domain.ErrForbidden)
-	_, err = e.svc.Update(ctx, e.other, created.ID, task.Input{Title: "hack"})
-	expectErr(t, err, domain.ErrTaskNotFound) // IDOR: người ngoài dự án không biết việc tồn tại
-	_, err = e.svc.Update(ctx, e.mgr, uuid.New(), task.Input{Title: "x"})
-	expectErr(t, err, domain.ErrTaskNotFound)
-	if e.st.tasks[created.ID].Title != "x" {
-		t.Fatal("không được sửa")
+	otherMgr := authz.Principal{UserID: uuid.New(), Role: domain.RoleManager}
+	e.pr.members[e.project.ID][otherMgr.UserID] = true // Manager khác dù là thành viên dự án vẫn không sửa được
+	cases := []struct {
+		name  string
+		actor authz.Principal
+		id    uuid.UUID
+		want  error
+	}{
+		{"Member trong dự án", e.member, created.ID, domain.ErrForbidden},
+		{"Manager khác (không phụ trách)", otherMgr, created.ID, domain.ErrForbidden},
+		{"CEO chỉ xem", e.ceo, created.ID, domain.ErrForbidden},
+		{"Admin không thấy dự án", e.admin, created.ID, domain.ErrTaskNotFound},
+		{"Member ngoài dự án (IDOR)", e.other, created.ID, domain.ErrTaskNotFound},
+		{"việc không tồn tại", e.mgr, uuid.New(), domain.ErrTaskNotFound},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := e.svc.Update(ctx, tc.actor, tc.id, task.Input{Title: "hack"})
+			expectErr(t, err, tc.want)
+			if e.st.tasks[created.ID].Title != "x" {
+				t.Fatal("không được sửa")
+			}
+		})
 	}
 }
 

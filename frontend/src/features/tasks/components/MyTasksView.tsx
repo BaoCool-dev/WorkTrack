@@ -1,19 +1,11 @@
 import { ListTodo, Search } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useId, useState } from 'react'
 import { Link } from 'react-router'
 import { PAGE_SIZE, STATUS_GROUPS } from '@/features/projects'
 import { ApiError } from '@/shared/api/http'
 import { formatNumber } from '@/shared/lib/format'
 import { messages } from '@/shared/lib/messages'
-import {
-  Badge,
-  Button,
-  EmptyState,
-  ErrorState,
-  Pagination,
-  Select,
-  TableSkeleton,
-} from '@/shared/ui'
+import { Button, EmptyState, ErrorState, Pagination, Select, TableSkeleton } from '@/shared/ui'
 import { useMyTasks, useMyWip } from '../api/queries'
 import type { MyTaskFilters, Task } from '../model/types'
 import { TaskDetailDialog } from './TaskDetailDialog'
@@ -30,6 +22,7 @@ export function MyTasksView() {
   const [page, setPage] = useState(1)
   const [resetKey, setResetKey] = useState(0)
   const [open, setOpen] = useState<Task | null>(null)
+  const wipHintId = useId()
   const tasks = useMyTasks({ ...filters, page, pageSize: PAGE_SIZE })
   const wip = useMyWip()
 
@@ -105,9 +98,17 @@ export function MyTasksView() {
         <h1 className="text-lg font-semibold text-ink">{t.mine.title}</h1>
         <p className="text-sm text-ink-muted">{t.mine.meta}</p>
         {wip.data !== undefined && (
-          <span className="ml-auto" title={t.wipHint}>
-            <Badge tone="active">{t.wip(formatNumber(wip.data))}</Badge>
-          </span>
+          <div className="ml-auto flex items-baseline gap-2">
+            <span
+              aria-describedby={wipHintId}
+              className="num inline-flex items-center rounded-sm border border-line-strong bg-surface px-2 py-0.5 text-sm font-semibold text-ink"
+            >
+              {t.wip(formatNumber(wip.data))}
+            </span>
+            <p id={wipHintId} className="text-sm text-ink-muted">
+              {t.wipHint}
+            </p>
+          </div>
         )}
       </header>
       <div className="flex flex-wrap items-end gap-3">
