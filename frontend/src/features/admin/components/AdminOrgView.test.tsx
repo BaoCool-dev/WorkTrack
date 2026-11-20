@@ -370,6 +370,28 @@ describe('Thêm / sửa nhân sự [CF-02]', () => {
     expect(await screen.findByText('Đã gửi lại email kích hoạt')).toBeInTheDocument()
     expect(cap.bodies[0]?.path).toBe('/users/u-2/activation-email')
   })
+
+  it('gửi lại kích hoạt thất bại → dải lỗi (role=alert), không dùng toast', async () => {
+    const user = userEvent.setup()
+    mockAdminApi()
+    server.use(
+      mock.post(`${API}/api/v1/users/:id/activation-email`, () =>
+        HttpResponse.json(
+          {
+            error: {
+              code: 'MAIL_SEND_FAILED',
+              message: 'Không gửi được email, vui lòng thử lại sau.',
+            },
+          },
+          { status: 502 },
+        ),
+      ),
+    )
+    setup('/admin/users')
+    const binh = await rowOf('Trần Bình')
+    await user.click(binh.getByRole('button', { name: 'Gửi lại email kích hoạt' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không gửi được email')
+  })
 })
 
 describe('Hồ sơ kỹ năng [CF-02]', () => {

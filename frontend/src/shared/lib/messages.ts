@@ -146,6 +146,7 @@ export const messages = {
       editTitle: 'Sửa thông tin nhân sự',
       email: 'Email',
       emailReadonly: 'Email không đổi được sau khi tạo tài khoản.',
+      selfRoleHint: 'Bạn không thể tự đổi vai trò của mình.',
       fullName: 'Họ tên',
       role: 'Vai trò',
       department: 'Phòng ban',

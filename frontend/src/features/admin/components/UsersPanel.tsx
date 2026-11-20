@@ -12,6 +12,7 @@ import {
   ErrorState,
   Pagination,
   Select,
+  FormAlert,
   useToast,
   type BadgeTone,
 } from '@/shared/ui'
@@ -62,6 +63,7 @@ export function UsersPanel() {
   const departments = useDepartments()
   const jobTitles = useCatalog('job-titles')
   const resend = useResendActivation()
+  const [resendError, setResendError] = useState<string | null>(null)
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -97,11 +99,13 @@ export function UsersPanel() {
   const canEdit = (u: AdminUser) => canManage && (u.role !== 'ceo' || canAssignCeo)
 
   const onResend = async (u: AdminUser) => {
+    setResendError(null)
     try {
       await resend.mutateAsync(u.id)
       toast.show(t.resent)
     } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : messages.errors.unknown)
+      // Lỗi cần đọc kỹ: hiện dải lỗi, không dùng toast (design-system §5).
+      setResendError(err instanceof ApiError ? err.message : messages.errors.unknown)
     }
   }
 
@@ -317,6 +321,7 @@ export function UsersPanel() {
           </div>
         )}
       </div>
+      <FormAlert message={resendError} />
       {content}
       {dialog?.kind === 'create' && (
         <UserFormDialog

@@ -97,7 +97,7 @@ RETURNING id;
 -- chức danh và phòng ban (gồm cả phòng ban con). @search là mẫu ILIKE đã thoát ký tự ở Go.
 WITH RECURSIVE dept_scope AS (
     SELECT d.id FROM department d WHERE d.id = sqlc.narg(department_id)::uuid
-    UNION ALL
+    UNION -- UNION (không ALL): tự dừng nếu cây lỡ có vòng
     SELECT c.id FROM department c JOIN dept_scope s ON c.parent_id = s.id
 )
 SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at,
@@ -119,7 +119,7 @@ LIMIT @page_limit OFFSET @page_offset;
 -- name: CountUsers :one
 WITH RECURSIVE dept_scope AS (
     SELECT d.id FROM department d WHERE d.id = sqlc.narg(department_id)::uuid
-    UNION ALL
+    UNION -- UNION (không ALL): tự dừng nếu cây lỡ có vòng
     SELECT c.id FROM department c JOIN dept_scope s ON c.parent_id = s.id
 )
 SELECT count(*)

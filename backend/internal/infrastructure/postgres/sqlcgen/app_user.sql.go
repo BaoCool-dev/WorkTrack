@@ -49,7 +49,7 @@ func (q *Queries) ActivateUser(ctx context.Context, arg ActivateUserParams) (int
 const countUsers = `-- name: CountUsers :one
 WITH RECURSIVE dept_scope AS (
     SELECT d.id FROM department d WHERE d.id = $5::uuid
-    UNION ALL
+    UNION -- UNION (không ALL): tự dừng nếu cây lỡ có vòng
     SELECT c.id FROM department c JOIN dept_scope s ON c.parent_id = s.id
 )
 SELECT count(*)
@@ -298,7 +298,7 @@ func (q *Queries) GetUserDetail(ctx context.Context, id uuid.UUID) (GetUserDetai
 const listUsers = `-- name: ListUsers :many
 WITH RECURSIVE dept_scope AS (
     SELECT d.id FROM department d WHERE d.id = $5::uuid
-    UNION ALL
+    UNION -- UNION (không ALL): tự dừng nếu cây lỡ có vòng
     SELECT c.id FROM department c JOIN dept_scope s ON c.parent_id = s.id
 )
 SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at,

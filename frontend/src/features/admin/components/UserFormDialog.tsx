@@ -174,6 +174,7 @@ function UserForm({
             label={t.role}
             options={roleOptions}
             disabled={isSelf}
+            hint={isSelf ? t.selfRoleHint : undefined}
             error={errors.role?.message}
             {...register('role')}
           />

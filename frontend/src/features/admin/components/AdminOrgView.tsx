@@ -40,7 +40,7 @@ export function AdminOrgView() {
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex flex-col gap-1">
+      <header className="flex items-baseline gap-3">
         <h1 className="text-lg font-semibold text-ink">{t.title}</h1>
         <p className="text-sm text-ink-muted">{t.meta}</p>
       </header>
@@ -59,9 +59,9 @@ export function AdminOrgView() {
                 select(x.value)
               }}
               className={cn(
-                '-mb-px border-b-2 px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-accent',
+                '-mb-px border-b-2 px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-accent',
                 selected
-                  ? 'border-accent text-ink'
+                  ? 'border-accent font-semibold text-accent'
                   : 'border-transparent text-ink-muted hover:text-ink',
               )}
             >
