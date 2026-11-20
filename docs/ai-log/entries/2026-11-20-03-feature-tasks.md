@@ -24,6 +24,7 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 ## Nội dung AI tạo ra
 <!-- Liệt kê theo file/phần: AI viết gì. Có thể kèm git diff --stat của commit AI. -->
 - Commit 1 — CSDL + domain: migration `create_task_tables` (system_setting với hệ số B1 mặc định 4 giờ/SP, label + unique lower(name), task với FK kép cột/cha cùng dự án, CHECK Story Point chỉ ở cha, task_label, view `task_view`); query sqlc `task.sql` (danh sách theo dự án có lọc + phân trang, "của tôi", WIP, khóa dòng, cột todo đầu tiên, tạo/sửa/giao, nhãn), `label.sql`, `system_setting.sql`; `board_column.sql` đếm `task_count` thật; `domain/task.go` (chuẩn hóa tiêu đề/mô tả, thang SP Fibonacci, quy đổi phút, hệ số 1–40, bỏ trùng nhãn ≤ 10, điều kiện được nhận việc) + `task_test.go` viết trước; lỗi CF-06 trong `domain/errors.go`.
+- Commit 2 — tầng application: quyền `settings.manage` (Admin, CEO) và `tasks.claim` (Member) trong `authz`; gói `task` (port Store/Transactor/Projects/Settings, service tạo/sửa/giao/nhận việc/danh sách/của tôi/WIP, kiểm IDOR trả ErrTaskNotFound, khóa dòng khi nhận việc và khi sửa, chụp giờ ước tính khi Story Point đổi); gói `label` (danh mục nhãn, mọi vai trò đọc, Admin/CEO ghi); gói `setting` (đọc/sửa hệ số B1). Test viết trước cho cả ba gói.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -38,3 +39,4 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - Commit 1: `make sqlc` → ok; `make migrate-up` trên Postgres Homebrew (B12) → OK `20261120095746_create_task_tables.sql`; `go test ./internal/domain/` → ok; `golangci-lint run ./internal/domain/...` → 0 issues.
+- Commit 2: `go test ./internal/application/...` → ok (task, label, setting, authz); `golangci-lint run ./internal/application/...` → 0 issues. Trạng thái RED trước khi viết service: `undefined: task.Service`.
