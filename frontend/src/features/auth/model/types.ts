@@ -6,6 +6,7 @@ export type Permission =
   | 'org.manage'
   | 'projects.create'
   | 'projects.view_all'
+  | 'projects.view_own'
   | 'dashboard.team.view'
   | 'dashboard.company.view'
 

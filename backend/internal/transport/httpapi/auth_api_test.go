@@ -144,7 +144,7 @@ func newTestAPI(t *testing.T, mutate ...func(*Deps)) testAPI {
 	t.Helper()
 	fa, fc := &fakeAuth{}, &fakeAccounts{}
 	d := Deps{
-		DB: fakePinger{}, Auth: fa, Accounts: fc, Org: &fakeOrg{}, Tokens: fakeVerifier{},
+		DB: fakePinger{}, Auth: fa, Accounts: fc, Org: &fakeOrg{}, Projects: &fakeProjects{}, Tokens: fakeVerifier{},
 		Now: func() time.Time { return testNow },
 	}
 	for _, m := range mutate {

@@ -27,7 +27,7 @@ import {
   type UserFilters,
   type UserStatus,
 } from '../model/types'
-import { cellClass, OrgTable, TableSkeleton } from './OrgTable'
+import { cellClass, DataTable, TableSkeleton } from '@/shared/ui'
 import { SkillsDialog } from './SkillsDialog'
 import { UserFormDialog } from './UserFormDialog'
 
@@ -153,7 +153,7 @@ export function UsersPanel() {
   else
     content = (
       <>
-        <OrgTable
+        <DataTable
           label={t.tableLabel}
           head={[
             { label: t.colName },
@@ -225,7 +225,7 @@ export function UsersPanel() {
               )}
             </tr>
           ))}
-        </OrgTable>
+        </DataTable>
         <div className="flex items-center justify-between">
           <span className="num text-sm text-ink-muted">
             {t.total(formatNumber(users.data.total))}

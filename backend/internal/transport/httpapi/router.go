@@ -19,6 +19,7 @@ type Deps struct {
 	Auth     AuthService
 	Accounts AccountService
 	Org      OrgService
+	Projects ProjectService
 	Tokens   TokenVerifier
 
 	// Now mặc định time.Now; test truyền đồng hồ giả.
@@ -61,6 +62,7 @@ func NewRouter(d Deps) http.Handler {
 	ah := &authHandler{svc: d.Auth, validate: v, now: d.Now}
 	uh := &userHandler{svc: d.Accounts, validate: v}
 	oh := &orgHandler{svc: d.Org, validate: v}
+	ph := &projectHandler{svc: d.Projects, validate: v}
 	loginRL := newRateLimiter(d.LoginLimit, d.Now)
 	refreshRL := newRateLimiter(d.RefreshLimit, d.Now)
 
@@ -104,6 +106,26 @@ func NewRouter(d Deps) http.Handler {
 				r.Post("/skills", oh.createSkill)
 				r.Put("/skills/{id}", oh.updateSkill)
 				r.Delete("/skills/{id}", oh.deleteSkill)
+			})
+
+			// CF-03: dự án. Quyền theo vai trò + Manager phụ trách kiểm trong project.Service.
+			r.Route("/projects", func(r chi.Router) {
+				r.Get("/", ph.list)
+				r.Post("/", ph.create)
+				r.Route("/{projectID}", func(r chi.Router) {
+					r.Get("/", ph.get)
+					r.Put("/", ph.update)
+					r.Get("/members", ph.listMembers)
+					r.Post("/members", ph.addMember)
+					r.Delete("/members/{userID}", ph.removeMember)
+					r.Get("/member-candidates", ph.listCandidates)
+					r.Get("/board", ph.getBoard)
+					r.Post("/columns", ph.addColumn)
+					r.Put("/columns/{columnID}", ph.updateColumn)
+					r.Delete("/columns/{columnID}", ph.deleteColumn)
+					r.Put("/column-order", ph.reorderColumns)
+					r.Put("/transitions", ph.replaceTransitions)
+				})
 			})
 		})
 	})

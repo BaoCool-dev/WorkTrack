@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/authz"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/domain"
 )
@@ -17,6 +19,7 @@ func TestCan_Matrix_CF01_B2(t *testing.T) {
 		{authz.ManageOrg, []domain.Role{domain.RoleAdmin, domain.RoleCEO}},
 		{authz.CreateProject, []domain.Role{domain.RoleManager}},
 		{authz.ViewAllProjects, []domain.Role{domain.RoleCEO}},
+		{authz.ViewOwnProjects, []domain.Role{domain.RoleManager, domain.RoleMember}},
 		{authz.ViewCompanyDashboard, []domain.Role{domain.RoleCEO}},
 		{authz.AssignCEORole, []domain.Role{domain.RoleCEO}},
 		{authz.ViewTeamDashboard, []domain.Role{domain.RoleManager}},
@@ -81,5 +84,26 @@ func TestPermissionsOf_SortedAndCopy(t *testing.T) {
 	}
 	if ps := authz.PermissionsOf(domain.RoleMember); ps == nil {
 		t.Fatal("trả slice rỗng, không nil (JSON [] thay vì null)")
+	}
+}
+
+func TestRequireProjectManager_CF03(t *testing.T) {
+	mgr := uuid.New()
+	cases := []struct {
+		name string
+		pr   authz.Principal
+		ok   bool
+	}{
+		{"manager phụ trách", authz.Principal{UserID: mgr, Role: domain.RoleManager}, true},
+		{"manager khác", authz.Principal{UserID: uuid.New(), Role: domain.RoleManager}, false},
+		{"CEO", authz.Principal{UserID: uuid.New(), Role: domain.RoleCEO}, false},
+		{"Admin", authz.Principal{UserID: uuid.New(), Role: domain.RoleAdmin}, false},
+		{"Member trùng id (vai trò đã đổi)", authz.Principal{UserID: mgr, Role: domain.RoleMember}, false},
+	}
+	for _, c := range cases {
+		err := authz.RequireProjectManager(c.pr, mgr)
+		if c.ok != (err == nil) || (err != nil && !errors.Is(err, domain.ErrForbidden)) {
+			t.Errorf("%s: got %v", c.name, err)
+		}
 	}
 }

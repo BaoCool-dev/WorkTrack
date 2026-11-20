@@ -9,8 +9,8 @@ const PERMS: Record<Role, CurrentUser['permissions']> = {
     'projects.view_all',
     'dashboard.company.view',
   ],
-  manager: ['projects.create', 'dashboard.team.view'],
-  member: [],
+  manager: ['projects.create', 'projects.view_own', 'dashboard.team.view'],
+  member: ['projects.view_own'],
 }
 
 const NAMES: Record<Role, string> = {

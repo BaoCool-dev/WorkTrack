@@ -20,10 +20,12 @@ type Principal struct {
 type Permission string
 
 const (
-	ManageUsers          Permission = "users.manage"
-	ManageOrg            Permission = "org.manage"
-	CreateProject        Permission = "projects.create"
-	ViewAllProjects      Permission = "projects.view_all"
+	ManageUsers     Permission = "users.manage"
+	ManageOrg       Permission = "org.manage"
+	CreateProject   Permission = "projects.create"
+	ViewAllProjects Permission = "projects.view_all"
+	// ViewOwnProjects: xem các dự án mình là thành viên (Manager, Member). Admin không có quyền này.
+	ViewOwnProjects      Permission = "projects.view_own"
 	ViewCompanyDashboard Permission = "dashboard.company.view"
 	ViewTeamDashboard    Permission = "dashboard.team.view"
 	// AssignCEORole: chỉ CEO được tạo tài khoản vai trò CEO (Admin không tự nâng quyền lên CEO).
@@ -37,8 +39,8 @@ var adminPerms = []Permission{ManageUsers, ManageOrg}
 var matrix = map[domain.Role][]Permission{
 	domain.RoleAdmin:   adminPerms,
 	domain.RoleCEO:     append(slices.Clone(adminPerms), AssignCEORole, ViewAllProjects, ViewCompanyDashboard),
-	domain.RoleManager: {CreateProject, ViewTeamDashboard},
-	domain.RoleMember:  {},
+	domain.RoleManager: {CreateProject, ViewOwnProjects, ViewTeamDashboard},
+	domain.RoleMember:  {ViewOwnProjects},
 }
 
 // Can trả true nếu vai trò có quyền p. Vai trò/quyền lạ luôn bị từ chối.
@@ -62,4 +64,13 @@ func PermissionsOf(role domain.Role) []Permission {
 	}
 	slices.Sort(ps)
 	return ps
+}
+
+// RequireProjectManager: chỉ Manager phụ trách dự án (managerID) được sửa thông tin, thành viên
+// và cấu hình Kanban của dự án đó (CF-03). Manager khác, CEO, Admin, Member → ErrForbidden.
+func RequireProjectManager(pr Principal, managerID uuid.UUID) error {
+	if !Can(pr.Role, CreateProject) || pr.UserID != managerID {
+		return domain.ErrForbidden
+	}
+	return nil
 }

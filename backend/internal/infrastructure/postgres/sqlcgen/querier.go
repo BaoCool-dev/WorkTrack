@@ -14,46 +14,76 @@ import (
 type Querier interface {
 	// Chỉ kích hoạt khi token còn đúng (tránh dùng một token hai lần đồng thời).
 	ActivateUser(ctx context.Context, arg ActivateUserParams) (int64, error)
+	// Bỏ qua nếu đã là thành viên (thêm lại là thao tác idempotent).
+	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) (int64, error)
+	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
+	CreateBoardColumn(ctx context.Context, arg CreateBoardColumnParams) (uuid.UUID, error)
 	CreateDepartment(ctx context.Context, arg CreateDepartmentParams) (uuid.UUID, error)
 	CreateJobTitle(ctx context.Context, name string) (uuid.UUID, error)
+	CreateProject(ctx context.Context, arg CreateProjectParams) (uuid.UUID, error)
 	CreateSkill(ctx context.Context, name string) (uuid.UUID, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UUID, error)
+	CreateWorkflowTransition(ctx context.Context, arg CreateWorkflowTransitionParams) error
+	DeleteBoardColumn(ctx context.Context, arg DeleteBoardColumnParams) (int64, error)
 	DeleteDepartment(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteJobTitle(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSkill(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteWorkflowTransitions(ctx context.Context, projectID uuid.UUID) error
+	// Kiểm tra một người cụ thể trước khi thêm vào dự án.
+	GetMemberCandidate(ctx context.Context, id uuid.UUID) (GetMemberCandidateRow, error)
+	GetProject(ctx context.Context, id uuid.UUID) (GetProjectRow, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (GetRefreshTokenByHashRow, error)
+	// Chỉ dùng cho make seed.
+	GetSeedProjectIDByName(ctx context.Context, name string) (uuid.UUID, error)
 	GetUserByActivationTokenHash(ctx context.Context, tokenHash []byte) (GetUserByActivationTokenHashRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
 	// CF-02: một tài khoản kèm phòng ban/chức danh (cùng tập cột với ListUsers).
 	GetUserDetail(ctx context.Context, id uuid.UUID) (GetUserDetailRow, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
+	IsProjectMember(ctx context.Context, arg IsProjectMemberParams) (bool, error)
+	// CF-03. task_count luôn 0 cho tới CF-06 (bảng task chưa tồn tại) — xem docs/decisions.md mục C.
+	ListBoardColumns(ctx context.Context, projectID uuid.UUID) ([]ListBoardColumnsRow, error)
 	// CF-02: toàn bộ cây (dữ liệu nhỏ), kèm số nhân sự trực tiếp của từng phòng ban.
 	ListDepartments(ctx context.Context) ([]ListDepartmentsRow, error)
 	ListJobTitles(ctx context.Context) ([]ListJobTitlesRow, error)
+	// Nhân sự có thể thêm vào dự án: Manager/Member chưa bị khóa, chưa là thành viên.
+	ListMemberCandidates(ctx context.Context, arg ListMemberCandidatesParams) ([]ListMemberCandidatesRow, error)
+	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ListProjectMembersRow, error)
+	// CF-03, B9: phân trang offset, mới tạo trước. @visible_to NULL = xem tất cả (CEO);
+	// có giá trị = chỉ dự án người đó là thành viên. @search là mẫu ILIKE đã thoát ký tự ở Go.
+	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
 	ListSkills(ctx context.Context) ([]ListSkillsRow, error)
 	// Một truy vấn cho cả trang danh sách (tránh N+1).
 	ListUserSkillsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]ListUserSkillsByUserIDsRow, error)
 	// B9: phân trang offset; mới tạo trước. CF-02: lọc theo từ khóa (họ tên/email), vai trò, trạng thái,
 	// chức danh và phòng ban (gồm cả phòng ban con). @search là mẫu ILIKE đã thoát ký tự ở Go.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
+	ListWorkflowTransitions(ctx context.Context, projectID uuid.UUID) ([]WorkflowTransition, error)
+	// Khóa dòng dự án trong transaction để các thay đổi cấu hình Kanban chạy tuần tự (giữ ràng buộc 2–8 cột).
+	LockProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Không ghi nếu một request song song vừa khóa tài khoản (0 dòng → coi như đang khóa).
 	RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) (int64, error)
 	// B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
 	// Lần sai thứ @max_failures khóa tới @lock_until và đặt lại bộ đếm. Vế phải SET đọc giá trị cũ của hàng.
 	// Đang khóa tại @now → không cập nhật (0 dòng): lần sai trong lúc khóa không cộng dồn, không gia hạn khóa.
 	RegisterLoginFailure(ctx context.Context, arg RegisterLoginFailureParams) (pgtype.Timestamptz, error)
+	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) (int64, error)
 	// Một câu lệnh (nguyên tử): xóa kỹ năng không còn trong danh sách, thêm/cập nhật phần còn lại.
 	ReplaceUserSkills(ctx context.Context, arg ReplaceUserSkillsParams) error
 	RevokeRefreshTokenFamily(ctx context.Context, arg RevokeRefreshTokenFamilyParams) error
 	// Thu hồi nguyên tử: 0 dòng nghĩa là token đã bị dùng (xoay vòng B4).
 	RevokeRefreshTokenIfActive(ctx context.Context, arg RevokeRefreshTokenIfActiveParams) (int64, error)
 	SetActivationToken(ctx context.Context, arg SetActivationTokenParams) (int64, error)
+	// Ràng buộc vị trí là DEFERRABLE nên đổi chỗ trong cùng transaction không vướng trùng tạm thời.
+	SetBoardColumnPosition(ctx context.Context, arg SetBoardColumnPositionParams) (int64, error)
 	// Chỉ dùng cho make seed.
 	SetSeedUserOrg(ctx context.Context, arg SetSeedUserOrgParams) error
+	UpdateBoardColumn(ctx context.Context, arg UpdateBoardColumnParams) (int64, error)
 	UpdateDepartment(ctx context.Context, arg UpdateDepartmentParams) (int64, error)
 	UpdateJobTitle(ctx context.Context, arg UpdateJobTitleParams) (int64, error)
+	UpdateProject(ctx context.Context, arg UpdateProjectParams) (int64, error)
 	UpdateSkill(ctx context.Context, arg UpdateSkillParams) (int64, error)
 	// CF-02: email không sửa được sau khi tạo (mục C).
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (int64, error)

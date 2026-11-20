@@ -28,6 +28,16 @@ type AppUser struct {
 	JobTitleID          uuid.NullUUID      `json:"jobTitleId"`
 }
 
+type BoardColumn struct {
+	ID          uuid.UUID          `json:"id"`
+	ProjectID   uuid.UUID          `json:"projectId"`
+	Name        string             `json:"name"`
+	Position    int16              `json:"position"`
+	StatusGroup string             `json:"statusGroup"`
+	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamptz `json:"updatedAt"`
+}
+
 type Department struct {
 	ID        uuid.UUID          `json:"id"`
 	Name      string             `json:"name"`
@@ -40,6 +50,25 @@ type JobTitle struct {
 	ID        uuid.UUID          `json:"id"`
 	Name      string             `json:"name"`
 	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+}
+
+type Project struct {
+	ID          uuid.UUID          `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Status      string             `json:"status"`
+	StartDate   pgtype.Date        `json:"startDate"`
+	EndDate     pgtype.Date        `json:"endDate"`
+	ManagerID   uuid.UUID          `json:"managerId"`
+	CreatedBy   uuid.UUID          `json:"createdBy"`
+	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt   pgtype.Timestamptz `json:"updatedAt"`
+}
+
+type ProjectMember struct {
+	ProjectID uuid.UUID          `json:"projectId"`
+	UserID    uuid.UUID          `json:"userId"`
+	AddedAt   pgtype.Timestamptz `json:"addedAt"`
 }
 
 type RefreshToken struct {
@@ -68,4 +97,11 @@ type UserSkill struct {
 	UserID  uuid.UUID `json:"userId"`
 	SkillID uuid.UUID `json:"skillId"`
 	Level   string    `json:"level"`
+}
+
+type WorkflowTransition struct {
+	ProjectID    uuid.UUID `json:"projectId"`
+	FromColumnID uuid.UUID `json:"fromColumnId"`
+	ToColumnID   uuid.UUID `json:"toColumnId"`
+	Role         string    `json:"role"`
 }

@@ -7,12 +7,20 @@ import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { ProjectDetailPage } from '@/pages/ProjectDetailPage'
+import { ProjectsPage } from '@/pages/ProjectsPage'
 import { AppLayout } from './layout/AppLayout'
 import { MENU } from './layout/menu'
 
 // Route đã có màn thật; phần còn lại của menu vẫn là trang giữ chỗ.
 const PAGES: Record<string, ReactNode> = {
   '/admin/users': <AdminUsersPage />,
+  '/projects': <ProjectsPage />,
+}
+
+// Trang con dùng chung guard với mục menu cha.
+const SUB_PAGES: Record<string, RouteObject[]> = {
+  '/projects': [{ path: '/projects/:projectId', element: <ProjectDetailPage /> }],
 }
 
 // Tách khỏi router.tsx để test dựng bằng createMemoryRouter(routes).
@@ -32,6 +40,7 @@ export const routes: RouteObject[] = [
             element: <RequireAccess rule={m.access} />,
             children: [
               { path: m.path, element: PAGES[m.path] ?? <PlaceholderPage title={m.label} /> },
+              ...(SUB_PAGES[m.path] ?? []),
             ],
           })),
           { path: '*', element: <NotFoundPage /> },
