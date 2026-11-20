@@ -250,7 +250,7 @@ func ValidateTransitions(cols []BoardColumn, ts []Transition) error {
 		if t.FromColumnID == t.ToColumnID {
 			return ErrInvalidTransition
 		}
-		_, okFrom := groups[t.FromColumnID]
+		fromGroup, okFrom := groups[t.FromColumnID]
 		toGroup, okTo := groups[t.ToColumnID]
 		if !okFrom || !okTo {
 			return ErrColumnNotFound
@@ -258,8 +258,8 @@ func ValidateTransitions(cols []BoardColumn, ts []Transition) error {
 		if t.Role != TransitionManager && t.Role != TransitionMember {
 			return ErrInvalidTransitionRole
 		}
-		// Chỉ Manager chuyển công việc sang nhóm hoàn thành (CLAUDE.md §5.5).
-		if t.Role == TransitionMember && toGroup == GroupDone {
+		// Chỉ Manager chuyển công việc vào/ra nhóm hoàn thành (CLAUDE.md §5.5, nghiệm thu thuộc Manager).
+		if t.Role == TransitionMember && (toGroup == GroupDone || fromGroup == GroupDone) {
 			return ErrMemberTransitionToDone
 		}
 		if _, dup := seen[t]; dup {
@@ -270,18 +270,18 @@ func ValidateTransitions(cols []BoardColumn, ts []Transition) error {
 	return nil
 }
 
-// PruneTransitions bỏ luật trỏ tới cột không còn tồn tại và luật Member đi vào cột nhóm done
+// PruneTransitions bỏ luật trỏ tới cột không còn tồn tại và luật Member đi vào/ra cột nhóm done
 // (dùng sau khi xóa cột hoặc đổi nhóm của cột).
 func PruneTransitions(cols []BoardColumn, ts []Transition) []Transition {
 	groups := groupsOf(cols)
 	out := make([]Transition, 0, len(ts))
 	for _, t := range ts {
-		_, okFrom := groups[t.FromColumnID]
+		fromGroup, okFrom := groups[t.FromColumnID]
 		toGroup, okTo := groups[t.ToColumnID]
 		if !okFrom || !okTo {
 			continue
 		}
-		if t.Role == TransitionMember && toGroup == GroupDone {
+		if t.Role == TransitionMember && (toGroup == GroupDone || fromGroup == GroupDone) {
 			continue
 		}
 		out = append(out, t)

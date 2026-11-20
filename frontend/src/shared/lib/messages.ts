@@ -257,7 +257,7 @@ export const messages = {
       noMatchTitle: 'Không có dự án phù hợp',
       noMatchHint: 'Thử đổi từ khóa hoặc xóa bộ lọc.',
       total: (n: string) => `${n} dự án`,
-      dateRange: (from: string, to: string) => `${from} → ${to}`,
+      dateRange: (from: string, to: string) => `${from} – ${to}`,
     },
     form: {
       createTitle: 'Tạo dự án',
@@ -356,6 +356,7 @@ export const messages = {
       removeHasTasks: (n: string) =>
         `Cột đang có ${n} công việc. Hãy chuyển hết công việc sang cột khác trước khi xóa.`,
       loadError: 'Không tải được cấu hình cột',
+      emptyTitle: 'Dự án chưa có cột Kanban nào',
     },
     transitions: {
       intro:

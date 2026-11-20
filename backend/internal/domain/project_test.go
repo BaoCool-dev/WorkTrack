@@ -222,7 +222,7 @@ func TestValidateTransitions_CF03(t *testing.T) {
 	}{
 		{"rỗng hợp lệ (khóa hết)", nil, nil},
 		{"Manager sang done", []domain.Transition{tr(todo, done, domain.TransitionManager)}, nil},
-		{"Member mở lại từ done về todo", []domain.Transition{tr(done, todo, domain.TransitionMember)}, nil},
+		{"Member mở lại từ done về todo bị chặn", []domain.Transition{tr(done, todo, domain.TransitionMember)}, domain.ErrMemberTransitionToDone},
 		{"Member sang done bị chặn", []domain.Transition{tr(todo, done, domain.TransitionMember)}, domain.ErrMemberTransitionToDone},
 		{"cùng cột", []domain.Transition{tr(todo, todo, domain.TransitionManager)}, domain.ErrInvalidTransition},
 		{"cột không thuộc dự án", []domain.Transition{tr(todo, uuid.New(), domain.TransitionManager)}, domain.ErrColumnNotFound},
@@ -245,8 +245,9 @@ func TestPruneTransitions_CF03(t *testing.T) {
 		{FromColumnID: todo, ToColumnID: review, Role: domain.TransitionMember},
 		{FromColumnID: todo, ToColumnID: review, Role: domain.TransitionManager},
 		{FromColumnID: todo, ToColumnID: uuid.New(), Role: domain.TransitionManager}, // cột đã xóa
+		{FromColumnID: review, ToColumnID: todo, Role: domain.TransitionMember},      // Member ra khỏi done
 	}
-	// Đổi "Chờ nghiệm thu" sang nhóm done → luật Member vào cột đó bị bỏ, luật cột không tồn tại cũng bỏ.
+	// Đổi "Chờ nghiệm thu" sang nhóm done → luật Member vào/ra cột đó bị bỏ, luật cột không tồn tại cũng bỏ.
 	cols[3].StatusGroup = domain.GroupDone
 	got := domain.PruneTransitions(cols, ts)
 	if len(got) != 1 || got[0].Role != domain.TransitionManager || got[0].ToColumnID != review {

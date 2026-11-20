@@ -38,10 +38,13 @@ func NewProjectTx(db txBeginner) *ProjectTx { return &ProjectTx{db: db} }
 
 // InTx chạy fn trong một transaction. Ràng buộc DEFERRABLE (vị trí cột) được kiểm khi commit.
 func (t *ProjectTx) InTx(ctx context.Context, fn func(project.Store) error) error {
-	// Lỗi từ fn (lỗi nghiệp vụ domain) được trả nguyên để tầng trên so sánh bằng errors.Is.
-	return pgx.BeginFunc(ctx, t.db, func(tx pgx.Tx) error {
+	// Bọc bằng %w: lỗi nghiệp vụ domain vẫn so sánh được bằng errors.Is; lỗi commit có ngữ cảnh.
+	if err := pgx.BeginFunc(ctx, t.db, func(tx pgx.Tx) error {
 		return fn(NewProjectRepo(tx))
-	})
+	}); err != nil {
+		return fmt.Errorf("project tx: %w", err)
+	}
+	return nil
 }
 
 func date(t *time.Time) pgtype.Date {

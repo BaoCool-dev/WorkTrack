@@ -662,3 +662,89 @@ func TestReplaceTransitions_CF03(t *testing.T) {
 	_, err = svc.GetBoard(ctx, member, p.ID)
 	expectErr(t, err, domain.ErrProjectNotFound)
 }
+
+// ---- quyền ghi theo vai trò (CLAUDE.md §5.2: CEO không có thao tác ghi) ----
+
+func TestWriteOps_ForbiddenForNonManager_CF03(t *testing.T) {
+	svc, st, p := setup(t)
+	ctx := context.Background()
+	st.users[member.UserID] = domain.MemberCandidate{UserID: member.UserID, Role: domain.RoleMember, Status: domain.UserStatusActive}
+	if err := svc.AddMember(ctx, mgrA, p.ID, member.UserID); err != nil {
+		t.Fatal(err)
+	}
+	backlog := colID(t, st, p.ID, "Backlog")
+	todo := colID(t, st, p.ID, "To Do")
+	ids := make([]uuid.UUID, 0, len(st.columns[p.ID]))
+	for _, c := range st.columns[p.ID] {
+		ids = append(ids, c.ID)
+	}
+	ops := map[string]func(authz.Principal) error{
+		"Update": func(a authz.Principal) error {
+			_, err := svc.Update(ctx, a, p.ID, project.Input{Name: "X"})
+			return err
+		},
+		"ListCandidates": func(a authz.Principal) error { _, err := svc.ListCandidates(ctx, a, p.ID, ""); return err },
+		"AddMember":      func(a authz.Principal) error { return svc.AddMember(ctx, a, p.ID, uuid.New()) },
+		"RemoveMember":   func(a authz.Principal) error { return svc.RemoveMember(ctx, a, p.ID, member.UserID) },
+		"AddColumn": func(a authz.Principal) error {
+			_, err := svc.AddColumn(ctx, a, p.ID, "Kiểm thử", "in_progress")
+			return err
+		},
+		"UpdateColumn": func(a authz.Principal) error {
+			_, err := svc.UpdateColumn(ctx, a, p.ID, todo, "Việc cần làm", "todo")
+			return err
+		},
+		"DeleteColumn":   func(a authz.Principal) error { _, err := svc.DeleteColumn(ctx, a, p.ID, backlog); return err },
+		"ReorderColumns": func(a authz.Principal) error { _, err := svc.ReorderColumns(ctx, a, p.ID, ids); return err },
+		"ReplaceTransitions": func(a authz.Principal) error {
+			_, err := svc.ReplaceTransitions(ctx, a, p.ID, nil)
+			return err
+		},
+	}
+	actors := []struct {
+		name  string
+		actor authz.Principal
+		want  error
+	}{
+		{"CEO chỉ xem", ceo, domain.ErrForbidden},
+		{"Member là thành viên", member, domain.ErrForbidden},
+		{"Manager khác không thuộc dự án", mgrB, domain.ErrProjectNotFound},
+		{"Admin", admin, domain.ErrProjectNotFound},
+	}
+	for _, a := range actors {
+		for name, op := range ops {
+			t.Run(a.name+"/"+name, func(t *testing.T) {
+				expectErr(t, op(a.actor), a.want)
+			})
+		}
+	}
+	// Không thao tác nào ở trên được làm thay đổi bảng.
+	if len(st.columns[p.ID]) != 5 {
+		t.Fatalf("bảng bị đổi: %d cột", len(st.columns[p.ID]))
+	}
+}
+
+// IDOR: dùng mã cột có thật của dự án B trên đường dẫn dự án A → không tìm thấy, dự án B không đổi.
+func TestColumnOps_CrossProjectColumn_CF03(t *testing.T) {
+	svc, st, pA := setup(t)
+	ctx := context.Background()
+	pB, err := svc.Create(ctx, mgrA, project.Input{Name: "Dự án B"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	colB := colID(t, st, pB.ID, "To Do")
+	backlogA := colID(t, st, pA.ID, "Backlog")
+
+	_, err = svc.UpdateColumn(ctx, mgrA, pA.ID, colB, "Đổi tên", "todo")
+	expectErr(t, err, domain.ErrColumnNotFound)
+	_, err = svc.DeleteColumn(ctx, mgrA, pA.ID, colB)
+	expectErr(t, err, domain.ErrColumnNotFound)
+	_, err = svc.ReplaceTransitions(ctx, mgrA, pA.ID, []domain.Transition{{FromColumnID: backlogA, ToColumnID: colB, Role: domain.TransitionManager}})
+	expectErr(t, err, domain.ErrColumnNotFound)
+	_, err = svc.ReorderColumns(ctx, mgrA, pA.ID, []uuid.UUID{colB})
+	expectErr(t, err, domain.ErrInvalidColumnOrder)
+
+	if len(st.columns[pB.ID]) != 5 || st.col(pB.ID, colB).Name != "To Do" {
+		t.Fatal("cột của dự án B bị thay đổi")
+	}
+}

@@ -93,21 +93,21 @@ export function ColumnsPanel({ projectId, canManage }: { projectId: string; canM
       </div>
       <FormAlert message={reorderError} />
       {columns.length === 0 ? (
-        <EmptyState icon={Columns3} title={t.columns.loadError} />
+        <EmptyState icon={Columns3} title={t.columns.emptyTitle} />
       ) : (
         <DataTable
           label={t.columns.tableLabel}
           head={[
-            { label: t.columns.colOrder },
+            { label: t.columns.colOrder, numeric: true },
             { label: t.columns.colName },
             { label: t.columns.colGroup },
-            { label: t.columns.colTasks },
+            { label: t.columns.colTasks, numeric: true },
             ...(canManage ? [{ label: t.columns.colActions }] : []),
           ]}
         >
           {columns.map((c, i) => (
             <tr key={c.id}>
-              <td className={cellClass}>
+              <td className={`${cellClass} text-right`}>
                 <span className="num">{formatNumber(i + 1)}</span>
               </td>
               <td className={cellClass}>
@@ -116,7 +116,7 @@ export function ColumnsPanel({ projectId, canManage }: { projectId: string; canM
               <td className={cellClass}>
                 <Badge tone={statusGroupTone[c.statusGroup]}>{t.groups[c.statusGroup]}</Badge>
               </td>
-              <td className={cellClass}>
+              <td className={`${cellClass} text-right`}>
                 <span className="num">{formatNumber(c.taskCount)}</span>
               </td>
               {canManage && (

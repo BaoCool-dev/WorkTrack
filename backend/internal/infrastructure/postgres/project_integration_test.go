@@ -129,6 +129,22 @@ func TestProjectRepo_ServiceFlow_CF03(t *testing.T) {
 		t.Fatalf("không rollback: %d → %d luật", before, len(b2.Transitions))
 	}
 
+	// IDOR qua SQL thật: mã cột của dự án A gọi trên đường dẫn dự án B → không tìm thấy, A không đổi.
+	p2, err := svc.Create(ctx, mgr, project.Input{Name: "Dự án thứ hai"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	colA := b.Columns[0]
+	if _, err := svc.UpdateColumn(ctx, mgr, p2.ID, colA.ID, "Bị đổi", "todo"); !errors.Is(err, domain.ErrColumnNotFound) {
+		t.Fatalf("sửa cột dự án khác: %v", err)
+	}
+	if _, err := svc.DeleteColumn(ctx, mgr, p2.ID, colA.ID); !errors.Is(err, domain.ErrColumnNotFound) {
+		t.Fatalf("xóa cột dự án khác: %v", err)
+	}
+	if b3, _ := svc.GetBoard(ctx, mgr, p.ID); b3.Columns[0].Name != colA.Name {
+		t.Fatal("cột dự án A bị thay đổi qua dự án B")
+	}
+
 	if err := svc.RemoveMember(ctx, mgr, p.ID, mgrID); !errors.Is(err, domain.ErrCannotRemoveProjectManager) {
 		t.Fatalf("bỏ Manager phụ trách: %v", err)
 	}
