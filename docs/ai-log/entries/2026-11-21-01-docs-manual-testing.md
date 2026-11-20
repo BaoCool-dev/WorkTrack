@@ -23,7 +23,7 @@ Viết `docs/testing/manual-test-guide.md` — hướng dẫn kiểm thử thủ
 
 ## Nội dung AI tạo ra
 <!-- Liệt kê theo file/phần: AI viết gì. Có thể kèm git diff --stat của commit AI. -->
-- `docs/testing/manual-test-guide.md` (≈ 980 dòng, 8 mục): cài đặt không Docker (biến môi trường lấy từ `backend/internal/config`, `make migrate-up`, `make seed`, `make dev-local`, URL, lỗi thường gặp); đăng nhập/refresh/đăng xuất/khóa tài khoản bằng curl + SQL; Admin tạo tài khoản → đọc thư trong Mailpit API → kích hoạt; ca đúng/lỗi/quyền cho CF-02, CF-03, CF-06 kèm mã lỗi thật lấy từ `errors.go` và SQL kiểm tra; psql/pgAdmin + bảng "bảng nào chứa gì"; curl có token; đặt lại dữ liệu (seed, mở khóa, dọn dữ liệu thử trong transaction ROLLBACK, reset toàn bộ — không chạy); checklist CF-01/02/03/06.
+- `docs/testing/manual-test-guide.md` (≈ 1000 dòng, 8 mục): cài đặt không Docker (biến môi trường lấy từ `backend/internal/config`, `make migrate-up`, `make seed`, `make dev-local`, URL, lỗi thường gặp); đăng nhập/refresh/đăng xuất/khóa tài khoản bằng curl + SQL; Admin tạo tài khoản → đọc thư trong Mailpit API → kích hoạt; ca đúng/lỗi/quyền cho CF-02, CF-03, CF-06 kèm mã lỗi thật lấy từ `errors.go` và SQL kiểm tra; psql/pgAdmin + bảng "bảng nào chứa gì"; curl có token; đặt lại dữ liệu (seed, mở khóa, dọn dữ liệu thử trong transaction ROLLBACK, reset toàn bộ — không chạy); checklist CF-01/02/03/06.
 - Mật khẩu mẫu để dạng `<MK_ADMIN>`… vì `make seed` sinh mật khẩu mới mỗi lần.
 - `docs/testing/README.md` thêm dòng; `docs/decisions.md` mục C thêm giả định của nhánh; báo cáo `docs/gates/docs-manual-testing.md`.
 - Công cụ kiểm chứng tạm (ngoài repo, `/tmp`): script tách mọi khối bash/sql trong tài liệu, thay mật khẩu, chạy tuần tự trên máy dev.
