@@ -1,0 +1,39 @@
+---
+title: feature projects
+date: 2026-11-20
+tool: Claude Code
+model: claude-opus-5-5
+surface: terminal
+type: code
+scope: CF-03
+---
+<!-- type: code | test | docs | design | review | debug | research
+     surface: terminal | vscode | claude.ai | claude-design | khác
+     Thêm dòng "commit: none" ở phần đầu nếu việc này không tạo commit (vd. thiết kế, soạn báo cáo ngoài repo). -->
+
+## Mục tiêu
+Làm CF-03 (quản lý dự án) theo lát dọc ở chế độ tự chạy: Manager tạo/sửa dự án, trạng thái, thành viên; cấu hình 2–8 cột Kanban theo status_group; lưu luật workflow_transition mặc định + API đọc/sửa cấu hình (áp dụng luật khi kéo thẻ để dành feature/kanban do người dùng tự code).
+
+## Prompt đã dùng
+<!-- Dán NGUYÊN VĂN prompt chính (lấy từ: python3 scripts/ai-log/ai_log.py prompts --since-last-ai-commit).
+     Mỗi prompt một dòng bắt đầu bằng ">". Dài quá thì rút gọn và ghi [rút gọn]. Không dán secret. -->
+> Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng, người dùng không có mặt. Nhánh hiện tại: feature/projects (mọc từ feature/org). PR sẽ tạo với --base feature/org --draft. [rút gọn]
+> Phạm vi nhánh này: CF-03. Manager tạo dự án trống, sửa thông tin, trạng thái dự án (Mới tạo/Đang tiến hành/Hoàn thành/Tạm dừng/Đã hủy), thêm/bớt thành viên; cấu hình 2–8 cột Kanban (thêm, đổi tên, xóa, sắp xếp; status_group todo|in_progress|done; cảnh báo khi xóa cột có việc); bảng workflow_transition với luật mặc định (CHỈ lưu dữ liệu + API đọc/sửa cấu hình). Danh sách dự án theo vai trò. [rút gọn]
+> Quy trình bắt buộc: implement-ticket theo lát dọc, Context7, commit nhỏ qua ai-usage-log, feature-gate tối đa 3 vòng, báo cáo docs/gates/feature-projects.md, push + PR draft nếu ĐẠT. Cuối cùng in đúng một dòng GATE=ĐẠT hoặc GATE=CHƯA_ĐẠT. [rút gọn]
+
+## Nội dung AI tạo ra
+<!-- Liệt kê theo file/phần: AI viết gì. Có thể kèm git diff --stat của commit AI. -->
+- Commit 1 — CSDL + domain: migration `create_project_tables` (project, project_member, board_column với vị trí unique DEFERRABLE, workflow_transition khóa ngoại kép ON DELETE CASCADE); query sqlc `project.sql`, `board_column.sql` + code sinh; `domain/project.go` (chuẩn hóa tên, trạng thái, kiểm tra 2–8 cột, phải có cột done, luật chuyển mặc định, kiểm tra xóa cột) + `project_test.go`; lỗi CF-03 trong `domain/errors.go`.
+
+## Phần tôi đã sửa / hoàn thiện
+[NGƯỜI DÙNG ĐIỀN]
+<!-- Người dùng tự viết: đã đọc gì, sửa gì, quyết định gì khác với AI, vì sao.
+     Bằng chứng khách quan: sau commit Human-Edit, chạy  ai_log.py human-diff <file này>  -->
+
+## Lỗi / ảo giác của AI
+| Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
+|---|---|---|---|
+
+## Kiểm chứng
+<!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
+- Commit 1: `go test ./internal/domain/` → ok.
