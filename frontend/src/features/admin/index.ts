@@ -1,1 +1,1 @@
-export { AdminOrgView } from './components/AdminOrgView'
+export { AdminOrgView, type AdminOrgViewProps, type ExtraAdminTab } from './components/AdminOrgView'
