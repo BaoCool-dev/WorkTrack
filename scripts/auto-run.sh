@@ -47,6 +47,13 @@ PHASE2=(
 
 if [ "$PHASE" = "2" ]; then PLAN=("${PHASE2[@]}"); START_BASE="feature/tasks"; else PLAN=("${PHASE1[@]}"); START_BASE="main"; fi
 [ -n "$BASE_ARG" ] && START_BASE="$BASE_ARG"
+for _name in "$ONLY" "$FROM"; do
+  [ -z "$_name" ] && continue
+  _found=0; for item in "${PLAN[@]}"; do [ "${item%%|*}" = "$_name" ] && _found=1; done
+  if [ "$_found" = 0 ]; then
+    echo "✗ Nhánh '$_name' không có trong kế hoạch giai đoạn $PHASE. Có thể bạn cần thêm --phase 2."; exit 2
+  fi
+done
 
 gate_file() { echo "docs/gates/$(echo "$1" | tr '/' '-').md"; }
 notify() { command -v osascript >/dev/null && osascript -e "display notification \"$1\" with title \"WorkTrack auto-run\"" >/dev/null 2>&1; echo "$1"; }
