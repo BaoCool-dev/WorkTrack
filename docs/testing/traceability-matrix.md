@@ -49,3 +49,26 @@
 | 21 | Trạng thái giao diện: skeleton khi kiểm tra phiên, 404 trong app shell, một `h1` | UX | app "đang kiểm tra phiên → hiện skeleton…", "đường dẫn không tồn tại…", "chỉ có một tiêu đề trang…"; ảnh `docs/testing/evidence/feature-auth/` |
 
 **Khoảng trống đã biết:** chưa có E2E Playwright tự động (đã đi tay bằng Playwright MCP, ảnh trong `evidence/feature-auth/`). Màn tạo người dùng thuộc CF-02 nên chỉ kiểm qua API (mục C, 2026-11-20).
+
+## CF-02 — Phòng ban dạng cây, chức danh, kỹ năng, hồ sơ nhân sự (nhánh `feature/org`)
+
+Viết tắt: **orgsvc** = `backend/internal/application/org/service_test.go` · **orgapi** = `backend/internal/transport/httpapi/org_api_test.go` ·
+**prof** = `backend/internal/application/account/profile_test.go` · **odom** = `backend/internal/domain/org_test.go` ·
+**orgit** = `backend/internal/infrastructure/postgres/org_integration_test.go` (tag `integration`) ·
+**view** = `frontend/src/features/admin/components/AdminOrgView.test.tsx` · **fmodel** = `frontend/src/features/admin/model/model.test.ts`
+
+| # | Tiêu chí | Loại ca | Test |
+|---|---|---|---|
+| 1 | Chỉ Admin/CEO quản lý phòng ban, chức danh, kỹ năng; Manager/Member → 403; không token → 401 | âm | orgsvc `TestService_OnlyAdminAndCEOManageOrg_CF02`; orgapi `TestOrgAPI_RoleMatrix_CF02` |
+| 2 | Phòng ban dạng cây: tạo con dưới cha, cha không tồn tại → 404, trùng tên cùng cha → 409 | dương/âm | orgsvc `TestCreateDepartment_UnknownParent_CF02`, `TestCreateDepartment_DuplicateUnderSameParent_CF02`; orgit `TestOrgRepo_DepartmentTree_CF02`; view "cây phòng ban: con nằm dưới cha…" |
+| 3 | Không tạo vòng: chọn chính nó hoặc con cháu làm cha bị chặn (FE và BE); dữ liệu hỏng có vòng vẫn dừng | âm/biên | odom `TestValidateDepartmentParent_CF02`, `TestValidateDepartmentParent_CorruptLoopTerminates_CF02`; orgsvc `TestUpdateDepartment_RejectsCycle_CF02`; view "sửa phòng ban: không chọn được chính nó…"; fmodel "con cháu gồm chính nó" |
+| 4 | Xóa phòng ban còn con / còn nhân sự → lý do từ server, không đóng hộp thoại | âm | orgapi `TestOrgAPI_DomainErrorMapping_CF02`; view "xóa phòng ban còn phòng ban con…" |
+| 5 | Tên: cắt khoảng trắng, rỗng/chỉ khoảng trắng/quá dài bị từ chối, tiếng Việt có dấu | biên | odom `TestNormalizeOrgName_CF02`; orgsvc `TestCreateDepartment_NormalizesName_CF02`, `TestJobTitleAndSkill_ValidateName_CF02`; orgapi `TestOrgAPI_BadInput_CF02`; fmodel "tên rỗng hoặc quá 200 ký tự…" |
+| 6 | Chức danh, kỹ năng: thêm, trùng tên → 409, xóa sau xác nhận | dương/âm | orgit `TestOrgRepo_CatalogsAndSkills_CF02`; view "thêm chức danh; tên trùng (409)…", "xóa kỹ năng sau khi xác nhận" |
+| 7 | Hồ sơ kỹ năng mức Beginner/Intermediate/Senior; mức lạ → 422, kỹ năng trùng/không tồn tại bị chặn | dương/âm | odom `TestParseSkillLevel_CF02`, `TestValidateUserSkills_CF02`; prof `TestSetUserSkills_CF02`; orgapi `TestUserAPI_SetSkills_CF02`; view "thêm kỹ năng, chọn mức độ rồi lưu…" |
+| 8 | Danh sách nhân sự: tìm kiếm (cắt khoảng trắng), lọc vai trò/trạng thái/phòng ban (gồm phòng con)/chức danh, phân trang B9 | dương | prof `TestListUsers_PassesFilterAndLoadsSkillsOnce_CF02`, `TestListUsers_TrimsSearch_CF02`; orgapi `TestUserAPI_ListFilters_CF02`; view "tìm kiếm gửi search…", "phân trang: bấm Trang sau…" |
+| 9 | Form thêm/sửa: validate client, email trùng (409) → "Email đã tồn tại" dưới ô email; email chỉ đọc khi sửa, BE từ chối đổi email | âm | prof `TestCreateUser_WithDepartmentAndJobTitle_CF02`, `TestUpdateUser_Rules_CF02`; orgapi `TestUserAPI_UpdateRejectsEmailChange_CF02`, `TestUserAPI_UpdateErrors_CF02`; view "validate phía client…", "email trùng (409)…", "sửa: email chỉ đọc…"; fmodel "họ tên đúng 100 ký tự có dấu…" |
+| 10 | Admin không gán/sửa CEO, không tự đổi vai trò mình; CEO gán được CEO | âm | prof `TestUpdateUser_Rules_CF02`; view "Admin không thấy lựa chọn vai trò CEO…", "Admin không có nút Sửa ở dòng của CEO" |
+| 11 | Trạng thái màn hình: rỗng / không khớp bộ lọc / lỗi + mã lỗi + Thử lại; lỗi gửi lại kích hoạt hiện dải lỗi (không toast) | UX | view "chưa có ai → trạng thái rỗng…", "lỗi tải danh sách…", "gửi lại kích hoạt thất bại…"; ảnh `docs/testing/evidence/cf02-*.png` |
+
+**Khoảng trống đã biết:** chưa có E2E Playwright tự động (đi tay bằng Playwright MCP). Chưa có integration test cho `skills: []` (go-reviewer gợi ý). Không có artboard trong repo.
