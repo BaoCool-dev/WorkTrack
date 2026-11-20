@@ -87,7 +87,11 @@ func (f *fakeAuth) Activate(_ context.Context, _, _ string) error { return f.act
 
 type fakeAccounts struct {
 	createErr error
+	updateErr error
+	skillsErr error
 	calls     int
+	gotFilter account.UserFilter
+	gotSkills []domain.UserSkillInput
 }
 
 func (f *fakeAccounts) CreateUser(_ context.Context, actor authz.Principal, in account.CreateUserInput) (account.CreateUserResult, error) {
@@ -104,8 +108,9 @@ func (f *fakeAccounts) CreateUser(_ context.Context, actor authz.Principal, in a
 	}, nil
 }
 
-func (f *fakeAccounts) ListUsers(_ context.Context, _ authz.Principal, p domain.PageRequest) (domain.Page[domain.User], error) {
+func (f *fakeAccounts) ListUsers(_ context.Context, _ authz.Principal, uf account.UserFilter, p domain.PageRequest) (domain.Page[domain.User], error) {
 	f.calls++
+	f.gotFilter = uf
 	return domain.Page[domain.User]{Items: []domain.User{{ID: uuid.New(), Role: domain.RoleMember}}, Page: p.Page, PageSize: p.PageSize, Total: 1}, nil
 }
 
@@ -139,7 +144,7 @@ func newTestAPI(t *testing.T, mutate ...func(*Deps)) testAPI {
 	t.Helper()
 	fa, fc := &fakeAuth{}, &fakeAccounts{}
 	d := Deps{
-		DB: fakePinger{}, Auth: fa, Accounts: fc, Tokens: fakeVerifier{},
+		DB: fakePinger{}, Auth: fa, Accounts: fc, Org: &fakeOrg{}, Tokens: fakeVerifier{},
 		Now: func() time.Time { return testNow },
 	}
 	for _, m := range mutate {

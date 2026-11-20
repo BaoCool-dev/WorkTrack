@@ -18,6 +18,7 @@ type Deps struct {
 
 	Auth     AuthService
 	Accounts AccountService
+	Org      OrgService
 	Tokens   TokenVerifier
 
 	// Now mặc định time.Now; test truyền đồng hồ giả.
@@ -59,6 +60,7 @@ func NewRouter(d Deps) http.Handler {
 	v := newValidator()
 	ah := &authHandler{svc: d.Auth, validate: v, now: d.Now}
 	uh := &userHandler{svc: d.Accounts, validate: v}
+	oh := &orgHandler{svc: d.Org, validate: v}
 	loginRL := newRateLimiter(d.LoginLimit, d.Now)
 	refreshRL := newRateLimiter(d.RefreshLimit, d.Now)
 
@@ -81,7 +83,27 @@ func NewRouter(d Deps) http.Handler {
 				r.Use(requirePermission(authz.ManageUsers))
 				r.Get("/", uh.list)
 				r.Post("/", uh.create)
+				r.Get("/{userID}", uh.get)
+				r.Put("/{userID}", uh.update)
+				r.Put("/{userID}/skills", uh.setSkills)
 				r.Post("/{userID}/activation-email", uh.resendActivation)
+			})
+
+			// CF-02: cơ cấu tổ chức (Admin, CEO).
+			r.Group(func(r chi.Router) {
+				r.Use(requirePermission(authz.ManageOrg))
+				r.Get("/departments", oh.listDepartments)
+				r.Post("/departments", oh.createDepartment)
+				r.Put("/departments/{id}", oh.updateDepartment)
+				r.Delete("/departments/{id}", oh.deleteDepartment)
+				r.Get("/job-titles", oh.listJobTitles)
+				r.Post("/job-titles", oh.createJobTitle)
+				r.Put("/job-titles/{id}", oh.updateJobTitle)
+				r.Delete("/job-titles/{id}", oh.deleteJobTitle)
+				r.Get("/skills", oh.listSkills)
+				r.Post("/skills", oh.createSkill)
+				r.Put("/skills/{id}", oh.updateSkill)
+				r.Delete("/skills/{id}", oh.deleteSkill)
 			})
 		})
 	})

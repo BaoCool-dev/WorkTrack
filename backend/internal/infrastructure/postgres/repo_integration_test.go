@@ -105,11 +105,11 @@ func TestUserRepo_CreateActivateLogin_CF01(t *testing.T) {
 		t.Fatalf("not found: %v", err)
 	}
 
-	page, total, err := repo.List(ctx, domain.NewPageRequest(1, 10))
+	page, total, err := repo.List(ctx, account.UserFilter{}, domain.NewPageRequest(1, 10))
 	if err != nil || total != 1 || len(page) != 1 || page[0].ID != id {
 		t.Fatalf("list: %v %d %v", page, total, err)
 	}
-	page, _, _ = repo.List(ctx, domain.NewPageRequest(2, 10))
+	page, _, _ = repo.List(ctx, account.UserFilter{}, domain.NewPageRequest(2, 10))
 	if len(page) != 0 {
 		t.Fatal("trang 2 phải rỗng")
 	}

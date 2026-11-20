@@ -14,14 +14,29 @@ import (
 type Querier interface {
 	// Chỉ kích hoạt khi token còn đúng (tránh dùng một token hai lần đồng thời).
 	ActivateUser(ctx context.Context, arg ActivateUserParams) (int64, error)
-	CountUsers(ctx context.Context) (int64, error)
+	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
+	CreateDepartment(ctx context.Context, arg CreateDepartmentParams) (uuid.UUID, error)
+	CreateJobTitle(ctx context.Context, name string) (uuid.UUID, error)
+	CreateSkill(ctx context.Context, name string) (uuid.UUID, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UUID, error)
+	DeleteDepartment(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteJobTitle(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteSkill(ctx context.Context, id uuid.UUID) (int64, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (GetRefreshTokenByHashRow, error)
 	GetUserByActivationTokenHash(ctx context.Context, tokenHash []byte) (GetUserByActivationTokenHashRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
+	// CF-02: một tài khoản kèm phòng ban/chức danh (cùng tập cột với ListUsers).
+	GetUserDetail(ctx context.Context, id uuid.UUID) (GetUserDetailRow, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
-	// B9: phân trang offset; mới tạo trước.
+	// CF-02: toàn bộ cây (dữ liệu nhỏ), kèm số nhân sự trực tiếp của từng phòng ban.
+	ListDepartments(ctx context.Context) ([]ListDepartmentsRow, error)
+	ListJobTitles(ctx context.Context) ([]ListJobTitlesRow, error)
+	ListSkills(ctx context.Context) ([]ListSkillsRow, error)
+	// Một truy vấn cho cả trang danh sách (tránh N+1).
+	ListUserSkillsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]ListUserSkillsByUserIDsRow, error)
+	// B9: phân trang offset; mới tạo trước. CF-02: lọc theo từ khóa (họ tên/email), vai trò, trạng thái,
+	// chức danh và phòng ban (gồm cả phòng ban con). @search là mẫu ILIKE đã thoát ký tự ở Go.
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
 	// Không ghi nếu một request song song vừa khóa tài khoản (0 dòng → coi như đang khóa).
 	RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) (int64, error)
@@ -29,10 +44,25 @@ type Querier interface {
 	// Lần sai thứ @max_failures khóa tới @lock_until và đặt lại bộ đếm. Vế phải SET đọc giá trị cũ của hàng.
 	// Đang khóa tại @now → không cập nhật (0 dòng): lần sai trong lúc khóa không cộng dồn, không gia hạn khóa.
 	RegisterLoginFailure(ctx context.Context, arg RegisterLoginFailureParams) (pgtype.Timestamptz, error)
+	// Một câu lệnh (nguyên tử): xóa kỹ năng không còn trong danh sách, thêm/cập nhật phần còn lại.
+	ReplaceUserSkills(ctx context.Context, arg ReplaceUserSkillsParams) error
 	RevokeRefreshTokenFamily(ctx context.Context, arg RevokeRefreshTokenFamilyParams) error
 	// Thu hồi nguyên tử: 0 dòng nghĩa là token đã bị dùng (xoay vòng B4).
 	RevokeRefreshTokenIfActive(ctx context.Context, arg RevokeRefreshTokenIfActiveParams) (int64, error)
 	SetActivationToken(ctx context.Context, arg SetActivationTokenParams) (int64, error)
+	// Chỉ dùng cho make seed.
+	SetSeedUserOrg(ctx context.Context, arg SetSeedUserOrgParams) error
+	UpdateDepartment(ctx context.Context, arg UpdateDepartmentParams) (int64, error)
+	UpdateJobTitle(ctx context.Context, arg UpdateJobTitleParams) (int64, error)
+	UpdateSkill(ctx context.Context, arg UpdateSkillParams) (int64, error)
+	// CF-02: email không sửa được sau khi tạo (mục C).
+	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (int64, error)
+	// Chỉ dùng cho make seed.
+	UpsertSeedDepartment(ctx context.Context, arg UpsertSeedDepartmentParams) (uuid.UUID, error)
+	// Chỉ dùng cho make seed.
+	UpsertSeedJobTitle(ctx context.Context, name string) (uuid.UUID, error)
+	// Chỉ dùng cho make seed.
+	UpsertSeedSkill(ctx context.Context, name string) (uuid.UUID, error)
 	// Chỉ dùng cho make seed (môi trường dev).
 	UpsertSeedUser(ctx context.Context, arg UpsertSeedUserParams) (uuid.UUID, error)
 }

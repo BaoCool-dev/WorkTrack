@@ -29,10 +29,19 @@ type fakeStore struct {
 	hashes   map[uuid.UUID][]byte
 	err      error
 	listSeen domain.PageRequest
+	filter   account.UserFilter
+	listOut  []domain.User
+	skills   map[uuid.UUID][]domain.UserSkill
+	updates  []account.ProfileUpdate
+	// skillCalls đếm số lần đọc kỹ năng (kiểm tra không N+1).
+	skillCalls int
 }
 
 func newStore() *fakeStore {
-	return &fakeStore{users: map[uuid.UUID]domain.User{}, hashes: map[uuid.UUID][]byte{}}
+	return &fakeStore{
+		users: map[uuid.UUID]domain.User{}, hashes: map[uuid.UUID][]byte{},
+		skills: map[uuid.UUID][]domain.UserSkill{},
+	}
 }
 
 func (f *fakeStore) Create(_ context.Context, u account.NewUser) (uuid.UUID, error) {
@@ -51,12 +60,49 @@ func (f *fakeStore) Create(_ context.Context, u account.NewUser) (uuid.UUID, err
 	return id, nil
 }
 
-func (f *fakeStore) List(_ context.Context, p domain.PageRequest) ([]domain.User, int, error) {
-	f.listSeen = p
+func (f *fakeStore) List(_ context.Context, fl account.UserFilter, p domain.PageRequest) ([]domain.User, int, error) {
+	f.listSeen, f.filter = p, fl
 	if f.err != nil {
 		return nil, 0, f.err
 	}
-	return nil, len(f.users), nil
+	return f.listOut, len(f.users), nil
+}
+
+func (f *fakeStore) GetProfile(ctx context.Context, id uuid.UUID) (domain.User, error) {
+	return f.GetByID(ctx, id)
+}
+
+func (f *fakeStore) UpdateProfile(_ context.Context, u account.ProfileUpdate) error {
+	if f.err != nil {
+		return f.err
+	}
+	x, ok := f.users[u.ID]
+	if !ok {
+		return domain.ErrUserNotFound
+	}
+	f.updates = append(f.updates, u)
+	x.FullName, x.Role, x.DepartmentID, x.JobTitleID = u.FullName, u.Role, u.DepartmentID, u.JobTitleID
+	f.users[u.ID] = x
+	return nil
+}
+
+func (f *fakeStore) ReplaceSkills(_ context.Context, id uuid.UUID, skills []domain.UserSkill) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.skills[id] = skills
+	return nil
+}
+
+func (f *fakeStore) SkillsOf(_ context.Context, ids []uuid.UUID) (map[uuid.UUID][]domain.UserSkill, error) {
+	f.skillCalls++
+	out := map[uuid.UUID][]domain.UserSkill{}
+	for _, id := range ids {
+		if s, ok := f.skills[id]; ok {
+			out[id] = s
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeStore) GetByID(_ context.Context, id uuid.UUID) (domain.User, error) {
@@ -198,15 +244,15 @@ func TestCreateUser_MailFailureStillCreates_CF01(t *testing.T) {
 func TestListUsers_CF01(t *testing.T) {
 	svc, st, _ := newSvc()
 	p := domain.NewPageRequest(2, 10)
-	got, err := svc.ListUsers(context.Background(), actor(domain.RoleCEO), p)
+	got, err := svc.ListUsers(context.Background(), actor(domain.RoleCEO), account.UserFilter{}, p)
 	if err != nil || got.Items == nil || got.Page != 2 || got.PageSize != 10 || st.listSeen != p {
 		t.Fatalf("got %+v err %v", got, err)
 	}
-	if _, err := svc.ListUsers(context.Background(), actor(domain.RoleManager), p); !errors.Is(err, domain.ErrForbidden) {
+	if _, err := svc.ListUsers(context.Background(), actor(domain.RoleManager), account.UserFilter{}, p); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("manager: %v", err)
 	}
 	st.err = errBoom
-	if _, err := svc.ListUsers(context.Background(), actor(domain.RoleAdmin), p); !errors.Is(err, errBoom) {
+	if _, err := svc.ListUsers(context.Background(), actor(domain.RoleAdmin), account.UserFilter{}, p); !errors.Is(err, errBoom) {
 		t.Fatalf("store: %v", err)
 	}
 }
