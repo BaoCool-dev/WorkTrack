@@ -26,6 +26,7 @@ Làm CF-03 (quản lý dự án) theo lát dọc ở chế độ tự chạy: Ma
 - Commit 1 — CSDL + domain: migration `create_project_tables` (project, project_member, board_column với vị trí unique DEFERRABLE, workflow_transition khóa ngoại kép ON DELETE CASCADE); query sqlc `project.sql`, `board_column.sql` + code sinh; `domain/project.go` (chuẩn hóa tên, trạng thái, kiểm tra 2–8 cột, phải có cột done, luật chuyển mặc định, kiểm tra xóa cột) + `project_test.go`; lỗi CF-03 trong `domain/errors.go`.
 - Commit 2 — application: `authz` thêm quyền `ViewOwnProjects` (Manager, Member) và `RequireProjectManager` (chỉ Manager phụ trách được sửa); `application/project` gồm port `Store`/`Transactor` và `Service` (tạo dự án kèm 5 cột + luật mặc định trong 1 transaction, danh sách theo vai trò, xem: không phải thành viên → 404, sửa thông tin/trạng thái, thêm/bớt thành viên, thêm/sửa/xóa/sắp xếp cột có khóa dự án, thay luật chuyển). Test bảng với fake Store mô phỏng rollback.
 - Commit 3 — repository Postgres: `postgres/project_repo.go` cài đặt `project.Store` (ánh xạ ràng buộc unique/FK sang lỗi domain, ngày `pgtype.Date`) và `ProjectTx` cài `project.Transactor` bằng `pgx.BeginFunc`; test tích hợp `project_integration_test.go` chạy Service thật trên Postgres (sắp xếp đảo cột nhờ ràng buộc DEFERRABLE, cascade luật khi xóa cột, rollback khi lỗi giữa transaction).
+- Commit 4 — HTTP API: `httpapi/project_handler.go` (port `ProjectService`, DTO, ngày `YYYY-MM-DD`, 14 endpoint dưới `/api/v1/projects`: danh sách/tạo/xem/sửa, thành viên + ứng viên, bảng, thêm/sửa/xóa cột, `/column-order`, `/transitions`); route trong `router.go` (chỉ yêu cầu đăng nhập, quyền kiểm trong service); ánh xạ lỗi CF-03 trong `errors.go`; `project_api_test.go` (đường thành công từng endpoint, chuyển đúng đầu vào, hình dạng JSON, 401, 400, bảng ánh xạ lỗi 403/404/409/422).
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -41,3 +42,4 @@ Làm CF-03 (quản lý dự án) theo lát dọc ở chế độ tự chạy: Ma
 - Commit 1: `go test ./internal/domain/` → ok.
 - Commit 2: `go test ./internal/application/...` → ok; `golangci-lint run ./internal/application/...` → 0 issues.
 - Commit 3: `go build ./...`, `golangci-lint run ./internal/infrastructure/...` → 0 issues; `TEST_DATABASE_URL=… go test -tags=integration ./internal/infrastructure/postgres/` trên Postgres Homebrew (B12) → ok (gồm `TestProjectRepo_ServiceFlow_CF03`).
+- Commit 4: `go test ./internal/transport/httpapi/` → ok (49 subtest dự án pass); `golangci-lint run ./...` → 0 issues.
