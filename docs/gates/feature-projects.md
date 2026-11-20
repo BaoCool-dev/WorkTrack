@@ -27,7 +27,7 @@ Môi trường: máy không có Docker (B12). PostgreSQL chạy bằng Homebrew;
 | `gitleaks detect --no-banner` | ✅ no leaks found |
 | `go vet ./...` (kể cả tag `integration`) | ✅ |
 | `python3 scripts/ai-log/ai_log.py check` | ✅ OK; cảnh báo còn lại: mục "Phần tôi đã sửa" chưa điền |
-| `docker build`, `make test-integration` (CI) | xem mục CI bên dưới |
+| `docker build`, `make test-integration` (CI) | ✅ xem mục CI bên dưới |
 
 ## Bảo mật / Validate / UX
 | Hạng mục | Ca đã kiểm | Kết quả | Test hoặc minh chứng |
@@ -63,5 +63,7 @@ Môi trường: máy không có Docker (B12). PostgreSQL chạy bằng Homebrew;
   - ui-reviewer gợi ý: khóa nút xác nhận khi xóa cột đang có việc; câu trạng thái rỗng riêng cho CEO.
 - **Giả định mục C:** 13 dòng trong `docs/decisions.md` (ngày 2026-11-20, nhánh `feature/projects`).
 
-## CI
-Cập nhật sau khi mở PR.
+## CI (PR #5)
+| Lần chạy | Commit | Backend (build → lint → test + integration testcontainers, `-race`) | Frontend (build → lint → test) | gitleaks | Docker build |
+|---|---|---|---|---|---|
+| [44681601735](https://github.com/BaoCool-dev/WorkTrack/actions/runs/44681601735) | f83fcff | ✅ 1m40s | ✅ 49s | ✅ 7s | ✅ 2m21s |
