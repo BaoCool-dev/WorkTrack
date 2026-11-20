@@ -89,7 +89,12 @@ export function MyTasksView() {
           <span className="num text-sm text-ink-muted">
             {t.list.total(formatNumber(tasks.data.total))}
           </span>
-          <Pagination page={page} pageSize={PAGE_SIZE} total={tasks.data.total} onChange={setPage} />
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={tasks.data.total}
+            onChange={setPage}
+          />
         </div>
       </>
     )

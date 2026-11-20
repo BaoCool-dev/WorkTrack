@@ -22,7 +22,10 @@ const optionalDate = z
 
 const storyPoint = z
   .string()
-  .refine((v) => v === '' || (STORY_POINTS as readonly number[]).includes(Number(v)), t.storyPointInvalid)
+  .refine(
+    (v) => v === '' || (STORY_POINTS as readonly number[]).includes(Number(v)),
+    t.storyPointInvalid,
+  )
   .transform((v) => (v === '' ? null : Number(v)))
 
 // Khớp domain/task.go: tiêu đề 1–200 ký tự, mô tả ≤ 5000, tối đa 10 nhãn, SP Fibonacci 1–21.

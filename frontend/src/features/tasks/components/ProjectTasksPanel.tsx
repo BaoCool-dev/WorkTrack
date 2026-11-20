@@ -1,22 +1,10 @@
 import { ListTodo, Plus, Search } from 'lucide-react'
 import { useCallback, useState } from 'react'
-import {
-  PAGE_SIZE,
-  STATUS_GROUPS,
-  useProjectMembers,
-  type Project,
-} from '@/features/projects'
+import { PAGE_SIZE, STATUS_GROUPS, useProjectMembers, type Project } from '@/features/projects'
 import { ApiError } from '@/shared/api/http'
 import { formatNumber } from '@/shared/lib/format'
 import { messages } from '@/shared/lib/messages'
-import {
-  Button,
-  EmptyState,
-  ErrorState,
-  Pagination,
-  Select,
-  TableSkeleton,
-} from '@/shared/ui'
+import { Button, EmptyState, ErrorState, Pagination, Select, TableSkeleton } from '@/shared/ui'
 import { useCreateTask, useLabels, useProjectTasks } from '../api/queries'
 import type { Task, TaskFilters } from '../model/types'
 import { TaskDetailDialog } from './TaskDetailDialog'
@@ -122,7 +110,12 @@ export function ProjectTasksPanel({ project, canManage }: ProjectTasksPanelProps
           <span className="num text-sm text-ink-muted">
             {t.total(formatNumber(tasks.data.total))}
           </span>
-          <Pagination page={page} pageSize={PAGE_SIZE} total={tasks.data.total} onChange={setPage} />
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={tasks.data.total}
+            onChange={setPage}
+          />
         </div>
       </>
     )

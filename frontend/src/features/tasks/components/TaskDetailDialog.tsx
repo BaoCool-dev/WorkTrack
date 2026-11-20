@@ -70,7 +70,10 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
 
   const notFound = query.error instanceof ApiError && query.error.code === 'TASK_NOT_FOUND'
   const claimable =
-    canClaimPerm && task !== undefined && task.assignee === null && task.column.statusGroup === 'todo'
+    canClaimPerm &&
+    task !== undefined &&
+    task.assignee === null &&
+    task.column.statusGroup === 'todo'
 
   const onClaim = async () => {
     setClaimError(null)

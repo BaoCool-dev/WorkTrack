@@ -43,6 +43,7 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 | Test API kỳ vọng mã lỗi `VALIDATION_ERROR` cho query sai | AI đoán tên mã thay vì đọc `errors.go` (mã thật là `VALIDATION_FAILED`) | `go test ./internal/transport/...` đỏ | Sửa kỳ vọng theo mã thật |
 | Dùng class `text-md` cho tiêu đề panel Cấu hình | AI đoán token cỡ chữ không có trong `theme.css` (chỉ có `text-sm`/`text-base`/`text-lg`) | Tự soát lại theo design-system trước khi chạy test | Đổi sang `text-base` |
 | Test "Công việc của tôi" tìm nút phân trang `/trang 2/i` | AI đoán giao diện `Pagination` thay vì đọc component (chỉ có nút Trang trước/Trang sau) | `vitest` đỏ: không tìm thấy nút | Dùng `messages.pagination.next` |
+| Code frontend Commit 5–6 không qua Prettier, `make lint` đỏ (7 file) | AI chỉ chạy `eslint` + `tsc` riêng ở `frontend/`, không chạy `make lint` (có `prettier --check`) trước khi commit | `make lint` ở gốc repo báo `Code style issues found in 7 files` | `prettier --write` 7 file, chạy lại `make lint` |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
@@ -52,3 +53,4 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 - Commit 4: `go test ./cmd/seed/` → ok; `make seed` trên CSDL dev → "Công việc mẫu: 4 nhãn, 6 công việc (mới tạo 6)", chạy lại → "mới tạo 0" (idempotent); `make lint` → sạch; `make test` → Go ok, Vitest 133 pass.
 - Commit 5: `npx tsc --noEmit` → sạch; `npx eslint src` → 0 problems (sau khi sửa `useWatch`); `npx vitest run` → 13 file / 149 test pass.
 - Commit 6: `npx tsc --noEmit` → sạch; `npx eslint src` → 0 problems; `npx vitest run` → 16 file / 168 test pass (LabelsPanel, SettingsPanel, MyTasksView).
+- Sửa định dạng: `npx prettier --write` 7 file → `make lint` sạch (golangci-lint + eslint + tsc + prettier); `make test` → Go ok, Vitest 16 file / 168 test pass.

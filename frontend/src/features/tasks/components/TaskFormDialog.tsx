@@ -6,15 +6,7 @@ import { ApiError } from '@/shared/api/http'
 import { cn } from '@/shared/lib/cn'
 import { formatHours } from '@/shared/lib/format'
 import { messages } from '@/shared/lib/messages'
-import {
-  Button,
-  Dialog,
-  FormAlert,
-  Input,
-  Select,
-  useToast,
-  type SelectOption,
-} from '@/shared/ui'
+import { Button, Dialog, FormAlert, Input, Select, useToast, type SelectOption } from '@/shared/ui'
 import { useLabels, useSettings } from '../api/queries'
 import { taskFormSchema, type TaskFormInput, type TaskFormOutput } from '../model/schemas'
 import { STORY_POINTS, type Task, type TaskInput } from '../model/types'

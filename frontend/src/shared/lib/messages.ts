@@ -398,7 +398,8 @@ export const messages = {
       none: '—',
       loadError: 'Không tải được danh sách công việc',
       emptyTitle: 'Backlog đang trống',
-      emptyHintManager: 'Tạo công việc đầu tiên; công việc mới nằm ở cột đầu tiên của nhóm "Chưa làm".',
+      emptyHintManager:
+        'Tạo công việc đầu tiên; công việc mới nằm ở cột đầu tiên của nhóm "Chưa làm".',
       emptyHint: 'Dự án chưa có công việc nào. Quản lý dự án sẽ tạo và giao việc.',
       noMatchTitle: 'Không có công việc phù hợp',
       noMatchHint: 'Thử đổi từ khóa hoặc xóa bộ lọc.',
@@ -417,7 +418,8 @@ export const messages = {
       storyPoint: 'Story Point',
       noStoryPoint: 'Chưa ước lượng',
       estimateHint: (hours: string, perSp: string) => `Giờ ước tính: ${hours} (1 SP = ${perSp})`,
-      estimateHintEmpty: (perSp: string) => `Chọn Story Point để quy đổi giờ ước tính (1 SP = ${perSp}).`,
+      estimateHintEmpty: (perSp: string) =>
+        `Chọn Story Point để quy đổi giờ ước tính (1 SP = ${perSp}).`,
       assignee: 'Người nhận',
       noAssignee: 'Chưa giao — để Thành viên tự nhận',
       dueDate: 'Hạn chót',
@@ -477,7 +479,8 @@ export const messages = {
       remove: 'Xóa',
       removeTitle: (name: string) => `Xóa nhãn ${name}?`,
       removeHint: 'Nhãn đang gắn vào công việc thì không xóa được.',
-      removeInUse: (n: string) => `Nhãn đang gắn vào ${n} công việc — gỡ nhãn khỏi công việc trước khi xóa.`,
+      removeInUse: (n: string) =>
+        `Nhãn đang gắn vào ${n} công việc — gỡ nhãn khỏi công việc trước khi xóa.`,
       nameRequired: 'Vui lòng nhập tên nhãn.',
       nameTooLong: 'Tên nhãn tối đa 100 ký tự.',
       save: 'Lưu',

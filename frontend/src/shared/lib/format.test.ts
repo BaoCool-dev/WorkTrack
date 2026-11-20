@@ -1,4 +1,10 @@
-import { formatDate, formatHours, formatMinutesAsHours, formatNumber, formatTimestampDate } from './format'
+import {
+  formatDate,
+  formatHours,
+  formatMinutesAsHours,
+  formatNumber,
+  formatTimestampDate,
+} from './format'
 
 describe('formatNumber', () => {
   it('dùng dấu chấm phân cách hàng nghìn kiểu vi-VN', () => {
