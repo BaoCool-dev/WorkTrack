@@ -4,12 +4,10 @@ import { useForm } from 'react-hook-form'
 import { useNavigate, useSearchParams } from 'react-router'
 import { ApiError } from '@/shared/api/http'
 import { messages } from '@/shared/lib/messages'
-import { Button, Input } from '@/shared/ui'
+import { Button, FormAlert, Input } from '@/shared/ui'
 import { useAuth } from '../hooks/useAuth'
 import { safeNext } from '../model/access'
-
 import { loginSchema, type LoginValues } from '../model/schemas'
-import { FormAlert } from './FormAlert'
 
 const t = messages.auth
 

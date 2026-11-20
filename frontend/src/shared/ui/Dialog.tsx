@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react'
+import { cn } from '@/shared/lib/cn'
 
 export interface DialogProps {
   open: boolean
@@ -6,12 +7,25 @@ export interface DialogProps {
   title: string
   description?: ReactNode
   icon?: ReactNode
+  /** Nội dung chính (form, danh sách) giữa phần tiêu đề và hàng nút. */
+  body?: ReactNode
+  /** md: 440px (mặc định, xác nhận); lg: 560px (form nhiều trường). */
+  size?: 'md' | 'lg'
   /** Nút ở góc phải-dưới: phụ rồi chính. */
   children?: ReactNode
 }
 
 /** §5: nền trắng, viền, bo 6, shadow-overlay, padding 18; Escape đóng; trả focus khi đóng. */
-export function Dialog({ open, onClose, title, description, icon, children }: DialogProps) {
+export function Dialog({
+  open,
+  onClose,
+  title,
+  description,
+  icon,
+  body,
+  size = 'md',
+  children,
+}: DialogProps) {
   const titleId = useId()
   const descId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -45,7 +59,10 @@ export function Dialog({ open, onClose, title, description, icon, children }: Di
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
         tabIndex={-1}
-        className="w-full max-w-110 rounded-md border border-line bg-surface p-4.5 shadow-overlay focus:outline-none"
+        className={cn(
+          'max-h-full w-full overflow-y-auto rounded-md border border-line bg-surface p-4.5 shadow-overlay focus:outline-none',
+          size === 'lg' ? 'max-w-140' : 'max-w-110',
+        )}
       >
         <div className="flex gap-3">
           {icon}
@@ -60,6 +77,7 @@ export function Dialog({ open, onClose, title, description, icon, children }: Di
             )}
           </div>
         </div>
+        {body && <div className="mt-4">{body}</div>}
         {children && <div className="mt-4 flex justify-end gap-2">{children}</div>}
       </div>
     </div>
