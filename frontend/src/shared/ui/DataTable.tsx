@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/shared/lib/cn'
-import { Skeleton } from '@/shared/ui'
+import { Skeleton } from './Skeleton'
 
 /** §5 Bảng: khung viền 1px bo 6; header nền subtle 12/600 ink-faint; hàng 40px, phân cách viền trên. */
-export function OrgTable({
+export function DataTable({
   label,
   head,
   children,

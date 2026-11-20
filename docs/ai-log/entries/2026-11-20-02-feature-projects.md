@@ -28,6 +28,7 @@ Làm CF-03 (quản lý dự án) theo lát dọc ở chế độ tự chạy: Ma
 - Commit 3 — repository Postgres: `postgres/project_repo.go` cài đặt `project.Store` (ánh xạ ràng buộc unique/FK sang lỗi domain, ngày `pgtype.Date`) và `ProjectTx` cài `project.Transactor` bằng `pgx.BeginFunc`; test tích hợp `project_integration_test.go` chạy Service thật trên Postgres (sắp xếp đảo cột nhờ ràng buộc DEFERRABLE, cascade luật khi xóa cột, rollback khi lỗi giữa transaction).
 - Commit 4 — HTTP API: `httpapi/project_handler.go` (port `ProjectService`, DTO, ngày `YYYY-MM-DD`, 14 endpoint dưới `/api/v1/projects`: danh sách/tạo/xem/sửa, thành viên + ứng viên, bảng, thêm/sửa/xóa cột, `/column-order`, `/transitions`); route trong `router.go` (chỉ yêu cầu đăng nhập, quyền kiểm trong service); ánh xạ lỗi CF-03 trong `errors.go`; `project_api_test.go` (đường thành công từng endpoint, chuyển đúng đầu vào, hình dạng JSON, 401, 400, bảng ánh xạ lỗi 403/404/409/422).
 - Commit 5 — wiring + seed: `cmd/api/main.go` lắp `project.NewService` vào `Deps.Projects`; `cmd/seed` tạo 2 dự án mẫu (B11) qua `project.Service` (có sẵn cột + luật mặc định), idempotent theo tên, thêm Member mẫu làm thành viên; test seed kiểm tên/trạng thái hợp lệ.
+- Commit 6 — giao diện: `features/projects` (types, schema zod, API client, hook TanStack Query, `ProjectList` lọc/tìm/phân trang + `ProjectFormDialog`, `ProjectDetail` 4 tab: thông tin, `MembersPanel`, `ColumnsPanel` + `ColumnFormDialog`, `TransitionsPanel` ma trận luật theo vai trò); trang `/projects`, `/projects/:projectId`; chuyển `OrgTable` → `shared/ui/DataTable`; `formatDate`/`formatTimestampDate` trong `shared/lib/format.ts`; chữ tiếng Việt trong `messages.ts`; test RTL + MSW `ProjectList.test.tsx`, `ProjectDetail.test.tsx` (23 test: nút theo vai trò, body POST/PUT, 404, thêm/bỏ thành viên, cảnh báo xóa cột có việc + lỗi `COLUMN_HAS_TASKS`, body `columnIds`, khóa ô Member→done, lưu luật). Ghi 13 giả định mục C vào `docs/decisions.md`.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -37,11 +38,14 @@ Làm CF-03 (quản lý dự án) theo lát dọc ở chế độ tự chạy: Ma
 ## Lỗi / ảo giác của AI
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
+| Định dạng ngày bằng template string trong `features/projects/model/format.ts` | AI tự viết hàm format riêng, quên quy định chỉ format qua `shared/lib/format.ts` | ESLint `restrict-template-expressions` + đối chiếu `frontend/CLAUDE.md` | Chuyển sang `formatDate` dùng `Intl` trong `shared/lib/format.ts`, xóa file riêng |
+| Hoán đổi `ids[index]`, `ids[j]` kiểu `string \| undefined` | AI chỉ chạy `tsc --noEmit` lẻ, không bắt `noUncheckedIndexedAccess` như `tsc -b` trong `make lint` | `make lint` đỏ tại `ColumnsPanel.tsx:62` | Lấy 2 cột, kiểm tra tồn tại rồi map lại danh sách id |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - Commit 1: `go test ./internal/domain/` → ok.
 - Commit 2: `go test ./internal/application/...` → ok; `golangci-lint run ./internal/application/...` → 0 issues.
 - Commit 3: `go build ./...`, `golangci-lint run ./internal/infrastructure/...` → 0 issues; `TEST_DATABASE_URL=… go test -tags=integration ./internal/infrastructure/postgres/` trên Postgres Homebrew (B12) → ok (gồm `TestProjectRepo_ServiceFlow_CF03`).
-- Commit 5: `go test ./cmd/...` → ok; `make migrate-up` + `make seed` hai lần trên Postgres Homebrew → lần 1 tạo 2 dự án, lần 2 tạo 0 (idempotent).
 - Commit 4: `go test ./internal/transport/httpapi/` → ok (49 subtest dự án pass); `golangci-lint run ./...` → 0 issues.
+- Commit 5: `go test ./cmd/...` → ok; `make migrate-up` + `make seed` hai lần trên Postgres Homebrew → lần 1 tạo 2 dự án, lần 2 tạo 0 (idempotent).
+- Commit 6: `make lint` → 0 issues (golangci-lint, eslint, `tsc -b`, prettier); `make test` → Go ok, Vitest 12 file / 133 test pass.

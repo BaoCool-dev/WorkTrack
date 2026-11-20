@@ -10,7 +10,7 @@ import { useCatalog, useDeleteCatalog, useSaveCatalog } from '../api/queries'
 import type { CatalogItem } from '../model/types'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { NameDialog } from './NameDialog'
-import { cellClass, OrgTable, TableSkeleton } from './OrgTable'
+import { cellClass, DataTable, TableSkeleton } from '@/shared/ui'
 
 const t = messages.admin
 
@@ -48,7 +48,7 @@ export function CatalogPanel({ kind }: { kind: CatalogKind }) {
     content = <EmptyState title={text.emptyTitle} description={text.emptyHint} />
   else
     content = (
-      <OrgTable
+      <DataTable
         label={text.tableLabel}
         head={[
           { label: t.org.name },
@@ -84,7 +84,7 @@ export function CatalogPanel({ kind }: { kind: CatalogKind }) {
             )}
           </tr>
         ))}
-      </OrgTable>
+      </DataTable>
     )
 
   return (
