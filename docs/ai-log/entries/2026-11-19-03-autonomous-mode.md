@@ -48,3 +48,9 @@ Cho Claude Code tự làm lần lượt các nhánh tính năng mà không hỏi
 |---|---|---|---|
 | Hook `commit-msg` cho qua 2 commit (`fix(ci)`, `docs(gate)`) mà git không nhận trailer `AI-Log`, vì `Co-Authored-By` nằm ở đoạn riêng phía sau | Hook tìm chữ "AI-Log:" ở bất kỳ dòng nào, trong khi git chỉ đọc trailer ở đoạn cuối | `ai_log.py check` báo 2 commit thiếu AI-Log | Hook dùng `git interpret-trailers --parse`; viết lại message 2 commit (gộp trailer vào đoạn cuối) |
 | Script bắt buộc Docker dù người dùng chưa cần | Giả định môi trường dev luôn có Docker | Script dừng ở "Thiếu lệnh: docker" | Docker thành tùy chọn (B12) |
+
+## Bổ sung 21/11 — Agent viết Kanban, thêm tài liệu kiểm thử thủ công
+**Prompt:**
+> Giở tôi muốn bạn Agent code phần kanban luôn sau tôi sẽ điều chỉnh lại , phần này bỏ qua viết nhật ký AI. Ngoài ra Tôi còn muốn Agent tạo một doc hướng dân tôi test tự nhiên từng chức năng, rồi coi database chứ hiện tại tôi còn không biết đăng nhập thế nào.
+
+**AI tạo ra:** đổi quy tắc nhánh Kanban trong CLAUDE.md §7b (Claude viết bản đầu, người dùng chỉnh sửa qua commit Human-Edit; nhật ký AI chế độ tối giản thay vì bỏ hẳn — vì commit không có trailer sẽ trông như người dùng tự viết); giai đoạn 2 của auto-run thêm nhánh docs/manual-testing và feature/kanban; mỗi nhánh sau bổ sung vào tài liệu kiểm thử thủ công.

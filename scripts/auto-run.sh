@@ -3,7 +3,7 @@
 # Mỗi nhánh mọc từ nhánh trước, kết thúc bằng feature-gate ĐẠT + PR draft. Dừng khi một nhánh không đạt.
 #
 #   ./scripts/auto-run.sh                      # chạy giai đoạn 1: scaffold → auth → org → projects → tasks
-#   ./scripts/auto-run.sh --phase 2            # giai đoạn 2 (sau khi bạn code xong feature/kanban)
+#   ./scripts/auto-run.sh --phase 2            # giai đoạn 2: docs/manual-testing → kanban → subtasks → logtime → review → reports → ai
 #   ./scripts/auto-run.sh --only feature/org   # chạy lại đúng một nhánh
 #   Hết giới hạn sử dụng: script tự chờ tới giờ mở lại rồi làm tiếp nhánh dở (tối đa MAX_LIMIT_RETRIES=6 lần).
 #   ./scripts/auto-run.sh --dry-run            # chỉ in kế hoạch
@@ -36,6 +36,8 @@ PHASE1=(
 "feature/tasks|CF-06. Công việc cha: Manager tạo, sửa, giao việc; Member tự nhận việc từ Backlog (giới hạn WIP là Mở rộng — không chặn, chỉ hiển thị số đếm); Story Point và giờ ước tính quy đổi theo B1 (tham số cấu hình); hạn chót; nhãn; API danh sách công việc theo dự án (có lọc, phân trang) và chi tiết; panel chi tiết công việc (không gồm công việc con, bình luận, Log time — các nhánh sau); trang 'Công việc của tôi' dạng bảng. KHÔNG làm bảng Kanban, kéo thả, chuyển cột hay realtime và KHÔNG tạo API chuyển cột — tất cả thuộc feature/kanban do người dùng tự code. Công việc mới tạo nằm ở cột đầu tiên có status_group=todo. Mở rộng make seed với công việc mẫu."
 )
 PHASE2=(
+"docs/manual-testing|KHÔNG sửa code sản phẩm. Viết docs/testing/manual-test-guide.md: hướng dẫn cho người dùng CHƯA biết gì tự kiểm thử thủ công mọi chức năng đã có (scaffold, auth, org, projects, tasks), viết tiếng Việt, từng bước đánh số, dựa trên code thật (đọc config, router, migrations, seed, scripts) — không đoán. Gồm: (1) chuẩn bị môi trường không Docker theo B12: kiểm tra PostgreSQL và Mailpit đang chạy, liệt kê ĐÚNG mọi biến .env mà code đọc (giá trị mẫu, biến bắt buộc, JWT_SECRET tối thiểu 32 ký tự sinh bằng openssl rand -hex 32), make migrate-up, make seed (mật khẩu in ra màn hình và đổi mỗi lần chạy), make dev-local, các URL web/API/Mailpit; cách xử lý lỗi thường gặp khi khởi động; (2) đăng nhập bằng 4 tài khoản mẫu, đăng xuất, làm mới phiên, khóa sau nhiều lần sai; (3) luồng Admin tạo tài khoản → xem email trong Mailpit → kích hoạt → đặt mật khẩu; (4) với từng chức năng và từng vai trò: thao tác cụ thể, kết quả mong đợi, các ca lỗi, validate và phân quyền nên thử, câu SQL xem dữ liệu tương ứng; (5) xem CSDL bằng psql (\\dt, \\d tên_bảng, truy vấn mẫu) và pgAdmin (cách thêm server), bảng nào chứa gì; (6) thử API bằng curl (lấy access token rồi gọi endpoint); (7) đặt lại dữ liệu dev an toàn; (8) checklist kiểm thử theo CF-01, CF-02, CF-03, CF-06 để đánh dấu. Chạy thử từng lệnh và câu SQL trong tài liệu trên máy để chắc chắn đúng. Gate cho nhánh tài liệu: mọi lệnh và SQL chạy được; không cần test UI. Nhật ký AI chế độ tối giản (một entry)."
+"feature/kanban|CF-04, CF-05. Claude viết bản đầu, người dùng sẽ chỉnh sửa — code dễ đọc, comment giải thích vì sao ở chỗ quan trọng (CLAUDE.md §7b). Backend: API di chuyển công việc cha giữa các cột và đổi thứ tự trong cột, áp dụng luật workflow_transition theo vai trò (dữ liệu đã có từ feature/projects); Member không đưa việc vào hoặc ra nhóm done; giới hạn WIP theo dự án (mặc định 5, chỉ đếm việc cha ở nhóm in_progress, Manager chỉnh trong cấu hình dự án) áp dụng cả khi kéo vào cột in_progress và khi nhận việc; chống ghi đè khi hai người cùng kéo (version); lưu lịch sử chuyển cột. Realtime theo skill realtime-websocket (coder/websocket): xác thực JWT và kiểm tra thành viên trước khi nhận kết nối, sự kiện task.created, task.updated, task.moved, presence; FE cập nhật cache TanStack Query, tự nối lại, dải cảnh báo khi mất kết nối. Frontend: bảng Kanban dnd-kit theo design-system §6 và artboard 02, 04, 13 nếu có: thẻ chuẩn, header cột có số đếm, chip WIP, vùng thả hợp lệ hoặc bị chặn kèm lý do cụ thể, cập nhật lạc quan + hoàn tác + dải lỗi khi lưu thất bại, lọc theo nhãn và người nhận, ít nhất 6 thẻ mỗi cột ở 1366x768, biến thể Member; hộp thoại chặn khi WIP đầy. Viết script đo KPI 1 (độ trễ đồng bộ giữa 2 client, tối thiểu 30 lần, p95) trong scripts/ và lưu kết quả vào docs/testing/evidence/. Bổ sung phần Kanban vào docs/testing/manual-test-guide.md. Nhật ký AI chế độ tối giản (một entry) nhưng vẫn có trailer AI-Log trên mỗi commit."
 "feature/subtasks|CF-07. Công việc con 1 cấp do Member tạo (không Story Point, CHECK ở CSDL), Member tự chuyển trạng thái con; bình luận gắn công việc; thông báo trong hệ thống (chuông, đã đọc/chưa đọc) cho: được giao việc, có bình luận, bị từ chối nghiệm thu."
 "feature/logtime|CF-08. Log time trên công việc cha và con (phút > 0, không log vào việc đã Done quá 24 giờ); tổng giờ thực tế = giờ cha + giờ con; thanh so giờ trên thẻ theo design-system §6 và ngưỡng B5; modal Log giờ; lịch sử log."
 "feature/review|CF-09. Luồng nghiệm thu: Member đưa công việc cha sang cột Chờ nghiệm thu (cảnh báo nếu còn con chưa xong, vẫn cho phép); Manager Duyệt (sang nhóm done) hoặc Từ chối bắt buộc lý do (về in_progress, tính tỷ lệ làm lại); dùng luật chuyển cột của feature/kanban, không viết lại."
@@ -43,7 +45,7 @@ PHASE2=(
 "feature/ai|CF-12. Trợ lý AI Gemini qua port AIAssistant: phân rã yêu cầu thành công việc cha có Story Point; gợi ý 3 nhân sự kèm lý do; kết quả luôn là bản xem trước (Chấp nhận/Sửa/Bỏ qua), timeout, bảng ai_usage_log ghi thời gian phản hồi; không gửi dữ liệu nhạy cảm vào prompt. Nếu chưa có GEMINI_API_KEY: cài adapter giả lập để test và chạy giao diện, ghi rõ trong PR."
 )
 
-if [ "$PHASE" = "2" ]; then PLAN=("${PHASE2[@]}"); START_BASE="feature/kanban"; else PLAN=("${PHASE1[@]}"); START_BASE="main"; fi
+if [ "$PHASE" = "2" ]; then PLAN=("${PHASE2[@]}"); START_BASE="feature/tasks"; else PLAN=("${PHASE1[@]}"); START_BASE="main"; fi
 [ -n "$BASE_ARG" ] && START_BASE="$BASE_ARG"
 
 gate_file() { echo "docs/gates/$(echo "$1" | tr '/' '-').md"; }
@@ -107,7 +109,8 @@ Quy trình bắt buộc:
 2. Làm theo skill implement-ticket theo lát dọc: migration → sqlc → domain → application → httpapi → frontend; test viết trước cho logic nghiệp vụ.
 3. Tra cú pháp thư viện bằng Context7, không đoán. Lựa chọn chưa có trong docs/decisions.md: tự chọn theo §7c và ghi vào mục C.
 4. Commit thành nhiều commit nhỏ hợp lý, mỗi commit qua skill ai-usage-log (một entry cho cả nhánh, slug theo tên nhánh, model đúng model id đang chạy). Tác giả commit theo git config sẵn có. Commit sau mỗi phần làm xong để không mất việc nếu phiên bị dừng giữa chừng.
-5. Khi xong: chạy skill feature-gate đầy đủ; sửa tới khi ĐẠT (tối đa 3 vòng). Báo cáo ở $(gate_file "$BR").
+5. Nếu docs/testing/manual-test-guide.md đã có: bổ sung phần kiểm thử thủ công cho tính năng của nhánh này (thao tác, kết quả mong đợi, SQL xem dữ liệu).
+5b. Khi xong: chạy skill feature-gate đầy đủ; sửa tới khi ĐẠT (tối đa 3 vòng). Báo cáo ở $(gate_file "$BR").
 6. ĐẠT → git push -u origin $BR → gh pr create --base $BASE --draft (mô tả: mục tiêu, mã CF, tóm tắt gate, giả định mục C).
    CHƯA ĐẠT → vẫn commit báo cáo gate, push nhánh, KHÔNG tạo PR, kết thúc và nêu rõ cần người dùng làm gì.
 Cuối cùng in đúng một dòng: GATE=ĐẠT hoặc GATE=CHƯA_ĐẠT."
@@ -166,7 +169,7 @@ print(int((t-now).total_seconds())+180)')"
 done
 
 if [ "$PHASE" = "1" ] && [ -z "$ONLY" ]; then
-  notify "Giai đoạn 1 xong. Tới lượt bạn: git switch feature/tasks && git switch -c feature/kanban"
+  notify "Giai đoạn 1 xong. Tiếp: ./scripts/auto-run.sh --phase 2"
 else
   notify "Hoàn tất."
 fi

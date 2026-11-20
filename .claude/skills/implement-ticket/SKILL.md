@@ -9,7 +9,7 @@ Làm đúng thứ tự. Không bỏ bước.
 
 ## 0. Đúng nhánh
 - `git switch main && git pull`, rồi `git switch -c feature/<ten>` (một tính năng một nhánh — xem `CLAUDE.md` §7b).
-- Nhánh `feature/kanban*`: người dùng tự code → **không dùng skill này để viết code**; chỉ review, giải thích, viết test.
+- Nhánh `feature/kanban`: Claude viết bản đầu, code dễ đọc, nhật ký AI tối giản (xem `CLAUDE.md` §7b).
 - Tính năng trước chưa qua `feature-gate` → dừng, nhắc người dùng.
 
 ## 1. Hiểu việc
