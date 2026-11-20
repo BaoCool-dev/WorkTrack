@@ -292,6 +292,9 @@ func (r *ProjectRepo) SetColumnPosition(ctx context.Context, projectID, id uuid.
 // DeleteColumn xóa cột (luật chuyển liên quan bị xóa theo ON DELETE CASCADE).
 func (r *ProjectRepo) DeleteColumn(ctx context.Context, projectID, id uuid.UUID) error {
 	n, err := r.q.DeleteBoardColumn(ctx, sqlcgen.DeleteBoardColumnParams{ID: id, ProjectID: projectID})
+	if fkViolation(err) == "fk_task_column" { // việc được thêm vào cột giữa lúc kiểm và lúc xóa
+		return domain.ErrColumnHasTasks
+	}
 	if err != nil {
 		return fmt.Errorf("postgres.ProjectRepo delete column: %w", err)
 	}

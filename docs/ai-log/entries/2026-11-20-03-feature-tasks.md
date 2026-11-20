@@ -25,6 +25,7 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 <!-- Liệt kê theo file/phần: AI viết gì. Có thể kèm git diff --stat của commit AI. -->
 - Commit 1 — CSDL + domain: migration `create_task_tables` (system_setting với hệ số B1 mặc định 4 giờ/SP, label + unique lower(name), task với FK kép cột/cha cùng dự án, CHECK Story Point chỉ ở cha, task_label, view `task_view`); query sqlc `task.sql` (danh sách theo dự án có lọc + phân trang, "của tôi", WIP, khóa dòng, cột todo đầu tiên, tạo/sửa/giao, nhãn), `label.sql`, `system_setting.sql`; `board_column.sql` đếm `task_count` thật; `domain/task.go` (chuẩn hóa tiêu đề/mô tả, thang SP Fibonacci, quy đổi phút, hệ số 1–40, bỏ trùng nhãn ≤ 10, điều kiện được nhận việc) + `task_test.go` viết trước; lỗi CF-06 trong `domain/errors.go`.
 - Commit 2 — tầng application: quyền `settings.manage` (Admin, CEO) và `tasks.claim` (Member) trong `authz`; gói `task` (port Store/Transactor/Projects/Settings, service tạo/sửa/giao/nhận việc/danh sách/của tôi/WIP, kiểm IDOR trả ErrTaskNotFound, khóa dòng khi nhận việc và khi sửa, chụp giờ ước tính khi Story Point đổi); gói `label` (danh mục nhãn, mọi vai trò đọc, Admin/CEO ghi); gói `setting` (đọc/sửa hệ số B1). Test viết trước cho cả ba gói.
+- Commit 3 — Postgres + HTTP: `task_repo.go` (repo công việc/nhãn/cấu hình, transaction `pgx.BeginFunc`, ánh xạ vi phạm FK/unique sang lỗi nghiệp vụ, nạp nhãn theo lô); `project_repo.go` xóa cột còn việc → `COLUMN_HAS_TASKS`; `task_handler.go` (danh sách theo dự án có lọc + phân trang, chi tiết, tạo, sửa, nhận việc, "của tôi", WIP, CRUD nhãn, GET/PUT cấu hình — không có API chuyển cột); 13 mã lỗi CF-06 tiếng Việt trong `errors.go`; route trong `router.go`; wiring `cmd/api/main.go`; `task_api_test.go` (đường đúng, truyền đầu vào, hình dạng JSON, cần đăng nhập, request sai, ánh xạ lỗi, chặn route chuyển cột); `task_integration_test.go` (luồng service thật trên Postgres).
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -35,8 +36,10 @@ Làm CF-06 (công việc cha) theo lát dọc ở chế độ tự chạy: Manag
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
 | Query `ListMyTasks`/`CountWIP` sinh tham số `user_id` kiểu `uuid.NullUUID` | AI so sánh `@user_id` với cột nullable `assignee_id` mà không ép kiểu, sqlc suy ra kiểu nullable | Đọc code sinh sau `make sqlc` | Ép `@user_id::uuid`, chạy lại `make sqlc` |
+| Test API kỳ vọng mã lỗi `VALIDATION_ERROR` cho query sai | AI đoán tên mã thay vì đọc `errors.go` (mã thật là `VALIDATION_FAILED`) | `go test ./internal/transport/...` đỏ | Sửa kỳ vọng theo mã thật |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - Commit 1: `make sqlc` → ok; `make migrate-up` trên Postgres Homebrew (B12) → OK `20261120095746_create_task_tables.sql`; `go test ./internal/domain/` → ok; `golangci-lint run ./internal/domain/...` → 0 issues.
 - Commit 2: `go test ./internal/application/...` → ok (task, label, setting, authz); `golangci-lint run ./internal/application/...` → 0 issues. Trạng thái RED trước khi viết service: `undefined: task.Service`.
+- Commit 3: `make lint` → 0 issues; `make test` → Go ok (gồm `TestTaskAPI_*`), Vitest 12 file / 133 test pass; `go vet -tags=integration ./internal/infrastructure/postgres/` → ok. Test tích hợp `TestTaskRepo_ServiceFlow_CF06` chưa chạy cục bộ (lệnh chạy trên CSDL dev bị chặn bởi quyền phiên tự chạy) — chạy trong CI.

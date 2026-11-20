@@ -101,6 +101,20 @@ var domainErrors = []struct {
 	{domain.ErrInvalidTransitionRole, httpError{http.StatusUnprocessableEntity, "TRANSITION_ROLE_INVALID", "Vai trò của luật chuyển phải là Manager hoặc Member"}},
 	{domain.ErrMemberTransitionToDone, httpError{http.StatusUnprocessableEntity, "TRANSITION_MEMBER_TO_DONE", "Chỉ Manager được chuyển công việc sang nhóm Hoàn thành"}},
 	{domain.ErrDuplicateTransition, httpError{http.StatusUnprocessableEntity, "TRANSITION_DUPLICATE", "Luật chuyển bị lặp"}},
+	// CF-06 — công việc cha, nhãn, tham số hệ thống.
+	{domain.ErrTaskNotFound, httpError{http.StatusNotFound, "TASK_NOT_FOUND", "Không tìm thấy công việc hoặc bạn không tham gia dự án này"}},
+	{domain.ErrInvalidTaskTitle, httpError{http.StatusUnprocessableEntity, "TASK_TITLE_INVALID", "Tiêu đề công việc không được để trống và tối đa 200 ký tự"}},
+	{domain.ErrInvalidTaskDescription, httpError{http.StatusUnprocessableEntity, "TASK_DESCRIPTION_INVALID", "Mô tả công việc tối đa 5000 ký tự"}},
+	{domain.ErrInvalidStoryPoint, httpError{http.StatusUnprocessableEntity, "TASK_STORY_POINT_INVALID", "Story Point phải là 1, 2, 3, 5, 8, 13 hoặc 21"}},
+	{domain.ErrTooManyLabels, httpError{http.StatusUnprocessableEntity, "TASK_TOO_MANY_LABELS", "Một công việc tối đa 10 nhãn"}},
+	{domain.ErrLabelNotFound, httpError{http.StatusNotFound, "LABEL_NOT_FOUND", "Không tìm thấy nhãn"}},
+	{domain.ErrLabelNameTaken, httpError{http.StatusConflict, "LABEL_NAME_TAKEN", "Nhãn này đã có trong danh mục"}},
+	{domain.ErrLabelInUse, httpError{http.StatusConflict, "LABEL_IN_USE", "Nhãn đang được gắn vào công việc, không thể xóa"}},
+	{domain.ErrInvalidAssignee, httpError{http.StatusUnprocessableEntity, "TASK_ASSIGNEE_INVALID", "Người nhận việc phải là thành viên đang hoạt động của dự án"}},
+	{domain.ErrTaskAlreadyAssigned, httpError{http.StatusConflict, "TASK_ALREADY_ASSIGNED", "Công việc đã có người nhận"}},
+	{domain.ErrTaskNotClaimable, httpError{http.StatusConflict, "TASK_NOT_CLAIMABLE", "Chỉ nhận được công việc chưa giao đang ở nhóm Cần làm"}},
+	{domain.ErrBoardNeedsTodoColumn, httpError{http.StatusConflict, "BOARD_NEEDS_TODO_COLUMN", "Bảng Kanban cần ít nhất một cột nhóm Cần làm để tạo công việc"}},
+	{domain.ErrInvalidSetting, httpError{http.StatusUnprocessableEntity, "SETTING_INVALID", "Số giờ cho 1 Story Point phải từ 1 đến 40"}},
 	{domain.ErrCannotChangeOwnRole, httpError{http.StatusUnprocessableEntity, "USER_CANNOT_CHANGE_OWN_ROLE", "Bạn không thể tự đổi vai trò của chính mình"}},
 }
 
