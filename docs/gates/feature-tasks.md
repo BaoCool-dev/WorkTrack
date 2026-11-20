@@ -88,5 +88,7 @@ Môi trường: máy không có Docker (B12).
   - quyền nhãn/cấu hình;
   - chip WIP chỉ hiển thị số.
 
-## CI
-Cập nhật sau khi push.
+## CI (PR #7)
+| Lần chạy | Commit | Backend (build → lint → test + integration testcontainers, `-race`) | Frontend (build → lint → test) | gitleaks | Docker build |
+|---|---|---|---|---|---|
+| [44761736025](https://github.com/BaoCool-dev/WorkTrack/actions/runs/44761736025) | 2c2663a | ✅ 1m55s | ✅ 52s | ✅ 16s | ✅ 2m5s |
