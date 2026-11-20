@@ -86,7 +86,8 @@ func (q *Queries) DeleteWorkflowTransitions(ctx context.Context, projectID uuid.
 }
 
 const listBoardColumns = `-- name: ListBoardColumns :many
-SELECT c.id, c.project_id, c.name, c.position, c.status_group, 0::bigint AS task_count
+SELECT c.id, c.project_id, c.name, c.position, c.status_group,
+       (SELECT count(*) FROM task t WHERE t.column_id = c.id) AS task_count
 FROM board_column c
 WHERE c.project_id = $1
 ORDER BY c.position
@@ -101,7 +102,7 @@ type ListBoardColumnsRow struct {
 	TaskCount   int64     `json:"taskCount"`
 }
 
-// CF-03. task_count luôn 0 cho tới CF-06 (bảng task chưa tồn tại) — xem docs/decisions.md mục C.
+// CF-03, CF-06: task_count đếm cả việc cha và con nằm trong cột (cột còn việc không xóa được).
 func (q *Queries) ListBoardColumns(ctx context.Context, projectID uuid.UUID) ([]ListBoardColumnsRow, error) {
 	rows, err := q.db.Query(ctx, listBoardColumns, projectID)
 	if err != nil {

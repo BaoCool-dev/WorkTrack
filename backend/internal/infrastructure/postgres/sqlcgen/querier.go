@@ -16,26 +16,44 @@ type Querier interface {
 	ActivateUser(ctx context.Context, arg ActivateUserParams) (int64, error)
 	// Bỏ qua nếu đã là thành viên (thêm lại là thao tác idempotent).
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) (int64, error)
+	AddTaskLabels(ctx context.Context, arg AddTaskLabelsParams) error
+	CountMyTasks(ctx context.Context, arg CountMyTasksParams) (int64, error)
+	CountProjectTasks(ctx context.Context, arg CountProjectTasksParams) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
+	// WIP: số công việc cha nhóm in_progress của một người (CLAUDE.md §5.6). Chỉ hiển thị, không chặn.
+	CountWIP(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateBoardColumn(ctx context.Context, arg CreateBoardColumnParams) (uuid.UUID, error)
 	CreateDepartment(ctx context.Context, arg CreateDepartmentParams) (uuid.UUID, error)
 	CreateJobTitle(ctx context.Context, name string) (uuid.UUID, error)
+	CreateLabel(ctx context.Context, name string) (uuid.UUID, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (uuid.UUID, error)
 	CreateSkill(ctx context.Context, name string) (uuid.UUID, error)
+	CreateTask(ctx context.Context, arg CreateTaskParams) (uuid.UUID, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UUID, error)
 	CreateWorkflowTransition(ctx context.Context, arg CreateWorkflowTransitionParams) error
 	DeleteBoardColumn(ctx context.Context, arg DeleteBoardColumnParams) (int64, error)
 	DeleteDepartment(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteJobTitle(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteLabel(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSkill(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteTaskLabels(ctx context.Context, taskID uuid.UUID) error
 	DeleteWorkflowTransitions(ctx context.Context, projectID uuid.UUID) error
+	// Công việc mới nằm ở cột đầu tiên thuộc nhóm todo.
+	FirstTodoColumn(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
+	// Vai trò và trạng thái của một thành viên dự án (kiểm người nhận việc / người tự nhận).
+	GetAssignableMember(ctx context.Context, arg GetAssignableMemberParams) (GetAssignableMemberRow, error)
+	// B1: tham số hệ thống dạng số nguyên (vd. story_point_hours).
+	GetIntSetting(ctx context.Context, key string) (GetIntSettingRow, error)
 	// Kiểm tra một người cụ thể trước khi thêm vào dự án.
 	GetMemberCandidate(ctx context.Context, id uuid.UUID) (GetMemberCandidateRow, error)
 	GetProject(ctx context.Context, id uuid.UUID) (GetProjectRow, error)
 	GetRefreshTokenByHash(ctx context.Context, tokenHash []byte) (GetRefreshTokenByHashRow, error)
 	// Chỉ dùng cho make seed.
 	GetSeedProjectIDByName(ctx context.Context, name string) (uuid.UUID, error)
+	// Chỉ dùng cho make seed (idempotent theo tên trong dự án).
+	GetSeedTaskIDByTitle(ctx context.Context, arg GetSeedTaskIDByTitleParams) (uuid.UUID, error)
+	GetTask(ctx context.Context, id uuid.UUID) (TaskView, error)
 	GetUserByActivationTokenHash(ctx context.Context, tokenHash []byte) (GetUserByActivationTokenHashRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
@@ -43,18 +61,27 @@ type Querier interface {
 	GetUserDetail(ctx context.Context, id uuid.UUID) (GetUserDetailRow, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	IsProjectMember(ctx context.Context, arg IsProjectMemberParams) (bool, error)
-	// CF-03. task_count luôn 0 cho tới CF-06 (bảng task chưa tồn tại) — xem docs/decisions.md mục C.
+	// CF-03, CF-06: task_count đếm cả việc cha và con nằm trong cột (cột còn việc không xóa được).
 	ListBoardColumns(ctx context.Context, projectID uuid.UUID) ([]ListBoardColumnsRow, error)
 	// CF-02: toàn bộ cây (dữ liệu nhỏ), kèm số nhân sự trực tiếp của từng phòng ban.
 	ListDepartments(ctx context.Context) ([]ListDepartmentsRow, error)
 	ListJobTitles(ctx context.Context) ([]ListJobTitlesRow, error)
+	// CF-06: danh mục nhãn, kèm số công việc đang gắn nhãn.
+	ListLabels(ctx context.Context) ([]ListLabelsRow, error)
 	// Nhân sự có thể thêm vào dự án: Manager/Member chưa bị khóa, chưa là thành viên.
 	ListMemberCandidates(ctx context.Context, arg ListMemberCandidatesParams) ([]ListMemberCandidatesRow, error)
+	// "Công việc của tôi": việc cha giao cho @user_id ở các dự án người đó còn là thành viên.
+	// Việc chưa xong trước, hạn gần trước, không có hạn xếp cuối.
+	ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]TaskView, error)
 	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ListProjectMembersRow, error)
+	// CF-06, B9: công việc cha của một dự án, sắp theo thứ tự cột rồi vị trí trong cột.
+	// @search là mẫu ILIKE đã thoát ký tự ở Go; @unassigned = true chỉ lấy việc chưa có người nhận.
+	ListProjectTasks(ctx context.Context, arg ListProjectTasksParams) ([]TaskView, error)
 	// CF-03, B9: phân trang offset, mới tạo trước. @visible_to NULL = xem tất cả (CEO);
 	// có giá trị = chỉ dự án người đó là thành viên. @search là mẫu ILIKE đã thoát ký tự ở Go.
 	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
 	ListSkills(ctx context.Context) ([]ListSkillsRow, error)
+	ListTaskLabels(ctx context.Context, taskIds []uuid.UUID) ([]ListTaskLabelsRow, error)
 	// Một truy vấn cho cả trang danh sách (tránh N+1).
 	ListUserSkillsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]ListUserSkillsByUserIDsRow, error)
 	// B9: phân trang offset; mới tạo trước. CF-02: lọc theo từ khóa (họ tên/email), vai trò, trạng thái,
@@ -63,6 +90,8 @@ type Querier interface {
 	ListWorkflowTransitions(ctx context.Context, projectID uuid.UUID) ([]WorkflowTransition, error)
 	// Khóa dòng dự án trong transaction để các thay đổi cấu hình Kanban chạy tuần tự (giữ ràng buộc 2–8 cột).
 	LockProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Khóa dòng công việc tới hết transaction (nhận việc / sửa chạy tuần tự).
+	LockTask(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Không ghi nếu một request song song vừa khóa tài khoản (0 dòng → coi như đang khóa).
 	RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) (int64, error)
 	// B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
@@ -78,19 +107,25 @@ type Querier interface {
 	SetActivationToken(ctx context.Context, arg SetActivationTokenParams) (int64, error)
 	// Ràng buộc vị trí là DEFERRABLE nên đổi chỗ trong cùng transaction không vướng trùng tạm thời.
 	SetBoardColumnPosition(ctx context.Context, arg SetBoardColumnPositionParams) (int64, error)
+	SetIntSetting(ctx context.Context, arg SetIntSettingParams) (int64, error)
 	// Chỉ dùng cho make seed.
 	SetSeedUserOrg(ctx context.Context, arg SetSeedUserOrgParams) error
+	SetTaskAssignee(ctx context.Context, arg SetTaskAssigneeParams) (int64, error)
 	UpdateBoardColumn(ctx context.Context, arg UpdateBoardColumnParams) (int64, error)
 	UpdateDepartment(ctx context.Context, arg UpdateDepartmentParams) (int64, error)
 	UpdateJobTitle(ctx context.Context, arg UpdateJobTitleParams) (int64, error)
+	UpdateLabel(ctx context.Context, arg UpdateLabelParams) (int64, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (int64, error)
 	UpdateSkill(ctx context.Context, arg UpdateSkillParams) (int64, error)
+	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
 	// CF-02: email không sửa được sau khi tạo (mục C).
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (int64, error)
 	// Chỉ dùng cho make seed.
 	UpsertSeedDepartment(ctx context.Context, arg UpsertSeedDepartmentParams) (uuid.UUID, error)
 	// Chỉ dùng cho make seed.
 	UpsertSeedJobTitle(ctx context.Context, name string) (uuid.UUID, error)
+	// Chỉ dùng cho make seed.
+	UpsertSeedLabel(ctx context.Context, name string) (uuid.UUID, error)
 	// Chỉ dùng cho make seed.
 	UpsertSeedSkill(ctx context.Context, name string) (uuid.UUID, error)
 	// Chỉ dùng cho make seed (môi trường dev).
