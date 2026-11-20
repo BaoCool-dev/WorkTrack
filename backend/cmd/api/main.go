@@ -17,6 +17,7 @@ import (
 
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/account"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/auth"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/org"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/email"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/security"
@@ -120,6 +121,7 @@ func buildDeps(cfg config, pool *pgxpool.Pool) (httpapi.Deps, error) {
 		CORSOrigin: cfg.CORSOrigin,
 		Auth:       auth.NewService(users, postgres.NewRefreshTokenRepo(pool), security.NewBcryptHasher(bcrypt.DefaultCost), jwt, now),
 		Accounts:   account.NewService(users, mailer, cfg.AppBaseURL, now, slog.Default()),
+		Org:        org.NewService(postgres.NewOrgRepo(pool)),
 		Tokens:     jwt,
 		Now:        now,
 	}, nil

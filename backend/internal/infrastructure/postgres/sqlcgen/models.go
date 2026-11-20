@@ -24,6 +24,22 @@ type AppUser struct {
 	CreatedBy           uuid.NullUUID      `json:"createdBy"`
 	CreatedAt           pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt           pgtype.Timestamptz `json:"updatedAt"`
+	DepartmentID        uuid.NullUUID      `json:"departmentId"`
+	JobTitleID          uuid.NullUUID      `json:"jobTitleId"`
+}
+
+type Department struct {
+	ID        uuid.UUID          `json:"id"`
+	Name      string             `json:"name"`
+	ParentID  uuid.NullUUID      `json:"parentId"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+	UpdatedAt pgtype.Timestamptz `json:"updatedAt"`
+}
+
+type JobTitle struct {
+	ID        uuid.UUID          `json:"id"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
 type RefreshToken struct {
@@ -40,4 +56,16 @@ type Role struct {
 	ID   int16  `json:"id"`
 	Code string `json:"code"`
 	Name string `json:"name"`
+}
+
+type Skill struct {
+	ID        uuid.UUID          `json:"id"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+}
+
+type UserSkill struct {
+	UserID  uuid.UUID `json:"userId"`
+	SkillID uuid.UUID `json:"skillId"`
+	Level   string    `json:"level"`
 }

@@ -52,6 +52,12 @@ type User struct {
 	ActivationExpiresAt *time.Time
 	LastLoginAt         *time.Time
 	CreatedAt           time.Time
+	// CF-02: cơ cấu tổ chức (nil = chưa gán). Tên chỉ có khi đọc kèm danh mục.
+	DepartmentID   *uuid.UUID
+	DepartmentName string
+	JobTitleID     *uuid.UUID
+	JobTitleName   string
+	Skills         []UserSkill
 }
 
 // Chính sách đăng nhập (B8).
@@ -97,6 +103,17 @@ func (u User) CheckCanLogin() error {
 		return ErrAccountDisabled
 	default:
 		return ErrAccountNotActive
+	}
+}
+
+// ParseUserStatus chỉ chấp nhận pending/active/disabled.
+func ParseUserStatus(s string) (UserStatus, error) {
+	st := UserStatus(s)
+	switch st {
+	case UserStatusPending, UserStatusActive, UserStatusDisabled:
+		return st, nil
+	default:
+		return "", ErrInvalidUserStatus
 	}
 }
 

@@ -123,10 +123,14 @@ func (r *UserRepo) Create(ctx context.Context, u account.NewUser) (uuid.UUID, er
 	id, err := r.q.CreateUser(ctx, sqlcgen.CreateUserParams{
 		Email: u.Email, FullName: u.FullName, RoleCode: string(u.Role),
 		ActivationTokenHash: u.ActivationTokenHash, ActivationExpiresAt: ts(u.ActivationExpiresAt),
-		CreatedBy: uuid.NullUUID{UUID: u.CreatedBy, Valid: u.CreatedBy != uuid.Nil},
+		CreatedBy:    uuid.NullUUID{UUID: u.CreatedBy, Valid: u.CreatedBy != uuid.Nil},
+		DepartmentID: nullUUID(u.DepartmentID), JobTitleID: nullUUID(u.JobTitleID),
 	})
 	if isUniqueViolation(err) {
 		return uuid.Nil, domain.ErrEmailTaken
+	}
+	if e := orgRefError(err); e != nil {
+		return uuid.Nil, e
 	}
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("postgres.UserRepo.Create: %w", err)
@@ -134,12 +138,26 @@ func (r *UserRepo) Create(ctx context.Context, u account.NewUser) (uuid.UUID, er
 	return id, nil
 }
 
-func (r *UserRepo) List(ctx context.Context, p domain.PageRequest) ([]domain.User, int, error) {
-	total, err := r.q.CountUsers(ctx)
+func (r *UserRepo) List(ctx context.Context, f account.UserFilter, p domain.PageRequest) ([]domain.User, int, error) {
+	var search, role, status pgtype.Text
+	if f.Search != "" {
+		search = text(likeContains(f.Search))
+	}
+	if f.Role != nil {
+		role = text(string(*f.Role))
+	}
+	if f.Status != nil {
+		status = text(string(*f.Status))
+	}
+	dep, jt := nullUUID(f.DepartmentID), nullUUID(f.JobTitleID)
+	total, err := r.q.CountUsers(ctx, sqlcgen.CountUsersParams{
+		Search: search, RoleCode: role, Status: status, JobTitleID: jt, DepartmentID: dep,
+	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("postgres.UserRepo.List: count: %w", err)
 	}
 	rows, err := r.q.ListUsers(ctx, sqlcgen.ListUsersParams{
+		Search: search, RoleCode: role, Status: status, JobTitleID: jt, DepartmentID: dep,
 		PageLimit: int32(p.PageSize), PageOffset: int32(p.Offset()), //nolint:gosec // PageSize ≤ MaxPageSize; offset giới hạn bởi NewPageRequest
 	})
 	if err != nil {
@@ -147,13 +165,87 @@ func (r *UserRepo) List(ctx context.Context, p domain.PageRequest) ([]domain.Use
 	}
 	out := make([]domain.User, 0, len(rows))
 	for _, x := range rows {
-		out = append(out, domain.User{
-			ID: x.ID, Email: x.Email, FullName: x.FullName,
-			Role: domain.Role(x.RoleCode), Status: domain.UserStatus(x.Status),
-			LastLoginAt: timePtr(x.LastLoginAt), CreatedAt: x.CreatedAt.Time,
-		})
+		out = append(out, toProfile(sqlcgen.GetUserDetailRow(x)))
 	}
 	return out, int(total), nil
+}
+
+// ListUsers và GetUserDetail trả cùng tập cột nên đổi kiểu được.
+func toProfile(x sqlcgen.GetUserDetailRow) domain.User {
+	return domain.User{
+		ID: x.ID, Email: x.Email, FullName: x.FullName,
+		Role: domain.Role(x.RoleCode), Status: domain.UserStatus(x.Status),
+		LastLoginAt: timePtr(x.LastLoginAt), CreatedAt: x.CreatedAt.Time,
+		DepartmentID: uuidPtr(x.DepartmentID), DepartmentName: x.DepartmentName.String,
+		JobTitleID: uuidPtr(x.JobTitleID), JobTitleName: x.JobTitleName.String,
+	}
+}
+
+func (r *UserRepo) GetProfile(ctx context.Context, id uuid.UUID) (domain.User, error) {
+	row, err := r.q.GetUserDetail(ctx, id)
+	if err != nil {
+		return domain.User{}, notFound(err)
+	}
+	return toProfile(row), nil
+}
+
+func (r *UserRepo) UpdateProfile(ctx context.Context, u account.ProfileUpdate) error {
+	n, err := r.q.UpdateUserProfile(ctx, sqlcgen.UpdateUserProfileParams{
+		FullName: u.FullName, RoleCode: string(u.Role),
+		DepartmentID: nullUUID(u.DepartmentID), JobTitleID: nullUUID(u.JobTitleID), ID: u.ID,
+	})
+	if e := orgRefError(err); e != nil {
+		return e
+	}
+	if err != nil {
+		return fmt.Errorf("postgres.UserRepo.UpdateProfile: %w", err)
+	}
+	if n == 0 {
+		return domain.ErrUserNotFound
+	}
+	return nil
+}
+
+// orgRefError ánh xạ vi phạm khóa ngoại phòng ban/chức danh khi tạo hoặc sửa tài khoản.
+func orgRefError(err error) error {
+	switch fkViolation(err) {
+	case "fk_app_user_department":
+		return domain.ErrDepartmentNotFound
+	case "fk_app_user_job_title":
+		return domain.ErrJobTitleNotFound
+	}
+	return nil
+}
+
+func (r *UserRepo) ReplaceSkills(ctx context.Context, userID uuid.UUID, skills []domain.UserSkill) error {
+	ids := make([]uuid.UUID, len(skills))
+	levels := make([]string, len(skills))
+	for i, s := range skills {
+		ids[i], levels[i] = s.SkillID, string(s.Level)
+	}
+	err := r.q.ReplaceUserSkills(ctx, sqlcgen.ReplaceUserSkillsParams{UserID: userID, SkillIds: ids, Levels: levels})
+	switch fkViolation(err) {
+	case "fk_user_skill_skill":
+		return domain.ErrSkillNotFound
+	case "fk_user_skill_user":
+		return domain.ErrUserNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("postgres.UserRepo.ReplaceSkills: %w", err)
+	}
+	return nil
+}
+
+func (r *UserRepo) SkillsOf(ctx context.Context, userIDs []uuid.UUID) (map[uuid.UUID][]domain.UserSkill, error) {
+	rows, err := r.q.ListUserSkillsByUserIDs(ctx, userIDs)
+	if err != nil {
+		return nil, fmt.Errorf("postgres.UserRepo.SkillsOf: %w", err)
+	}
+	out := make(map[uuid.UUID][]domain.UserSkill, len(userIDs))
+	for _, x := range rows {
+		out[x.UserID] = append(out[x.UserID], domain.UserSkill{SkillID: x.SkillID, Name: x.Name, Level: domain.SkillLevel(x.Level)})
+	}
+	return out, nil
 }
 
 func (r *UserRepo) SetActivationToken(ctx context.Context, id uuid.UUID, h []byte, exp time.Time) error {

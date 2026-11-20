@@ -47,25 +47,56 @@ func (q *Queries) ActivateUser(ctx context.Context, arg ActivateUserParams) (int
 }
 
 const countUsers = `-- name: CountUsers :one
-SELECT count(*) FROM app_user
+WITH RECURSIVE dept_scope AS (
+    SELECT d.id FROM department d WHERE d.id = $5::uuid
+    UNION -- UNION (không ALL): tự dừng nếu cây lỡ có vòng
+    SELECT c.id FROM department c JOIN dept_scope s ON c.parent_id = s.id
+)
+SELECT count(*)
+FROM app_user u
+JOIN role r ON r.id = u.role_id
+WHERE ($1::text IS NULL
+       OR u.full_name ILIKE $1::text ESCAPE '\'
+       OR u.email ILIKE $1::text ESCAPE '\')
+  AND ($2::text IS NULL OR r.code = $2::text)
+  AND ($3::text IS NULL OR u.status = $3::text)
+  AND ($4::uuid IS NULL OR u.job_title_id = $4::uuid)
+  AND ($5::uuid IS NULL OR u.department_id IN (SELECT id FROM dept_scope))
 `
 
-func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsers)
+type CountUsersParams struct {
+	Search       pgtype.Text   `json:"search"`
+	RoleCode     pgtype.Text   `json:"roleCode"`
+	Status       pgtype.Text   `json:"status"`
+	JobTitleID   uuid.NullUUID `json:"jobTitleId"`
+	DepartmentID uuid.NullUUID `json:"departmentId"`
+}
+
+func (q *Queries) CountUsers(ctx context.Context, arg CountUsersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsers,
+		arg.Search,
+		arg.RoleCode,
+		arg.Status,
+		arg.JobTitleID,
+		arg.DepartmentID,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO app_user (email, full_name, role_id, activation_token_hash, activation_expires_at, created_by)
+INSERT INTO app_user (email, full_name, role_id, activation_token_hash, activation_expires_at, created_by,
+                      department_id, job_title_id)
 VALUES (
     $1,
     $2,
     (SELECT r.id FROM role r WHERE r.code = $3),
     $4,
     $5,
-    $6
+    $6,
+    $7,
+    $8
 )
 RETURNING id
 `
@@ -77,6 +108,8 @@ type CreateUserParams struct {
 	ActivationTokenHash []byte             `json:"activationTokenHash"`
 	ActivationExpiresAt pgtype.Timestamptz `json:"activationExpiresAt"`
 	CreatedBy           uuid.NullUUID      `json:"createdBy"`
+	DepartmentID        uuid.NullUUID      `json:"departmentId"`
+	JobTitleID          uuid.NullUUID      `json:"jobTitleId"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UUID, error) {
@@ -87,6 +120,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UU
 		arg.ActivationTokenHash,
 		arg.ActivationExpiresAt,
 		arg.CreatedBy,
+		arg.DepartmentID,
+		arg.JobTitleID,
 	)
 	var id uuid.UUID
 	err := row.Scan(&id)
@@ -216,32 +251,109 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 	return i, err
 }
 
-const listUsers = `-- name: ListUsers :many
-SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at
+const getUserDetail = `-- name: GetUserDetail :one
+SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at,
+       u.department_id, d.name AS department_name, u.job_title_id, j.name AS job_title_name
 FROM app_user u
 JOIN role r ON r.id = u.role_id
+LEFT JOIN department d ON d.id = u.department_id
+LEFT JOIN job_title j ON j.id = u.job_title_id
+WHERE u.id = $1
+`
+
+type GetUserDetailRow struct {
+	ID             uuid.UUID          `json:"id"`
+	Email          string             `json:"email"`
+	FullName       string             `json:"fullName"`
+	RoleCode       string             `json:"roleCode"`
+	Status         string             `json:"status"`
+	LastLoginAt    pgtype.Timestamptz `json:"lastLoginAt"`
+	CreatedAt      pgtype.Timestamptz `json:"createdAt"`
+	DepartmentID   uuid.NullUUID      `json:"departmentId"`
+	DepartmentName pgtype.Text        `json:"departmentName"`
+	JobTitleID     uuid.NullUUID      `json:"jobTitleId"`
+	JobTitleName   pgtype.Text        `json:"jobTitleName"`
+}
+
+// CF-02: một tài khoản kèm phòng ban/chức danh (cùng tập cột với ListUsers).
+func (q *Queries) GetUserDetail(ctx context.Context, id uuid.UUID) (GetUserDetailRow, error) {
+	row := q.db.QueryRow(ctx, getUserDetail, id)
+	var i GetUserDetailRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.FullName,
+		&i.RoleCode,
+		&i.Status,
+		&i.LastLoginAt,
+		&i.CreatedAt,
+		&i.DepartmentID,
+		&i.DepartmentName,
+		&i.JobTitleID,
+		&i.JobTitleName,
+	)
+	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+WITH RECURSIVE dept_scope AS (
+    SELECT d.id FROM department d WHERE d.id = $5::uuid
+    UNION -- UNION (không ALL): tự dừng nếu cây lỡ có vòng
+    SELECT c.id FROM department c JOIN dept_scope s ON c.parent_id = s.id
+)
+SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at,
+       u.department_id, d.name AS department_name, u.job_title_id, j.name AS job_title_name
+FROM app_user u
+JOIN role r ON r.id = u.role_id
+LEFT JOIN department d ON d.id = u.department_id
+LEFT JOIN job_title j ON j.id = u.job_title_id
+WHERE ($1::text IS NULL
+       OR u.full_name ILIKE $1::text ESCAPE '\'
+       OR u.email ILIKE $1::text ESCAPE '\')
+  AND ($2::text IS NULL OR r.code = $2::text)
+  AND ($3::text IS NULL OR u.status = $3::text)
+  AND ($4::uuid IS NULL OR u.job_title_id = $4::uuid)
+  AND ($5::uuid IS NULL OR u.department_id IN (SELECT id FROM dept_scope))
 ORDER BY u.created_at DESC, u.id
-LIMIT $2 OFFSET $1
+LIMIT $7 OFFSET $6
 `
 
 type ListUsersParams struct {
-	PageOffset int32 `json:"pageOffset"`
-	PageLimit  int32 `json:"pageLimit"`
+	Search       pgtype.Text   `json:"search"`
+	RoleCode     pgtype.Text   `json:"roleCode"`
+	Status       pgtype.Text   `json:"status"`
+	JobTitleID   uuid.NullUUID `json:"jobTitleId"`
+	DepartmentID uuid.NullUUID `json:"departmentId"`
+	PageOffset   int32         `json:"pageOffset"`
+	PageLimit    int32         `json:"pageLimit"`
 }
 
 type ListUsersRow struct {
-	ID          uuid.UUID          `json:"id"`
-	Email       string             `json:"email"`
-	FullName    string             `json:"fullName"`
-	RoleCode    string             `json:"roleCode"`
-	Status      string             `json:"status"`
-	LastLoginAt pgtype.Timestamptz `json:"lastLoginAt"`
-	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
+	ID             uuid.UUID          `json:"id"`
+	Email          string             `json:"email"`
+	FullName       string             `json:"fullName"`
+	RoleCode       string             `json:"roleCode"`
+	Status         string             `json:"status"`
+	LastLoginAt    pgtype.Timestamptz `json:"lastLoginAt"`
+	CreatedAt      pgtype.Timestamptz `json:"createdAt"`
+	DepartmentID   uuid.NullUUID      `json:"departmentId"`
+	DepartmentName pgtype.Text        `json:"departmentName"`
+	JobTitleID     uuid.NullUUID      `json:"jobTitleId"`
+	JobTitleName   pgtype.Text        `json:"jobTitleName"`
 }
 
-// B9: phân trang offset; mới tạo trước.
+// B9: phân trang offset; mới tạo trước. CF-02: lọc theo từ khóa (họ tên/email), vai trò, trạng thái,
+// chức danh và phòng ban (gồm cả phòng ban con). @search là mẫu ILIKE đã thoát ký tự ở Go.
 func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.PageOffset, arg.PageLimit)
+	rows, err := q.db.Query(ctx, listUsers,
+		arg.Search,
+		arg.RoleCode,
+		arg.Status,
+		arg.JobTitleID,
+		arg.DepartmentID,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +369,10 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUse
 			&i.Status,
 			&i.LastLoginAt,
 			&i.CreatedAt,
+			&i.DepartmentID,
+			&i.DepartmentName,
+			&i.JobTitleID,
+			&i.JobTitleName,
 		); err != nil {
 			return nil, err
 		}
@@ -340,6 +456,57 @@ type SetActivationTokenParams struct {
 
 func (q *Queries) SetActivationToken(ctx context.Context, arg SetActivationTokenParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setActivationToken, arg.TokenHash, arg.ExpiresAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setSeedUserOrg = `-- name: SetSeedUserOrg :exec
+UPDATE app_user
+SET department_id = $1, job_title_id = $2, updated_at = now()
+WHERE id = $3
+`
+
+type SetSeedUserOrgParams struct {
+	DepartmentID uuid.NullUUID `json:"departmentId"`
+	JobTitleID   uuid.NullUUID `json:"jobTitleId"`
+	ID           uuid.UUID     `json:"id"`
+}
+
+// Chỉ dùng cho make seed.
+func (q *Queries) SetSeedUserOrg(ctx context.Context, arg SetSeedUserOrgParams) error {
+	_, err := q.db.Exec(ctx, setSeedUserOrg, arg.DepartmentID, arg.JobTitleID, arg.ID)
+	return err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :execrows
+UPDATE app_user
+SET full_name = $1,
+    role_id = (SELECT r.id FROM role r WHERE r.code = $2),
+    department_id = $3,
+    job_title_id = $4,
+    updated_at = now()
+WHERE app_user.id = $5
+`
+
+type UpdateUserProfileParams struct {
+	FullName     string        `json:"fullName"`
+	RoleCode     string        `json:"roleCode"`
+	DepartmentID uuid.NullUUID `json:"departmentId"`
+	JobTitleID   uuid.NullUUID `json:"jobTitleId"`
+	ID           uuid.UUID     `json:"id"`
+}
+
+// CF-02: email không sửa được sau khi tạo (mục C).
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateUserProfile,
+		arg.FullName,
+		arg.RoleCode,
+		arg.DepartmentID,
+		arg.JobTitleID,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}
