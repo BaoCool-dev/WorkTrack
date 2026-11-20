@@ -71,4 +71,10 @@ Gate chạy 1 vòng.
 Ba mục trên chỉ được ghi lại, không chặn gate. Người dùng quyết định có mở issue hay không.
 
 ## CI
-Điền sau khi push (xem mục bên dưới).
+PR #8 (draft, base `feature/tasks`) — run 44812248595, commit 1317830:
+| Job | Kết quả |
+|---|---|
+| Backend (build → lint → test, gồm integration testcontainers) | ✅ pass (2m0s) |
+| Frontend (build → lint → test) | ✅ pass (49s) |
+| Secret scan (gitleaks) | ✅ pass (17s) |
+| Docker build | ✅ pass (2m55s) |
