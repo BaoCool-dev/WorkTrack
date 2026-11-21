@@ -10,6 +10,7 @@ export function makeProject(over: Partial<Project> = {}): Project {
     endDate: '2027-03-31',
     manager: { id: 'u-manager', name: 'Trần Bình' },
     memberCount: 2,
+    wipLimit: 5,
     createdAt: '2026-11-20T02:00:00Z',
     updatedAt: '2026-11-20T02:00:00Z',
     ...over,

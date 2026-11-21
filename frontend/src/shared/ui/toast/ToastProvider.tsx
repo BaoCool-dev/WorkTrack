@@ -1,12 +1,13 @@
 import { Check } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ToastContext, type ToastApi } from './context'
+import { ToastContext, type ToastAction, type ToastApi } from './context'
 
 export const TOAST_DURATION_MS = 3000
 
 interface ToastItem {
   id: number
   message: string
+  action?: ToastAction
 }
 
 /** §5: nền ink, chữ trắng 12px, icon ✓, góc dưới phải, 3 giây, một dòng. */
@@ -15,15 +16,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const nextId = useRef(0)
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>())
 
-  const show = useCallback((message: string) => {
-    const id = ++nextId.current
-    setItems((prev) => [...prev, { id, message }])
-    const timer = setTimeout(() => {
-      timers.current.delete(timer)
-      setItems((prev) => prev.filter((t) => t.id !== id))
-    }, TOAST_DURATION_MS)
-    timers.current.add(timer)
+  const dismiss = useCallback((id: number) => {
+    setItems((prev) => prev.filter((t) => t.id !== id))
   }, [])
+
+  const show = useCallback(
+    (message: string, action?: ToastAction) => {
+      const id = ++nextId.current
+      setItems((prev) => [...prev, { id, message, action }])
+      const timer = setTimeout(() => {
+        timers.current.delete(timer)
+        dismiss(id)
+      }, TOAST_DURATION_MS)
+      timers.current.add(timer)
+    },
+    [dismiss],
+  )
 
   useEffect(() => {
     const pending = timers.current
@@ -49,6 +57,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           >
             <Check size={14} strokeWidth={2} aria-hidden className="shrink-0" />
             <span className="truncate">{t.message}</span>
+            {t.action && (
+              <button
+                type="button"
+                className="pointer-events-auto ml-1 shrink-0 font-semibold text-accent-border hover:underline"
+                onClick={() => {
+                  t.action?.onClick()
+                  dismiss(t.id)
+                }}
+              >
+                {t.action.label}
+              </button>
+            )}
           </div>
         ))}
       </div>
