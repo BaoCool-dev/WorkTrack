@@ -245,3 +245,73 @@ func TestWS_MemberReceivesProjectEvents_CF04(t *testing.T) {
 	}
 	_ = conn.Close(websocket.StatusNormalClosure, "")
 }
+
+// Mọi endpoint Kanban đều chặn khi thiếu token, trước khi chạm service.
+func TestKanbanAPI_AllEndpointsRequireLogin_CF04_CF05(t *testing.T) {
+	pid, tid := uuid.NewString(), uuid.NewString()
+	for name, req := range map[string][3]string{
+		"board":     {http.MethodGet, "/api/v1/projects/" + pid + "/board/tasks", ""},
+		"move":      {http.MethodPost, "/api/v1/tasks/" + tid + "/move", `{}`},
+		"wip-limit": {http.MethodPut, "/api/v1/projects/" + pid + "/wip-limit", `{"wipLimit":5}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			k, p := &fakeKanban{}, &fakeProjects{}
+			a := newKanbanAPI(t, k, p)
+			rec := a.do(t, req[0], req[1], req[2])
+			if rec.Code != http.StatusUnauthorized || k.calls != 0 || p.gotWIP != 0 {
+				t.Errorf("status = %d calls=%d wip=%d", rec.Code, k.calls, p.gotWIP)
+			}
+		})
+	}
+}
+
+// IDOR: người ngoài dự án nhận 404 (không lộ dự án/công việc có tồn tại hay không).
+func TestKanbanAPI_OutsiderGetsNotFound_CF04(t *testing.T) {
+	a := newKanbanAPI(t, &fakeKanban{err: domain.ErrProjectNotFound}, &fakeProjects{})
+	rec := a.do(t, http.MethodGet, "/api/v1/projects/"+uuid.NewString()+"/board/tasks", "", withToken("valid-member"))
+	if rec.Code != http.StatusNotFound || errCode(t, rec) != "PROJECT_NOT_FOUND" {
+		t.Errorf("board: %d %s", rec.Code, rec.Body)
+	}
+	a = newKanbanAPI(t, &fakeKanban{err: domain.ErrTaskNotFound}, &fakeProjects{})
+	rec = a.do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/move",
+		`{"columnId":"`+uuid.NewString()+`","position":0,"version":1}`, withToken("valid-member"))
+	if rec.Code != http.StatusNotFound || errCode(t, rec) != "TASK_NOT_FOUND" {
+		t.Errorf("move: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestKanbanAPI_BadPathAndBody_CF04_CF05(t *testing.T) {
+	col := uuid.NewString()
+	cases := map[string][3]string{
+		"board id sai":      {http.MethodGet, "/api/v1/projects/khong-phai-uuid/board/tasks", ""},
+		"move id sai":       {http.MethodPost, "/api/v1/tasks/123/move", `{"columnId":"` + col + `","position":0,"version":1}`},
+		"move JSON hỏng":    {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/move", `{"columnId":`},
+		"move cột sai UUID": {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/move", `{"columnId":"abc","position":0,"version":1}`},
+		"move position lớn": {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/move", `{"columnId":"` + col + `","position":10001,"version":1}`},
+		"wip id sai":        {http.MethodPut, "/api/v1/projects/xyz/wip-limit", `{"wipLimit":5}`},
+		"wip sai kiểu":      {http.MethodPut, "/api/v1/projects/" + uuid.NewString() + "/wip-limit", `{"wipLimit":"năm"}`},
+	}
+	for name, req := range cases {
+		t.Run(name, func(t *testing.T) {
+			k, p := &fakeKanban{}, &fakeProjects{}
+			a := newKanbanAPI(t, k, p)
+			tok := "valid-member"
+			if req[0] == http.MethodPut {
+				tok = "valid-manager"
+			}
+			rec := a.do(t, req[0], req[1], req[2], withToken(tok))
+			if rec.Code != http.StatusBadRequest || k.calls != 0 || p.gotWIP != 0 {
+				t.Errorf("status = %d calls=%d body=%s", rec.Code, k.calls, rec.Body)
+			}
+		})
+	}
+}
+
+// Quyền đổi WIP do service quyết định; API chỉ ánh xạ đúng mã lỗi.
+func TestKanbanAPI_SetWIPLimit_ForbiddenMapping_CF05(t *testing.T) {
+	a := newKanbanAPI(t, &fakeKanban{}, &fakeProjects{err: domain.ErrForbidden})
+	rec := a.do(t, http.MethodPut, "/api/v1/projects/"+uuid.NewString()+"/wip-limit", `{"wipLimit":5}`, withToken("valid-member"))
+	if rec.Code != http.StatusForbidden || errCode(t, rec) != "FORBIDDEN" {
+		t.Errorf("status = %d; body=%s", rec.Code, rec.Body)
+	}
+}

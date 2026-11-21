@@ -710,6 +710,8 @@ func TestWriteOps_ForbiddenForNonManager_CF03(t *testing.T) {
 			_, err := svc.ReplaceTransitions(ctx, a, p.ID, nil)
 			return err
 		},
+		// CF-05: giới hạn WIP cũng chỉ Manager phụ trách được đổi.
+		"SetWIPLimit": func(a authz.Principal) error { _, err := svc.SetWIPLimit(ctx, a, p.ID, 7); return err },
 	}
 	actors := []struct {
 		name  string

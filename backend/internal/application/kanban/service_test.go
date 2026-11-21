@@ -448,6 +448,10 @@ func TestBoard_Visibility_CF04(t *testing.T) {
 	}
 	_, err := e.svc.Board(context.Background(), e.outsider, e.project.ID)
 	expectErr(t, err, domain.ErrProjectNotFound)
+	// Admin quản trị tài khoản, không tham gia dự án → cũng như người ngoài (404).
+	admin := authz.Principal{UserID: uuid.New(), Role: domain.RoleAdmin}
+	_, err = e.svc.Board(context.Background(), admin, e.project.ID)
+	expectErr(t, err, domain.ErrProjectNotFound)
 }
 
 // Giới hạn WIP và Manager phụ trách lấy trên dòng dự án ĐÃ KHÓA, không phải bản đọc trước transaction:
