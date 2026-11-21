@@ -3,7 +3,7 @@
 -- có giá trị = chỉ dự án người đó là thành viên. @search là mẫu ILIKE đã thoát ký tự ở Go.
 SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.manager_id,
        m.full_name AS manager_name, p.created_at, p.updated_at,
-       (SELECT count(*) FROM project_member pm WHERE pm.project_id = p.id) AS member_count
+       (SELECT count(*) FROM project_member pm WHERE pm.project_id = p.id) AS member_count, p.wip_limit
 FROM project p
 JOIN app_user m ON m.id = p.manager_id
 WHERE (sqlc.narg(visible_to)::uuid IS NULL
@@ -26,7 +26,7 @@ WHERE (sqlc.narg(visible_to)::uuid IS NULL
 -- name: GetProject :one
 SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.manager_id,
        m.full_name AS manager_name, p.created_at, p.updated_at,
-       (SELECT count(*) FROM project_member pm WHERE pm.project_id = p.id) AS member_count
+       (SELECT count(*) FROM project_member pm WHERE pm.project_id = p.id) AS member_count, p.wip_limit
 FROM project p
 JOIN app_user m ON m.id = p.manager_id
 WHERE p.id = @id;
@@ -45,6 +45,10 @@ UPDATE project
 SET name = @name, description = @description, status = @status,
     start_date = sqlc.narg(start_date), end_date = sqlc.narg(end_date), updated_at = now()
 WHERE id = @id;
+
+-- name: UpdateProjectWIPLimit :execrows
+-- CF-05: giới hạn WIP mỗi người trong dự án (1–20, CHECK ở CSDL).
+UPDATE project SET wip_limit = @wip_limit, updated_at = now() WHERE id = @id;
 
 -- name: IsProjectMember :one
 SELECT EXISTS (SELECT 1 FROM project_member WHERE project_id = @project_id AND user_id = @user_id);

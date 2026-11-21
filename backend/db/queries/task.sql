@@ -47,7 +47,8 @@ WHERE v.assignee_id = @user_id::uuid
   AND (sqlc.narg(search)::text IS NULL OR v.title ILIKE sqlc.narg(search)::text ESCAPE '\');
 
 -- name: CountWIP :one
--- WIP: số công việc cha nhóm in_progress của một người (CLAUDE.md §5.6). Chỉ hiển thị, không chặn.
+-- WIP: số công việc cha nhóm in_progress của một người trên mọi dự án (CLAUDE.md §5.6). Chỉ để hiển thị;
+-- việc chặn dùng CountProjectWIP (giới hạn tính theo từng dự án).
 SELECT count(*) FROM task t
 JOIN board_column c ON c.id = t.column_id
 JOIN project_member pm ON pm.project_id = t.project_id AND pm.user_id = t.assignee_id
@@ -80,11 +81,11 @@ RETURNING id;
 UPDATE task
 SET title = @title, description = @description, story_point = sqlc.narg(story_point),
     estimated_minutes = sqlc.narg(estimated_minutes), assignee_id = sqlc.narg(assignee_id),
-    due_date = sqlc.narg(due_date), updated_at = now()
+    due_date = sqlc.narg(due_date), version = version + 1, updated_at = now()
 WHERE id = @id;
 
 -- name: SetTaskAssignee :execrows
-UPDATE task SET assignee_id = sqlc.narg(assignee_id), updated_at = now() WHERE id = @id;
+UPDATE task SET assignee_id = sqlc.narg(assignee_id), version = version + 1, updated_at = now() WHERE id = @id;
 
 -- name: GetAssignableMember :one
 -- Vai trò và trạng thái của một thành viên dự án (kiểm người nhận việc / người tự nhận).
@@ -112,3 +113,52 @@ ON CONFLICT DO NOTHING;
 -- name: GetSeedTaskIDByTitle :one
 -- Chỉ dùng cho make seed (idempotent theo tên trong dự án).
 SELECT id FROM task WHERE project_id = @project_id AND title = @title AND parent_task_id IS NULL LIMIT 1;
+
+-- CF-04, CF-05 — Kanban.
+
+-- name: CountProjectWIP :one
+-- WIP của một người trong MỘT dự án: chỉ đếm công việc cha (parent_task_id IS NULL, CLAUDE.md §5.6)
+-- đang ở cột nhóm in_progress. Gọi sau khi đã khóa dòng dự án để hai lần kéo song song không cùng lọt.
+SELECT count(*) FROM task t
+JOIN board_column c ON c.id = t.column_id
+WHERE t.project_id = @project_id AND t.assignee_id = @assignee_id::uuid
+  AND t.parent_task_id IS NULL AND c.status_group = 'in_progress';
+
+-- name: ListBoardTasks :many
+-- Toàn bộ công việc cha của bảng Kanban (lọc nhãn/người nhận làm ở client). Giới hạn an toàn @max_rows.
+SELECT * FROM task_view v
+WHERE v.project_id = @project_id AND v.parent_task_id IS NULL
+ORDER BY v.column_position, v.position, v.created_at, v.id
+LIMIT @max_rows;
+
+-- name: ListColumnTaskIDs :many
+-- Thứ tự hiện tại các công việc cha trong một cột (để chèn thẻ vào vị trí mới).
+SELECT id FROM task
+WHERE project_id = @project_id AND column_id = @column_id AND parent_task_id IS NULL
+ORDER BY position, created_at, id;
+
+-- name: SetTaskPositions :exec
+-- Đánh lại vị trí 0..n-1 theo thứ tự mảng @ids (một câu lệnh, không vòng lặp).
+UPDATE task SET position = x.ord - 1
+FROM unnest(@ids::uuid[]) WITH ORDINALITY AS x(id, ord)
+WHERE task.id = x.id;
+
+-- name: MoveTaskColumn :execrows
+-- Đổi cột và tăng version. Điều kiện version = @version là chốt chặn cuối chống ghi đè.
+UPDATE task SET column_id = @column_id, version = version + 1, updated_at = now()
+WHERE id = @id AND version = @version;
+
+-- name: InsertTaskMoveHistory :exec
+INSERT INTO task_move_history (task_id, project_id, from_column_id, to_column_id, moved_by)
+VALUES (@task_id, @project_id, @from_column_id, @to_column_id, @moved_by);
+
+-- name: GetColumnGroup :one
+-- Nhóm trạng thái của một cột trong dự án (cột khác dự án → không có dòng).
+SELECT status_group FROM board_column WHERE project_id = @project_id AND id = @id;
+
+-- name: TransitionAllowed :one
+SELECT EXISTS (
+    SELECT 1 FROM workflow_transition
+    WHERE project_id = @project_id AND from_column_id = @from_column_id
+      AND to_column_id = @to_column_id AND role = @role
+);

@@ -110,7 +110,7 @@ func (q *Queries) GetMemberCandidate(ctx context.Context, id uuid.UUID) (GetMemb
 const getProject = `-- name: GetProject :one
 SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.manager_id,
        m.full_name AS manager_name, p.created_at, p.updated_at,
-       (SELECT count(*) FROM project_member pm WHERE pm.project_id = p.id) AS member_count
+       (SELECT count(*) FROM project_member pm WHERE pm.project_id = p.id) AS member_count, p.wip_limit
 FROM project p
 JOIN app_user m ON m.id = p.manager_id
 WHERE p.id = $1
@@ -128,6 +128,7 @@ type GetProjectRow struct {
 	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt   pgtype.Timestamptz `json:"updatedAt"`
 	MemberCount int64              `json:"memberCount"`
+	WipLimit    int16              `json:"wipLimit"`
 }
 
 func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (GetProjectRow, error) {
@@ -145,6 +146,7 @@ func (q *Queries) GetProject(ctx context.Context, id uuid.UUID) (GetProjectRow, 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.MemberCount,
+		&i.WipLimit,
 	)
 	return i, err
 }
@@ -279,7 +281,7 @@ func (q *Queries) ListProjectMembers(ctx context.Context, projectID uuid.UUID) (
 const listProjects = `-- name: ListProjects :many
 SELECT p.id, p.name, p.description, p.status, p.start_date, p.end_date, p.manager_id,
        m.full_name AS manager_name, p.created_at, p.updated_at,
-       (SELECT count(*) FROM project_member pm WHERE pm.project_id = p.id) AS member_count
+       (SELECT count(*) FROM project_member pm WHERE pm.project_id = p.id) AS member_count, p.wip_limit
 FROM project p
 JOIN app_user m ON m.id = p.manager_id
 WHERE ($1::uuid IS NULL
@@ -311,6 +313,7 @@ type ListProjectsRow struct {
 	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt   pgtype.Timestamptz `json:"updatedAt"`
 	MemberCount int64              `json:"memberCount"`
+	WipLimit    int16              `json:"wipLimit"`
 }
 
 // CF-03, B9: phân trang offset, mới tạo trước. @visible_to NULL = xem tất cả (CEO);
@@ -342,6 +345,7 @@ func (q *Queries) ListProjects(ctx context.Context, arg ListProjectsParams) ([]L
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MemberCount,
+			&i.WipLimit,
 		); err != nil {
 			return nil, err
 		}
@@ -407,6 +411,24 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (i
 		arg.EndDate,
 		arg.ID,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateProjectWIPLimit = `-- name: UpdateProjectWIPLimit :execrows
+UPDATE project SET wip_limit = $1, updated_at = now() WHERE id = $2
+`
+
+type UpdateProjectWIPLimitParams struct {
+	WipLimit int16     `json:"wipLimit"`
+	ID       uuid.UUID `json:"id"`
+}
+
+// CF-05: giới hạn WIP mỗi người trong dự án (1–20, CHECK ở CSDL).
+func (q *Queries) UpdateProjectWIPLimit(ctx context.Context, arg UpdateProjectWIPLimitParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateProjectWIPLimit, arg.WipLimit, arg.ID)
 	if err != nil {
 		return 0, err
 	}
