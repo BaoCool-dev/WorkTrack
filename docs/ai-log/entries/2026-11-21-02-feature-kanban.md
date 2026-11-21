@@ -28,6 +28,7 @@ Bảng Kanban kéo thả realtime (CF-04, UC05) và giới hạn WIP theo dự �
 - **Infrastructure:** `postgres/kanban_repo.go`, `realtime/hub.go` (phòng theo dự án, presence, bỏ client chậm).
 - **Transport:** `kanban_handler.go` (`GET /projects/{id}/board/tasks`, `POST /tasks/{id}/move`, `PUT /projects/{id}/wip-limit`), `ws_handler.go` (xác thực token + thành viên trước khi nâng cấp), ánh xạ lỗi, test API + WebSocket.
 - **Frontend (`features/kanban/`):** model thuần (`dropRules` mô phỏng luật server để chặn có lý do trước khi gửi, `boardState` tính vị trí thả/WIP/bộ lọc), `useMoveTask` (cập nhật lạc quan + rollback), `useBoardDrag` (kiểm luật → gửi → toast "Hoàn tác" hoặc dải lỗi), `useProjectSocket` (áp sự kiện vào cache, tự kết nối lại với backoff, presence), các component `KanbanBoard`, `KanbanColumn`, `TaskCard`, `BoardToolbar`, `WipFullDialog`, `WipLimitControl`, `Banners`; tab "Kanban" trong chi tiết dự án; test Vitest/RTL/MSW (bảng theo 3 vai trò, hook kéo thả, socket).
+- **KPI 1 và tài liệu:** `scripts/kpi/kanban-sync-latency.mjs` (2 client WebSocket, đo đến lúc B nhận `task.moved`), bằng chứng `docs/testing/evidence/kpi1-kanban-sync-latency.{md,json}`; mục §4.4 và checklist CF-04/CF-05 trong `docs/testing/manual-test-guide.md`.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -42,9 +43,11 @@ Bảng Kanban kéo thả realtime (CF-04, UC05) và giới hạn WIP theo dự �
 | Thả thẻ xuống dưới trong cùng cột bị lệch một vị trí | Tính chỉ số chèn trên danh sách còn chứa chính thẻ đang kéo | Test `dropPosition` đỏ | Bỏ thẻ đang kéo khỏi danh sách trước khi tính, chèn sau thẻ đích khi kéo xuống |
 | Thẻ đang nhấc dùng `shadow-overlay` | Không đối chiếu design-system §6 (bóng chỉ cho modal/dropdown/toast) | Rà design-system | Đổi sang `border-accent` |
 | Test "Hoàn tác" chờ nút mà fixture không có luật quay lại c-2→c-1 | Quên rằng hook chỉ hứa hoàn tác khi đường quay lại hợp lệ | Test đỏ | Thêm luật quay lại vào test và test riêng trường hợp không có nút |
+| Bản nháp hướng dẫn curl dùng version 1 ngay sau khi Member nhận việc | Quên rằng nhận việc cũng tăng version | Chạy thử các lệnh trong hướng dẫn trên API dev: 409 thay vì 200 | Thêm hàm `ver` đọc version hiện tại trước mỗi lần kéo, ghi rõ nhận việc trả `version` 2 |
 | Gọi `defer c.CloseNow()` và `websocket.Dial` không đóng `resp.Body` | Bỏ qua giá trị lỗi trả về | `golangci-lint` (errcheck, bodyclose) | Bọc `_ =` và đóng body |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - Backend: `go vet ./...`, `go vet -tags=integration ./...`, `golangci-lint run ./...` (0 issues), `go test ./...` xanh.
 - Frontend: `tsc -b --noEmit`, `eslint src`, `prettier --check`, `vitest run` (21 file, 215 test) xanh; `make lint`, `make test` xanh.
+- KPI 1: 40 lượt trên localhost, p95 = 10 ms (≤ 2000 ms) — ĐẠT. Toàn bộ lệnh curl §4.4 chạy thử trên API dev, kết quả khớp mong đợi; 3 câu SQL chạy được.
