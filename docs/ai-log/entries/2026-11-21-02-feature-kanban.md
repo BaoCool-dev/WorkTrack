@@ -27,6 +27,7 @@ Bảng Kanban kéo thả realtime (CF-04, UC05) và giới hạn WIP theo dự �
 - **Application:** gói `application/kanban` (Board, Move: khóa dự án → khóa việc → version → luật → WIP → ghi → lịch sử → phát sự kiện sau commit); `task.Service` kiểm WIP khi nhận việc/đổi người nhận và phát `task.created`/`task.updated`; `project.Service.SetWIPLimit`.
 - **Infrastructure:** `postgres/kanban_repo.go`, `realtime/hub.go` (phòng theo dự án, presence, bỏ client chậm).
 - **Transport:** `kanban_handler.go` (`GET /projects/{id}/board/tasks`, `POST /tasks/{id}/move`, `PUT /projects/{id}/wip-limit`), `ws_handler.go` (xác thực token + thành viên trước khi nâng cấp), ánh xạ lỗi, test API + WebSocket.
+- **Frontend (`features/kanban/`):** model thuần (`dropRules` mô phỏng luật server để chặn có lý do trước khi gửi, `boardState` tính vị trí thả/WIP/bộ lọc), `useMoveTask` (cập nhật lạc quan + rollback), `useBoardDrag` (kiểm luật → gửi → toast "Hoàn tác" hoặc dải lỗi), `useProjectSocket` (áp sự kiện vào cache, tự kết nối lại với backoff, presence), các component `KanbanBoard`, `KanbanColumn`, `TaskCard`, `BoardToolbar`, `WipFullDialog`, `WipLimitControl`, `Banners`; tab "Kanban" trong chi tiết dự án; test Vitest/RTL/MSW (bảng theo 3 vai trò, hook kéo thả, socket).
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -38,8 +39,12 @@ Bảng Kanban kéo thả realtime (CF-04, UC05) và giới hạn WIP theo dự �
 |---|---|---|---|
 | Thêm method `SetWIPLimit` vào interface `ProjectService` nhưng quên cập nhật fake trong test httpapi | Sửa interface mà không rà mọi chỗ cài đặt | `go vet` báo `*fakeProjects does not implement ProjectService` | Thêm `fakeProjects.SetWIPLimit` |
 | Để lại test ranh giới của nhánh trước (`TestTaskAPI_NoColumnMoveEndpoint_CF04Boundary`) khẳng định không có route `/move` | Không rà test cũ mâu thuẫn với phạm vi mới | `go test` đỏ (400 thay vì 404) | Xóa test ranh giới, thay bằng test API Kanban |
+| Thả thẻ xuống dưới trong cùng cột bị lệch một vị trí | Tính chỉ số chèn trên danh sách còn chứa chính thẻ đang kéo | Test `dropPosition` đỏ | Bỏ thẻ đang kéo khỏi danh sách trước khi tính, chèn sau thẻ đích khi kéo xuống |
+| Thẻ đang nhấc dùng `shadow-overlay` | Không đối chiếu design-system §6 (bóng chỉ cho modal/dropdown/toast) | Rà design-system | Đổi sang `border-accent` |
+| Test "Hoàn tác" chờ nút mà fixture không có luật quay lại c-2→c-1 | Quên rằng hook chỉ hứa hoàn tác khi đường quay lại hợp lệ | Test đỏ | Thêm luật quay lại vào test và test riêng trường hợp không có nút |
 | Gọi `defer c.CloseNow()` và `websocket.Dial` không đóng `resp.Body` | Bỏ qua giá trị lỗi trả về | `golangci-lint` (errcheck, bodyclose) | Bọc `_ =` và đóng body |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - Backend: `go vet ./...`, `go vet -tags=integration ./...`, `golangci-lint run ./...` (0 issues), `go test ./...` xanh.
+- Frontend: `tsc -b --noEmit`, `eslint src`, `prettier --check`, `vitest run` (21 file, 215 test) xanh; `make lint`, `make test` xanh.
