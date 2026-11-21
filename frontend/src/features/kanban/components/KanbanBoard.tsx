@@ -11,17 +11,19 @@ import {
 } from '@dnd-kit/core'
 import { Eye } from 'lucide-react'
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 
 import { useAuth } from '@/features/auth'
 import { useBoard, useProjectMembers, type Board, type Project } from '@/features/projects'
 import { TaskDetailDialog, TaskFormDialog, useCreateTask, type Task } from '@/features/tasks'
 import { ApiError } from '@/shared/api/http'
 import { messages } from '@/shared/lib/messages'
-import { EmptyState, ErrorState, Skeleton } from '@/shared/ui'
+import { Button, EmptyState, ErrorState, Skeleton } from '@/shared/ui'
 
 import { useBoardTasks } from '../api/queries'
 import { useBoardDrag } from '../hooks/useBoardDrag'
 import { useProjectSocket } from '../hooks/useProjectSocket'
+import { boardAnnouncements, screenReaderInstructions } from '../model/a11y'
 import { columnTasks, filterTasks, wipByAssignee, type BoardFilters } from '../model/boardState'
 import { boardRoleOf, canDragTask, type BoardRole } from '../model/dropRules'
 import { DisconnectBanner, SaveErrorBanner } from './Banners'
@@ -88,6 +90,7 @@ function BoardCanvas({ project, canManage, board, tasks }: CanvasProps) {
   const members = useProjectMembers(project.id)
   const socket = useProjectSocket(project.id)
   const create = useCreateTask(project.id)
+  const navigate = useNavigate()
 
   const [filters, setFilters] = useState<BoardFilters>(NO_FILTERS)
   const [wipPerson, setWipPerson] = useState<{ id: string; name: string } | null>(null)
@@ -111,6 +114,7 @@ function BoardCanvas({ project, canManage, board, tasks }: CanvasProps) {
     useSensor(KeyboardSensor),
   )
 
+  const announcements = boardAnnouncements(tasks, columns)
   const visible = filterTasks(tasks, filters)
   const nameOf = new Map((members.data ?? []).map((m) => [m.userId, m.fullName]))
   const viewers = socket.presence.map((id) => nameOf.get(id) ?? t.unassigned)
@@ -142,6 +146,26 @@ function BoardCanvas({ project, canManage, board, tasks }: CanvasProps) {
         <EmptyState
           title={canManage ? t.emptyManager : t.emptyMember}
           description={canManage ? t.emptyManagerHint : t.emptyMemberHint}
+          actions={
+            canManage ? (
+              <Button
+                onClick={() => {
+                  setCreating(true)
+                }}
+              >
+                {t.createTask}
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void navigate('/my-tasks')
+                }}
+              >
+                {t.viewMine}
+              </Button>
+            )
+          }
         />
       ) : (
         <>
@@ -152,11 +176,12 @@ function BoardCanvas({ project, canManage, board, tasks }: CanvasProps) {
             onDragStart={drag.onDragStart}
             onDragEnd={drag.onDragEnd}
             onDragCancel={drag.onDragCancel}
+            accessibility={{ announcements, screenReaderInstructions }}
           >
             <div
               role="region"
               aria-label={t.boardLabel}
-              className="flex h-[calc(100vh-15rem)] min-h-90 items-start gap-2 overflow-x-auto pb-2"
+              className="flex h-[calc(100vh-16rem)] min-h-90 items-start gap-2 overflow-x-auto pb-2"
             >
               {columns.map((col, i) => {
                 const cards = columnTasks(visible, col.id)
@@ -239,7 +264,7 @@ function RoleNote({ boardRole }: { boardRole: BoardRole }) {
   )
 }
 
-/** Skeleton đúng kích thước thật: 4 cột, thẻ cao 54px. */
+/** Skeleton gần đúng kích thước thật: 4 cột, thẻ cao ~72px (ba hàng của TaskCardView). */
 function BoardSkeleton() {
   return (
     <div aria-busy="true" aria-label={t.boardLabel} className="flex gap-2">
@@ -248,9 +273,9 @@ function BoardSkeleton() {
           key={c}
           className="flex w-65 shrink-0 flex-col gap-1.5 rounded-md border border-line bg-subtle p-2"
         >
-          <Skeleton className="h-5 w-24 bg-subtle" />
+          <Skeleton className="h-5 w-24 bg-line" />
           {[0, 1, 2].map((r) => (
-            <Skeleton key={r} className="h-13.5 w-full" />
+            <Skeleton key={r} className="h-18 w-full bg-surface" />
           ))}
         </div>
       ))}

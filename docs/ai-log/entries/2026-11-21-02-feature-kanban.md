@@ -31,6 +31,7 @@ Bảng Kanban kéo thả realtime (CF-04, UC05) và giới hạn WIP theo dự �
 - **Sửa sau rà soát gate:** query `LockProjectBoard` (khóa dòng dự án và trả `manager_id`, `wip_limit` tại thời điểm khóa), kiểu `domain.LockedProject`; `kanban.Service.Move`, `task.Service.Claim/Update` kiểm quyền và WIP trên số đã khóa thay vì bản đọc trước transaction; test unit `TestMove_UsesProjectStateReadUnderLock_CF04_CF05`, ca Admin → 404; integration `postgres/kanban_integration_test.go` (WIP loại việc con, version cũ 0 dòng, vị trí 0..n-1 + lịch sử, hai lần kéo song song không vượt WIP, `LockProject` đọc giới hạn mới); cập nhật ma trận truy vết mục CF-04/CF-05.
 - **Test bổ sung khi chạy gate (bảo mật/validate):** kapi `TestKanbanAPI_AllEndpointsRequireLogin_CF04_CF05` (401 cả 3 endpoint), `TestKanbanAPI_OutsiderGetsNotFound_CF04` (IDOR → 404), `TestKanbanAPI_BadPathAndBody_CF04_CF05` (UUID sai, JSON hỏng, sai kiểu, position > 10000 → 400), `TestKanbanAPI_SetWIPLimit_ForbiddenMapping_CF05`; psvc thêm `SetWIPLimit` vào ma trận vai trò `TestWriteOps_ForbiddenForNonManager_CF03`; ksvc Admin xem bảng → 404.
 - **KPI 1 và tài liệu:** `scripts/kpi/kanban-sync-latency.mjs` (2 client WebSocket, đo đến lúc B nhận `task.moved`), bằng chứng `docs/testing/evidence/kpi1-kanban-sync-latency.{md,json}`; mục §4.4 và checklist CF-04/CF-05 trong `docs/testing/manual-test-guide.md`.
+- **Sửa theo ui-reviewer (gate bước 4):** `model/a11y.ts` — câu thông báo kéo thả cho trình đọc màn hình bằng tiếng Việt (dnd-kit mặc định tiếng Anh) + test; nút hành động ở trạng thái rỗng (Manager "Tạo công việc", Member "Xem công việc của tôi"); tiêu đề thẻ 1 dòng + `title`, chỗ trống khi kéo cao đúng bằng thẻ, skeleton đúng kích thước, nền thanh giờ `line` → đo lại ở 1366×768: 6 thẻ trọn vẹn/cột.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -53,6 +54,6 @@ Bảng Kanban kéo thả realtime (CF-04, UC05) và giới hạn WIP theo dự �
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - Backend: `go vet ./...`, `go vet -tags=integration ./...`, `golangci-lint run ./...` (0 issues), `go test ./...` xanh.
-- Frontend: `tsc -b --noEmit`, `eslint src`, `prettier --check`, `vitest run` (21 file, 215 test) xanh; `make lint`, `make test` xanh.
+- Frontend: `tsc -b --noEmit`, `eslint src`, `prettier --check`, `vitest run` (22 file, 220 test) xanh; `make lint`, `make test` xanh.
 - KPI 1: 40 lượt trên localhost, p95 = 10 ms (≤ 2000 ms) — ĐẠT. Toàn bộ lệnh curl §4.4 chạy thử trên API dev, kết quả khớp mong đợi; 3 câu SQL chạy được.
 - Integration chạy cục bộ trên PostgreSQL Homebrew qua `TEST_DATABASE_URL` (schema tạm, DB riêng `worktrack_it_kanban`): `go test -tags=integration ./internal/infrastructure/postgres/` xanh, gồm 5 ca `TestKanbanRepo_*`.

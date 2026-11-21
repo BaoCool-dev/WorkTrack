@@ -35,11 +35,16 @@ export function DraggableTaskCard({ task, draggable, onOpen }: CardDnd) {
 
   if (drag.isDragging) {
     return (
+      // Vẽ lại thẻ ở dạng ẩn bên trong khung nét đứt → chỗ trống cao đúng bằng thẻ thật.
       <div
         ref={setRef}
-        className="h-13.5 rounded-md border border-dashed border-line-strong bg-page"
+        className="rounded-md border border-dashed border-line-strong bg-page"
         aria-hidden
-      />
+      >
+        <div className="invisible">
+          <TaskCardView task={task} />
+        </div>
+      </div>
     )
   }
   return (
@@ -47,7 +52,7 @@ export function DraggableTaskCard({ task, draggable, onOpen }: CardDnd) {
       ref={setRef}
       {...drag.listeners}
       {...drag.attributes}
-      aria-roledescription={draggable ? 'thẻ kéo được' : undefined}
+      aria-roledescription={draggable ? t.cardRole : undefined}
       aria-label={draggable ? t.dragHandle(task.title) : task.title}
       onClick={() => {
         onOpen(task)
@@ -83,7 +88,11 @@ export function TaskCardView({ task, lifted = false }: { task: Task; lifted?: bo
       )}
     >
       <div className="flex items-start gap-2">
-        <h3 className="line-clamp-2 flex-1 text-base leading-tight font-semibold text-ink">
+        {/* Một dòng để mỗi thẻ cao như nhau và cột hiện đủ ≥ 6 thẻ ở 1366×768 (§6). */}
+        <h3
+          title={task.title}
+          className="line-clamp-1 flex-1 text-base leading-tight font-semibold text-ink"
+        >
           {task.title}
         </h3>
         {task.storyPoint !== null && (
@@ -92,7 +101,7 @@ export function TaskCardView({ task, lifted = false }: { task: Task; lifted?: bo
           </span>
         )}
       </div>
-      <div className="h-1 overflow-hidden rounded-full bg-subtle" aria-hidden>
+      <div className="h-1 overflow-hidden rounded-full bg-line" aria-hidden>
         <div className={cn('h-full', barClass[level])} style={{ width: `${String(fill)}%` }} />
       </div>
       <div className="flex min-w-0 items-center gap-1.5 text-sm text-ink-muted">

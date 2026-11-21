@@ -96,9 +96,22 @@ describe('Bảng Kanban (CF-04, CF-05, UC05)', () => {
     expect(within(backlog).queryByText('Thiết kế API đăng nhập')).not.toBeInTheDocument()
   })
 
-  it('bảng rỗng: trạng thái rỗng theo vai trò', async () => {
+  it('bảng rỗng: trạng thái rỗng theo vai trò, có nút hành động', async () => {
     setup('member', [])
     expect(await screen.findByText(t.emptyMember)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.viewMine })).toBeInTheDocument()
+  })
+
+  it('bảng rỗng của Manager có nút Tạo công việc', async () => {
+    setup('manager', [])
+    expect(await screen.findByText(t.emptyManager)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: t.createTask })).toBeInTheDocument()
+  })
+
+  it('hướng dẫn kéo thả cho trình đọc màn hình là tiếng Việt', async () => {
+    setup('manager')
+    await column('Backlog')
+    expect(screen.getByText(t.a11y.instructions)).toBeInTheDocument()
   })
 
   it('lỗi tải hiện ErrorState', async () => {

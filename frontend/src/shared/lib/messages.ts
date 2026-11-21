@@ -518,8 +518,21 @@ export const messages = {
     emptyMember: 'Backlog đang trống',
     emptyMemberHint: 'Chưa có công việc nào trên bảng. Quản lý dự án sẽ thêm việc vào Backlog.',
     emptyManager: 'Bảng chưa có công việc',
-    emptyManagerHint: 'Tạo công việc ở tab Công việc, thẻ sẽ hiện ở cột đầu tiên.',
+    emptyManagerHint: 'Tạo công việc đầu tiên, thẻ sẽ hiện ở cột đầu tiên của bảng.',
     viewMine: 'Xem công việc của tôi',
+    createTask: 'Tạo công việc',
+    cardRole: 'thẻ kéo được',
+    // Câu cho trình đọc màn hình khi kéo thả (dnd-kit mặc định là tiếng Anh).
+    a11y: {
+      instructions:
+        'Để nhấc thẻ, nhấn phím cách. Dùng phím mũi tên để di chuyển, nhấn phím cách lần nữa để thả vào cột, hoặc Esc để hủy.',
+      picked: (card: string) => `Đã nhấc thẻ ${card}.`,
+      over: (card: string, col: string) => `Thẻ ${card} đang ở trên cột ${col}.`,
+      outside: (card: string) => `Thẻ ${card} không ở trên cột nào.`,
+      dropped: (card: string, col: string) => `Đã thả thẻ ${card} vào cột ${col}.`,
+      droppedOutside: (card: string) => `Đã thả thẻ ${card} ngoài bảng, thẻ giữ nguyên chỗ cũ.`,
+      cancelled: (card: string) => `Đã hủy kéo thẻ ${card}, thẻ về chỗ cũ.`,
+    },
     columnCount: (n: number) => `${String(n)} việc`,
     addTask: (col: string) => `Tạo công việc trong cột ${col}`,
     columnEmpty: 'Chưa có thẻ',
