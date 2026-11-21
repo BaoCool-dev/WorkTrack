@@ -55,6 +55,7 @@ type Project struct {
 	ManagerID   uuid.UUID
 	ManagerName string
 	MemberCount int
+	WIPLimit    int // CF-05: số việc cha in_progress tối đa mỗi người trong dự án
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

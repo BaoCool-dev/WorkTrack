@@ -15,7 +15,7 @@ import (
 )
 
 // TaskService là các use case công việc cha CF-06 (cài đặt: task.Service). Quyền kiểm trong service.
-// Không có API chuyển cột — thuộc CF-04 (feature/kanban).
+// Chuyển cột/đổi thứ tự thuộc KanbanService (CF-04).
 type TaskService interface {
 	List(ctx context.Context, actor authz.Principal, projectID uuid.UUID, in task.ListInput, p domain.PageRequest) (domain.Page[domain.Task], error)
 	ListMine(ctx context.Context, actor authz.Principal, in task.MyListInput, p domain.PageRequest) (domain.Page[domain.Task], error)
@@ -89,6 +89,8 @@ type taskResponse struct {
 	DueDate          *string            `json:"dueDate"`
 	Labels           []refResponse      `json:"labels"`
 	CreatedBy        refResponse        `json:"createdBy"`
+	Position         int                `json:"position"`
+	Version          int                `json:"version"` // client gửi lại khi kéo thả để chống ghi đè
 	CreatedAt        time.Time          `json:"createdAt"`
 	UpdatedAt        time.Time          `json:"updatedAt"`
 }
@@ -119,6 +121,7 @@ func toTaskResponse(t domain.Task) taskResponse {
 		Column:   taskColumnResponse{ID: t.ColumnID.String(), Name: t.ColumnName, StatusGroup: t.StatusGroup},
 		Assignee: toRef(t.AssigneeID, t.AssigneeName), DueDate: formatDate(t.DueDate), Labels: labels,
 		CreatedBy: refResponse{ID: t.CreatedBy.String(), Name: t.CreatedByName},
+		Position:  t.Position, Version: t.Version,
 		CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }

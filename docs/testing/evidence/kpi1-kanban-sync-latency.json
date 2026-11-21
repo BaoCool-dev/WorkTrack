@@ -1,0 +1,343 @@
+{
+  "summary": {
+    "measuredAt": "2026-11-21T01:20:05.293Z",
+    "api": "http://localhost:8080",
+    "project": "Cổng thông tin nội bộ",
+    "columns": [
+      "Backlog",
+      "To Do"
+    ],
+    "runs": 40,
+    "endToEndMs": {
+      "min": 4.7,
+      "p50": 7.9,
+      "p95": 10,
+      "max": 11.4,
+      "mean": 7.8
+    },
+    "targetP95Ms": 2000,
+    "pass": true
+  },
+  "samples": [
+    {
+      "run": 1,
+      "to": "To Do",
+      "endToEndMs": 10.5,
+      "httpMs": 10.5,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:00.88798Z"
+    },
+    {
+      "run": 2,
+      "to": "Backlog",
+      "endToEndMs": 9.1,
+      "httpMs": 9,
+      "clientSpreadMs": 0.4,
+      "serverSentAt": "2026-11-21T01:20:00.998991Z"
+    },
+    {
+      "run": 3,
+      "to": "To Do",
+      "endToEndMs": 10,
+      "httpMs": 9.9,
+      "clientSpreadMs": 1.2,
+      "serverSentAt": "2026-11-21T01:20:01.110449Z"
+    },
+    {
+      "run": 4,
+      "to": "Backlog",
+      "endToEndMs": 11.4,
+      "httpMs": 12.6,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:01.224324Z"
+    },
+    {
+      "run": 5,
+      "to": "To Do",
+      "endToEndMs": 8.3,
+      "httpMs": 9,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:01.337055Z"
+    },
+    {
+      "run": 6,
+      "to": "Backlog",
+      "endToEndMs": 9.5,
+      "httpMs": 10.3,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:01.449846Z"
+    },
+    {
+      "run": 7,
+      "to": "To Do",
+      "endToEndMs": 7.2,
+      "httpMs": 8,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:01.557757Z"
+    },
+    {
+      "run": 8,
+      "to": "Backlog",
+      "endToEndMs": 8,
+      "httpMs": 8.8,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:01.668841Z"
+    },
+    {
+      "run": 9,
+      "to": "To Do",
+      "endToEndMs": 4.9,
+      "httpMs": 5.4,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:01.774409Z"
+    },
+    {
+      "run": 10,
+      "to": "Backlog",
+      "endToEndMs": 7.8,
+      "httpMs": 8.6,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:01.884397Z"
+    },
+    {
+      "run": 11,
+      "to": "To Do",
+      "endToEndMs": 8.1,
+      "httpMs": 8.9,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:01.995574Z"
+    },
+    {
+      "run": 12,
+      "to": "Backlog",
+      "endToEndMs": 8.1,
+      "httpMs": 8.9,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:02.106209Z"
+    },
+    {
+      "run": 13,
+      "to": "To Do",
+      "endToEndMs": 8.1,
+      "httpMs": 8.8,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:02.215575Z"
+    },
+    {
+      "run": 14,
+      "to": "Backlog",
+      "endToEndMs": 9.8,
+      "httpMs": 10.6,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:02.328511Z"
+    },
+    {
+      "run": 15,
+      "to": "To Do",
+      "endToEndMs": 7.1,
+      "httpMs": 7.8,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:02.436453Z"
+    },
+    {
+      "run": 16,
+      "to": "Backlog",
+      "endToEndMs": 5.1,
+      "httpMs": 5.6,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:02.544815Z"
+    },
+    {
+      "run": 17,
+      "to": "To Do",
+      "endToEndMs": 7.7,
+      "httpMs": 8.5,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:02.655273Z"
+    },
+    {
+      "run": 18,
+      "to": "Backlog",
+      "endToEndMs": 6.2,
+      "httpMs": 6.8,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:02.763818Z"
+    },
+    {
+      "run": 19,
+      "to": "To Do",
+      "endToEndMs": 8,
+      "httpMs": 8.8,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:02.87449Z"
+    },
+    {
+      "run": 20,
+      "to": "Backlog",
+      "endToEndMs": 8,
+      "httpMs": 8.8,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:02.98551Z"
+    },
+    {
+      "run": 21,
+      "to": "To Do",
+      "endToEndMs": 8,
+      "httpMs": 8.8,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:03.096904Z"
+    },
+    {
+      "run": 22,
+      "to": "Backlog",
+      "endToEndMs": 8.2,
+      "httpMs": 9.3,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:03.207616Z"
+    },
+    {
+      "run": 23,
+      "to": "To Do",
+      "endToEndMs": 7.3,
+      "httpMs": 8,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:03.318196Z"
+    },
+    {
+      "run": 24,
+      "to": "Backlog",
+      "endToEndMs": 4.7,
+      "httpMs": 5.2,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:03.426014Z"
+    },
+    {
+      "run": 25,
+      "to": "To Do",
+      "endToEndMs": 7.5,
+      "httpMs": 8.3,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:03.533997Z"
+    },
+    {
+      "run": 26,
+      "to": "Backlog",
+      "endToEndMs": 7.5,
+      "httpMs": 8.2,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:03.643629Z"
+    },
+    {
+      "run": 27,
+      "to": "To Do",
+      "endToEndMs": 9,
+      "httpMs": 9.9,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:03.755521Z"
+    },
+    {
+      "run": 28,
+      "to": "Backlog",
+      "endToEndMs": 8.2,
+      "httpMs": 9,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:03.866358Z"
+    },
+    {
+      "run": 29,
+      "to": "To Do",
+      "endToEndMs": 8.1,
+      "httpMs": 8.9,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:03.976391Z"
+    },
+    {
+      "run": 30,
+      "to": "Backlog",
+      "endToEndMs": 7.9,
+      "httpMs": 8.8,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:04.086961Z"
+    },
+    {
+      "run": 31,
+      "to": "To Do",
+      "endToEndMs": 7.6,
+      "httpMs": 8.3,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:04.197845Z"
+    },
+    {
+      "run": 32,
+      "to": "Backlog",
+      "endToEndMs": 5.1,
+      "httpMs": 5.7,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:04.306136Z"
+    },
+    {
+      "run": 33,
+      "to": "To Do",
+      "endToEndMs": 5.7,
+      "httpMs": 6.2,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:04.414773Z"
+    },
+    {
+      "run": 34,
+      "to": "Backlog",
+      "endToEndMs": 7.5,
+      "httpMs": 8.2,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:04.525208Z"
+    },
+    {
+      "run": 35,
+      "to": "To Do",
+      "endToEndMs": 7.9,
+      "httpMs": 8.9,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:04.636737Z"
+    },
+    {
+      "run": 36,
+      "to": "Backlog",
+      "endToEndMs": 10,
+      "httpMs": 10.9,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:04.749847Z"
+    },
+    {
+      "run": 37,
+      "to": "To Do",
+      "endToEndMs": 7.9,
+      "httpMs": 8.6,
+      "clientSpreadMs": 0.2,
+      "serverSentAt": "2026-11-21T01:20:04.861296Z"
+    },
+    {
+      "run": 38,
+      "to": "Backlog",
+      "endToEndMs": 7.7,
+      "httpMs": 8.5,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:04.971826Z"
+    },
+    {
+      "run": 39,
+      "to": "To Do",
+      "endToEndMs": 7.7,
+      "httpMs": 8.4,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:05.081853Z"
+    },
+    {
+      "run": 40,
+      "to": "Backlog",
+      "endToEndMs": 5.6,
+      "httpMs": 6.1,
+      "clientSpreadMs": 0.1,
+      "serverSentAt": "2026-11-21T01:20:05.190291Z"
+    }
+  ]
+}

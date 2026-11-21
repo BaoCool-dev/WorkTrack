@@ -277,23 +277,6 @@ func TestTaskAPI_RequiresAuth(t *testing.T) {
 	}
 }
 
-func TestTaskAPI_NoColumnMoveEndpoint_CF04Boundary(t *testing.T) {
-	// Chuyển cột thuộc feature/kanban (người dùng tự code) — nhánh này không được có route.
-	f := &fakeTasks{}
-	a := newTaskAPI(t, f)
-	tid := uuid.NewString()
-	for _, p := range []string{"/api/v1/tasks/" + tid + "/move", "/api/v1/tasks/" + tid + "/column"} {
-		for _, m := range []string{http.MethodPost, http.MethodPut, http.MethodPatch} {
-			if rec := a.do(t, m, p, `{}`, withToken("valid-manager")); rec.Code != http.StatusNotFound && rec.Code != http.StatusMethodNotAllowed {
-				t.Errorf("%s %s: %d", m, p, rec.Code)
-			}
-		}
-	}
-	if f.calls != 0 {
-		t.Fatal("không được có API chuyển cột")
-	}
-}
-
 func TestTaskAPI_BadRequests(t *testing.T) {
 	pid := uuid.NewString()
 	cases := []struct {

@@ -49,6 +49,9 @@ export const projectsApi = {
   removeMember: (projectId: string, userId: string) =>
     http<undefined>(`${BASE}/${id(projectId)}/members/${id(userId)}`, { method: 'DELETE' }),
 
+  setWipLimit: (projectId: string, wipLimit: number) =>
+    http<Project>(`${BASE}/${id(projectId)}/wip-limit`, { method: 'PUT', json: { wipLimit } }),
+
   board: (projectId: string) => http<Board>(`${BASE}/${id(projectId)}/board`),
   addColumn: (projectId: string, body: ColumnInput) =>
     http<Board>(`${BASE}/${id(projectId)}/columns`, { method: 'POST', json: body }),

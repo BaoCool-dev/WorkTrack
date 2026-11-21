@@ -59,6 +59,9 @@ type Task struct {
 	CreatedByName    string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+	// Position: thứ tự trong cột (0 = trên cùng). Version tăng mỗi lần thay đổi — chống ghi đè (CF-04).
+	Position int
+	Version  int
 }
 
 // NormalizeTaskTitle gộp khoảng trắng; 1–200 ký tự.

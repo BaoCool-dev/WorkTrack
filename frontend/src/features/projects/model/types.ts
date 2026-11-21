@@ -22,6 +22,8 @@ export const COLUMN_NAME_MAX = 50
 export const MIN_COLUMNS = 2
 export const MAX_COLUMNS = 8
 export const PAGE_SIZE = 20
+export const WIP_LIMIT_MIN = 1
+export const WIP_LIMIT_MAX = 20
 
 export interface Page<T> {
   items: T[]
@@ -40,6 +42,8 @@ export interface Project {
   endDate: string | null
   manager: { id: string; name: string }
   memberCount: number
+  /** Số công việc cha "đang làm" tối đa mỗi người trong dự án (CF-05, mặc định 5). */
+  wipLimit: number
   createdAt: string
   updatedAt: string
 }

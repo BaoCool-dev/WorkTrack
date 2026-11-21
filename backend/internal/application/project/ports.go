@@ -48,6 +48,8 @@ type Store interface {
 	Create(ctx context.Context, in NewProject) (uuid.UUID, error)
 	// Update trả ErrProjectNotFound hoặc ErrProjectNameTaken.
 	Update(ctx context.Context, id uuid.UUID, f Fields) error
+	// UpdateWIPLimit trả ErrProjectNotFound (CF-05).
+	UpdateWIPLimit(ctx context.Context, id uuid.UUID, limit int) error
 
 	IsMember(ctx context.Context, projectID, userID uuid.UUID) (bool, error)
 	ListMembers(ctx context.Context, projectID uuid.UUID) ([]domain.ProjectMember, error)

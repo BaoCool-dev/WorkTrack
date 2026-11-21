@@ -1,4 +1,5 @@
 import { useParams } from 'react-router'
+import { KanbanBoard } from '@/features/kanban'
 import { ProjectDetail } from '@/features/projects'
 import { ProjectTasksPanel } from '@/features/tasks'
 
@@ -10,6 +11,7 @@ export function ProjectDetailPage() {
       <ProjectDetail
         key={projectId}
         projectId={projectId}
+        renderBoard={(p, canManage) => <KanbanBoard project={p} canManage={canManage} />}
         renderTasks={(p, canManage) => <ProjectTasksPanel project={p} canManage={canManage} />}
       />
     </div>

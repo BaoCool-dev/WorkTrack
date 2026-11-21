@@ -19,9 +19,14 @@ type Querier interface {
 	AddTaskLabels(ctx context.Context, arg AddTaskLabelsParams) error
 	CountMyTasks(ctx context.Context, arg CountMyTasksParams) (int64, error)
 	CountProjectTasks(ctx context.Context, arg CountProjectTasksParams) (int64, error)
+	// CF-04, CF-05 — Kanban.
+	// WIP của một người trong MỘT dự án: chỉ đếm công việc cha (parent_task_id IS NULL, CLAUDE.md §5.6)
+	// đang ở cột nhóm in_progress. Gọi sau khi đã khóa dòng dự án để hai lần kéo song song không cùng lọt.
+	CountProjectWIP(ctx context.Context, arg CountProjectWIPParams) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
-	// WIP: số công việc cha nhóm in_progress của một người (CLAUDE.md §5.6). Chỉ hiển thị, không chặn.
+	// WIP: số công việc cha nhóm in_progress của một người trên mọi dự án (CLAUDE.md §5.6). Chỉ để hiển thị;
+	// việc chặn dùng CountProjectWIP (giới hạn tính theo từng dự án).
 	CountWIP(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateBoardColumn(ctx context.Context, arg CreateBoardColumnParams) (uuid.UUID, error)
 	CreateDepartment(ctx context.Context, arg CreateDepartmentParams) (uuid.UUID, error)
@@ -43,6 +48,8 @@ type Querier interface {
 	FirstTodoColumn(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
 	// Vai trò và trạng thái của một thành viên dự án (kiểm người nhận việc / người tự nhận).
 	GetAssignableMember(ctx context.Context, arg GetAssignableMemberParams) (GetAssignableMemberRow, error)
+	// Nhóm trạng thái của một cột trong dự án (cột khác dự án → không có dòng).
+	GetColumnGroup(ctx context.Context, arg GetColumnGroupParams) (string, error)
 	// B1: tham số hệ thống dạng số nguyên (vd. story_point_hours).
 	GetIntSetting(ctx context.Context, key string) (GetIntSettingRow, error)
 	// Kiểm tra một người cụ thể trước khi thêm vào dự án.
@@ -60,9 +67,14 @@ type Querier interface {
 	// CF-02: một tài khoản kèm phòng ban/chức danh (cùng tập cột với ListUsers).
 	GetUserDetail(ctx context.Context, id uuid.UUID) (GetUserDetailRow, error)
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
+	InsertTaskMoveHistory(ctx context.Context, arg InsertTaskMoveHistoryParams) error
 	IsProjectMember(ctx context.Context, arg IsProjectMemberParams) (bool, error)
 	// CF-03, CF-06: task_count đếm cả việc cha và con nằm trong cột (cột còn việc không xóa được).
 	ListBoardColumns(ctx context.Context, projectID uuid.UUID) ([]ListBoardColumnsRow, error)
+	// Toàn bộ công việc cha của bảng Kanban (lọc nhãn/người nhận làm ở client). Giới hạn an toàn @max_rows.
+	ListBoardTasks(ctx context.Context, arg ListBoardTasksParams) ([]TaskView, error)
+	// Thứ tự hiện tại các công việc cha trong một cột (để chèn thẻ vào vị trí mới).
+	ListColumnTaskIDs(ctx context.Context, arg ListColumnTaskIDsParams) ([]uuid.UUID, error)
 	// CF-02: toàn bộ cây (dữ liệu nhỏ), kèm số nhân sự trực tiếp của từng phòng ban.
 	ListDepartments(ctx context.Context) ([]ListDepartmentsRow, error)
 	ListJobTitles(ctx context.Context) ([]ListJobTitlesRow, error)
@@ -90,8 +102,13 @@ type Querier interface {
 	ListWorkflowTransitions(ctx context.Context, projectID uuid.UUID) ([]WorkflowTransition, error)
 	// Khóa dòng dự án trong transaction để các thay đổi cấu hình Kanban chạy tuần tự (giữ ràng buộc 2–8 cột).
 	LockProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Khóa dòng dự án và trả người phụ trách + giới hạn WIP tại thời điểm khóa: kéo thả/nhận việc kiểm
+	// quyền và WIP trên số đã khóa (CF-04, CF-05), không trên bản đọc trước transaction.
+	LockProjectBoard(ctx context.Context, id uuid.UUID) (LockProjectBoardRow, error)
 	// Khóa dòng công việc tới hết transaction (nhận việc / sửa chạy tuần tự).
 	LockTask(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Đổi cột và tăng version. Điều kiện version = @version là chốt chặn cuối chống ghi đè.
+	MoveTaskColumn(ctx context.Context, arg MoveTaskColumnParams) (int64, error)
 	// Không ghi nếu một request song song vừa khóa tài khoản (0 dòng → coi như đang khóa).
 	RecordLoginSuccess(ctx context.Context, arg RecordLoginSuccessParams) (int64, error)
 	// B8: tăng bộ đếm NGUYÊN TỬ (không đọc–sửa–ghi ở Go) để request song song không vượt được khóa.
@@ -111,11 +128,16 @@ type Querier interface {
 	// Chỉ dùng cho make seed.
 	SetSeedUserOrg(ctx context.Context, arg SetSeedUserOrgParams) error
 	SetTaskAssignee(ctx context.Context, arg SetTaskAssigneeParams) (int64, error)
+	// Đánh lại vị trí 0..n-1 theo thứ tự mảng @ids (một câu lệnh, không vòng lặp).
+	SetTaskPositions(ctx context.Context, ids []uuid.UUID) error
+	TransitionAllowed(ctx context.Context, arg TransitionAllowedParams) (bool, error)
 	UpdateBoardColumn(ctx context.Context, arg UpdateBoardColumnParams) (int64, error)
 	UpdateDepartment(ctx context.Context, arg UpdateDepartmentParams) (int64, error)
 	UpdateJobTitle(ctx context.Context, arg UpdateJobTitleParams) (int64, error)
 	UpdateLabel(ctx context.Context, arg UpdateLabelParams) (int64, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (int64, error)
+	// CF-05: giới hạn WIP mỗi người trong dự án (1–20, CHECK ở CSDL).
+	UpdateProjectWIPLimit(ctx context.Context, arg UpdateProjectWIPLimitParams) (int64, error)
 	UpdateSkill(ctx context.Context, arg UpdateSkillParams) (int64, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error)
 	// CF-02: email không sửa được sau khi tạo (mục C).

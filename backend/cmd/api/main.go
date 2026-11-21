@@ -17,6 +17,7 @@ import (
 
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/account"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/auth"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/kanban"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/label"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/org"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/project"
@@ -24,6 +25,7 @@ import (
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/task"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/email"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/realtime"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/security"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/transport/httpapi"
 )
@@ -122,6 +124,8 @@ func buildDeps(cfg config, pool *pgxpool.Pool) (httpapi.Deps, error) {
 	now := time.Now
 	projects := project.NewService(postgres.NewProjectRepo(pool), postgres.NewProjectTx(pool))
 	settings := setting.NewService(postgres.NewSettingRepo(pool))
+	// Hub trong bộ nhớ: đủ cho một tiến trình API (docs/decisions.md mục C, feature/kanban).
+	hub := realtime.NewHub()
 	return httpapi.Deps{
 		DB:         pool,
 		CORSOrigin: cfg.CORSOrigin,
@@ -129,7 +133,9 @@ func buildDeps(cfg config, pool *pgxpool.Pool) (httpapi.Deps, error) {
 		Accounts:   account.NewService(users, mailer, cfg.AppBaseURL, now, slog.Default()),
 		Org:        org.NewService(postgres.NewOrgRepo(pool)),
 		Projects:   projects,
-		Tasks:      task.NewService(postgres.NewTaskRepo(pool), postgres.NewTaskTx(pool), projects, settings),
+		Tasks:      task.NewService(postgres.NewTaskRepo(pool), postgres.NewTaskTx(pool), projects, settings, hub),
+		Kanban:     kanban.NewService(postgres.NewTaskRepo(pool), postgres.NewKanbanTx(pool), projects, hub),
+		Hub:        hub,
 		Labels:     label.NewService(postgres.NewLabelRepo(pool)),
 		Settings:   settings,
 		Tokens:     jwt,

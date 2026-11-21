@@ -99,7 +99,7 @@ var domainErrors = []struct {
 	{domain.ErrInvalidColumnOrder, httpError{http.StatusUnprocessableEntity, "COLUMN_ORDER_INVALID", "Thứ tự cột phải liệt kê đủ mỗi cột một lần"}},
 	{domain.ErrInvalidTransition, httpError{http.StatusUnprocessableEntity, "TRANSITION_INVALID", "Luật chuyển phải nối hai cột khác nhau của bảng"}},
 	{domain.ErrInvalidTransitionRole, httpError{http.StatusUnprocessableEntity, "TRANSITION_ROLE_INVALID", "Vai trò của luật chuyển phải là Manager hoặc Member"}},
-	{domain.ErrMemberTransitionToDone, httpError{http.StatusUnprocessableEntity, "TRANSITION_MEMBER_TO_DONE", "Chỉ Manager được chuyển công việc sang nhóm Hoàn thành"}},
+	{domain.ErrMemberTransitionToDone, httpError{http.StatusUnprocessableEntity, "TRANSITION_MEMBER_TO_DONE", "Chỉ Manager được chuyển công việc vào hoặc ra khỏi nhóm Hoàn thành"}},
 	{domain.ErrDuplicateTransition, httpError{http.StatusUnprocessableEntity, "TRANSITION_DUPLICATE", "Luật chuyển bị lặp"}},
 	// CF-06 — công việc cha, nhãn, tham số hệ thống.
 	{domain.ErrTaskNotFound, httpError{http.StatusNotFound, "TASK_NOT_FOUND", "Không tìm thấy công việc hoặc bạn không tham gia dự án này"}},
@@ -115,6 +115,12 @@ var domainErrors = []struct {
 	{domain.ErrTaskNotClaimable, httpError{http.StatusConflict, "TASK_NOT_CLAIMABLE", "Chỉ nhận được công việc chưa giao đang ở nhóm Cần làm"}},
 	{domain.ErrBoardNeedsTodoColumn, httpError{http.StatusConflict, "BOARD_NEEDS_TODO_COLUMN", "Bảng Kanban cần ít nhất một cột nhóm Cần làm để tạo công việc"}},
 	{domain.ErrInvalidSetting, httpError{http.StatusUnprocessableEntity, "SETTING_INVALID", "Số giờ cho 1 Story Point phải từ 1 đến 40"}},
+	// CF-04, CF-05 — kéo thả Kanban và giới hạn WIP.
+	{domain.ErrTransitionNotAllowed, httpError{http.StatusUnprocessableEntity, "TRANSITION_NOT_ALLOWED", "Luật của bảng không cho phép chuyển công việc giữa hai cột này"}},
+	{domain.ErrTaskNotAssignee, httpError{http.StatusForbidden, "TASK_NOT_ASSIGNEE", "Bạn chỉ được kéo công việc đang giao cho chính mình"}},
+	{domain.ErrTaskVersionConflict, httpError{http.StatusConflict, "TASK_VERSION_CONFLICT", "Công việc vừa được người khác thay đổi, bảng đã tải lại bản mới nhất"}},
+	{domain.ErrWIPLimitReached, httpError{http.StatusConflict, "TASK_WIP_LIMIT", "Người nhận việc đã đủ số việc đang làm theo giới hạn WIP của dự án"}},
+	{domain.ErrInvalidWIPLimit, httpError{http.StatusUnprocessableEntity, "WIP_LIMIT_INVALID", "Giới hạn WIP phải từ 1 đến 20"}},
 	{domain.ErrCannotChangeOwnRole, httpError{http.StatusUnprocessableEntity, "USER_CANNOT_CHANGE_OWN_ROLE", "Bạn không thể tự đổi vai trò của chính mình"}},
 }
 
