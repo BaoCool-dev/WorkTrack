@@ -72,4 +72,13 @@ Không có lỗi Critical/Blocker. Các mục nhỏ gom ở issue #9:
 - UC05 chưa có acceptance criteria chính thức.
 
 ## CI
-Đang chờ — cập nhật sau khi push.
+PR #10, run `44873908328` trên commit a3612ea. Cả 4 job đều xanh:
+
+| Job | Các bước | Kết quả |
+|---|---|---|
+| Backend (build → lint → test) | Build, Lint, Unit test, Integration test (testcontainers: `go test -race -tags=integration ./...`) | ✅ pass (2m1s) |
+| Frontend (build → lint → test) | npm ci, Build, Lint, Test | ✅ pass (52s) |
+| Docker build | Build api image, Build web image | ✅ pass (2m30s) |
+| Secret scan (gitleaks) | gitleaks-action | ✅ pass (8s) |
+
+Theo B12, `docker build` và `make test-integration` không chạy được trên máy. Cả hai đã được kiểm trong CI ở bảng trên.
