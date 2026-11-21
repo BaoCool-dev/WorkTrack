@@ -369,6 +369,24 @@ func (q *Queries) LockProject(ctx context.Context, id uuid.UUID) (uuid.UUID, err
 	return id_2, err
 }
 
+const lockProjectBoard = `-- name: LockProjectBoard :one
+SELECT manager_id, wip_limit FROM project WHERE id = $1 FOR UPDATE
+`
+
+type LockProjectBoardRow struct {
+	ManagerID uuid.UUID `json:"managerId"`
+	WipLimit  int16     `json:"wipLimit"`
+}
+
+// Khóa dòng dự án và trả người phụ trách + giới hạn WIP tại thời điểm khóa: kéo thả/nhận việc kiểm
+// quyền và WIP trên số đã khóa (CF-04, CF-05), không trên bản đọc trước transaction.
+func (q *Queries) LockProjectBoard(ctx context.Context, id uuid.UUID) (LockProjectBoardRow, error) {
+	row := q.db.QueryRow(ctx, lockProjectBoard, id)
+	var i LockProjectBoardRow
+	err := row.Scan(&i.ManagerID, &i.WipLimit)
+	return i, err
+}
+
 const removeProjectMember = `-- name: RemoveProjectMember :execrows
 DELETE FROM project_member WHERE project_id = $1 AND user_id = $2
 `

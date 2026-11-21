@@ -103,14 +103,14 @@ func (s *Service) view(ctx context.Context, actor authz.Principal, id uuid.UUID)
 // moveLocked chạy trong transaction; trả cột cũ để phát sự kiện.
 func (s *Service) moveLocked(ctx context.Context, st Store, actor authz.Principal, p domain.Project,
 	id uuid.UUID, in MoveInput) (uuid.UUID, error) {
-	task, err := lockTask(ctx, st, p.ID, id)
+	task, lp, err := lockTask(ctx, st, p.ID, id)
 	if err != nil {
 		return uuid.Nil, err
 	}
 	if task.Version != in.Version {
 		return uuid.Nil, domain.ErrTaskVersionConflict
 	}
-	if err := s.checkRules(ctx, st, actor, p, task, in.ColumnID); err != nil {
+	if err := s.checkRules(ctx, st, actor, p.ID, lp, task, in.ColumnID); err != nil {
 		return uuid.Nil, err
 	}
 	if err := st.MoveColumn(ctx, id, in.ColumnID, task.Version); err != nil {
@@ -130,33 +130,35 @@ func (s *Service) moveLocked(ctx context.Context, st Store, actor authz.Principa
 	return task.ColumnID, nil
 }
 
-// lockTask khóa project rồi task (thứ tự cố định) và đọc lại bản mới nhất sau khi khóa.
-func lockTask(ctx context.Context, st Store, projectID, id uuid.UUID) (domain.Task, error) {
-	if err := st.LockProject(ctx, projectID); err != nil {
-		return domain.Task{}, err
+// lockTask khóa project rồi task (thứ tự cố định) và đọc lại bản mới nhất của cả hai sau khi khóa.
+func lockTask(ctx context.Context, st Store, projectID, id uuid.UUID) (domain.Task, domain.LockedProject, error) {
+	lp, err := st.LockProject(ctx, projectID)
+	if err != nil {
+		return domain.Task{}, domain.LockedProject{}, err
 	}
 	if err := st.Lock(ctx, id); err != nil {
-		return domain.Task{}, err
+		return domain.Task{}, domain.LockedProject{}, err
 	}
-	return st.Get(ctx, id)
+	task, err := st.Get(ctx, id)
+	return task, lp, err
 }
 
-// checkRules: quyền kéo → luật chuyển cột → WIP, trên dữ liệu đã khóa.
-func (s *Service) checkRules(ctx context.Context, st Store, actor authz.Principal, p domain.Project,
-	task domain.Task, to uuid.UUID) error {
-	// Tính lại vai trò: người nhận có thể vừa đổi giữa lúc kiểm sớm và lúc khóa.
-	role, err := domain.BoardRole(actor.UserID, actor.Role, p.ManagerID, task.AssigneeID)
+// checkRules: quyền kéo → luật chuyển cột → WIP, trên dữ liệu đã khóa (lp, task).
+func (s *Service) checkRules(ctx context.Context, st Store, actor authz.Principal, projectID uuid.UUID,
+	lp domain.LockedProject, task domain.Task, to uuid.UUID) error {
+	// Tính lại vai trò: người nhận hoặc Manager phụ trách có thể vừa đổi giữa lúc kiểm sớm và lúc khóa.
+	role, err := domain.BoardRole(actor.UserID, actor.Role, lp.ManagerID, task.AssigneeID)
 	if err != nil {
 		return err
 	}
-	toGroup, err := st.ColumnGroup(ctx, p.ID, to) // cột phải thuộc đúng dự án này
+	toGroup, err := st.ColumnGroup(ctx, projectID, to) // cột phải thuộc đúng dự án này
 	if err != nil {
 		return err
 	}
 	same := task.ColumnID == to
 	allowed := same
 	if !same {
-		if allowed, err = st.TransitionAllowed(ctx, p.ID, task.ColumnID, to, role); err != nil {
+		if allowed, err = st.TransitionAllowed(ctx, projectID, task.ColumnID, to, role); err != nil {
 			return fmt.Errorf("transition allowed: %w", err)
 		}
 	}
@@ -164,20 +166,20 @@ func (s *Service) checkRules(ctx context.Context, st Store, actor authz.Principa
 	if err != nil {
 		return err
 	}
-	return checkWIP(ctx, st, p, task, toGroup)
+	return checkWIP(ctx, st, projectID, lp.WIPLimit, task, toGroup)
 }
 
 // checkWIP: WIP là giới hạn của NGƯỜI NHẬN việc trong dự án (chỉ đếm việc cha — CLAUDE.md §5.6),
 // nên áp dụng cả khi Manager kéo hộ. Việc chưa giao ai thì không thuộc WIP của ai → bỏ qua.
-func checkWIP(ctx context.Context, st Store, p domain.Project, task domain.Task, to domain.StatusGroup) error {
+func checkWIP(ctx context.Context, st Store, projectID uuid.UUID, limit int, task domain.Task, to domain.StatusGroup) error {
 	if task.AssigneeID == nil || !domain.EntersWIP(task.StatusGroup, to) {
 		return nil
 	}
-	n, err := st.CountProjectWIP(ctx, p.ID, *task.AssigneeID)
+	n, err := st.CountProjectWIP(ctx, projectID, *task.AssigneeID)
 	if err != nil {
 		return fmt.Errorf("count wip: %w", err)
 	}
-	return domain.CheckWIP(n, p.WIPLimit)
+	return domain.CheckWIP(n, limit) // limit đọc trên dòng dự án đã khóa
 }
 
 // reorder đặt thẻ vào vị trí mới trong cột đích rồi đánh lại số thứ tự 0..n-1 cho cả cột.

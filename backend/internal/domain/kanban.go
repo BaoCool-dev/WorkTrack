@@ -117,3 +117,11 @@ type BoardEvent struct {
 	Position     int
 	Version      int
 }
+
+// LockedProject là phần cấu hình dự án đọc lại SAU khi khóa dòng dự án trong transaction.
+// Vì sao không dùng bản domain.Project đã đọc trước đó: giữa lúc đọc và lúc khóa, Manager có thể vừa
+// đổi giới hạn WIP (hoặc dự án đổi người phụ trách) — kiểm luật trên số cũ sẽ cho lọt hoặc chặn nhầm.
+type LockedProject struct {
+	ManagerID uuid.UUID
+	WIPLimit  int
+}

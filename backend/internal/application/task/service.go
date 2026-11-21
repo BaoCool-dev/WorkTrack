@@ -63,27 +63,29 @@ func (s *Service) publish(ctx context.Context, typ string, actor authz.Principal
 }
 
 // lockForWrite khóa dự án rồi công việc (thứ tự cố định — xem kanban.Service.Move) và đọc bản đã khóa.
-func lockForWrite(ctx context.Context, st Store, projectID, id uuid.UUID) (domain.Task, error) {
-	if err := st.LockProject(ctx, projectID); err != nil {
-		return domain.Task{}, fmt.Errorf("lock project: %w", err)
+// Trả kèm giới hạn WIP đọc trên dòng dự án đã khóa (Manager vừa đổi giới hạn thì dùng số mới).
+func lockForWrite(ctx context.Context, st Store, projectID, id uuid.UUID) (domain.Task, domain.LockedProject, error) {
+	lp, err := st.LockProject(ctx, projectID)
+	if err != nil {
+		return domain.Task{}, domain.LockedProject{}, fmt.Errorf("lock project: %w", err)
 	}
 	if err := st.Lock(ctx, id); err != nil {
-		return domain.Task{}, fmt.Errorf("lock task: %w", err)
+		return domain.Task{}, domain.LockedProject{}, fmt.Errorf("lock task: %w", err)
 	}
 	t, err := st.Get(ctx, id)
 	if err != nil {
-		return domain.Task{}, fmt.Errorf("get task: %w", err)
+		return domain.Task{}, domain.LockedProject{}, fmt.Errorf("get task: %w", err)
 	}
-	return t, nil
+	return t, lp, nil
 }
 
 // checkWIP chặn khi userID đã có đủ số việc đang làm trong dự án (CF-05). Gọi sau khi đã khóa dự án.
-func checkWIP(ctx context.Context, st Store, p domain.Project, userID uuid.UUID) error {
-	n, err := st.CountProjectWIP(ctx, p.ID, userID)
+func checkWIP(ctx context.Context, st Store, projectID uuid.UUID, lp domain.LockedProject, userID uuid.UUID) error {
+	n, err := st.CountProjectWIP(ctx, projectID, userID)
 	if err != nil {
 		return fmt.Errorf("count project wip: %w", err)
 	}
-	return domain.CheckWIP(n, p.WIPLimit)
+	return domain.CheckWIP(n, lp.WIPLimit)
 }
 
 // view tải công việc rồi kiểm quyền xem dự án chứa nó. Không xem được → ErrTaskNotFound (không lộ sự tồn tại).
@@ -304,7 +306,7 @@ func (s *Service) Update(ctx context.Context, actor authz.Principal, id uuid.UUI
 		return domain.Task{}, err
 	}
 	err = s.tx.InTx(ctx, func(st Store) error {
-		locked, err := lockForWrite(ctx, st, p.ID, id)
+		locked, lp, err := lockForWrite(ctx, st, p.ID, id)
 		if err != nil {
 			return err
 		}
@@ -322,7 +324,7 @@ func (s *Service) Update(ctx context.Context, actor authz.Principal, id uuid.UUI
 		}
 		// Giao lại một việc ĐANG LÀM cho người khác = người đó thêm 1 việc in_progress → kiểm WIP của họ.
 		if locked.StatusGroup == domain.GroupInProgress && f.AssigneeID != nil && !sameUser(locked.AssigneeID, f.AssigneeID) {
-			if err := checkWIP(ctx, st, p, *f.AssigneeID); err != nil {
+			if err := checkWIP(ctx, st, p.ID, lp, *f.AssigneeID); err != nil {
 				return err
 			}
 		}
@@ -354,7 +356,7 @@ func (s *Service) Claim(ctx context.Context, actor authz.Principal, id uuid.UUID
 		return domain.Task{}, err
 	}
 	err = s.tx.InTx(ctx, func(st Store) error {
-		t, err := lockForWrite(ctx, st, p.ID, id)
+		t, lp, err := lockForWrite(ctx, st, p.ID, id)
 		if err != nil {
 			return err
 		}
@@ -372,7 +374,7 @@ func (s *Service) Claim(ctx context.Context, actor authz.Principal, id uuid.UUID
 			return domain.ErrForbidden
 		}
 		// Đã đủ WIP thì không nhận thêm việc: làm xong việc đang dở trước (CF-05, quyết định mục C).
-		if err := checkWIP(ctx, st, p, actor.UserID); err != nil {
+		if err := checkWIP(ctx, st, p.ID, lp, actor.UserID); err != nil {
 			return err
 		}
 		uid := actor.UserID

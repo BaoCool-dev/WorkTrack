@@ -102,6 +102,9 @@ type Querier interface {
 	ListWorkflowTransitions(ctx context.Context, projectID uuid.UUID) ([]WorkflowTransition, error)
 	// Khóa dòng dự án trong transaction để các thay đổi cấu hình Kanban chạy tuần tự (giữ ràng buộc 2–8 cột).
 	LockProject(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Khóa dòng dự án và trả người phụ trách + giới hạn WIP tại thời điểm khóa: kéo thả/nhận việc kiểm
+	// quyền và WIP trên số đã khóa (CF-04, CF-05), không trên bản đọc trước transaction.
+	LockProjectBoard(ctx context.Context, id uuid.UUID) (LockProjectBoardRow, error)
 	// Khóa dòng công việc tới hết transaction (nhận việc / sửa chạy tuần tự).
 	LockTask(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	// Đổi cột và tăng version. Điều kiện version = @version là chốt chặn cuối chống ghi đè.

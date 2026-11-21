@@ -42,6 +42,7 @@ type fakeStore struct {
 	rules       map[transition]bool
 	history     []kanban.MoveRecord
 	projectLock int
+	projects    map[uuid.UUID]domain.Project // dùng chung map với fakeProjects
 }
 
 func (f *fakeStore) InTx(_ context.Context, fn func(kanban.Store) error) error {
@@ -75,7 +76,14 @@ func (f *fakeStore) ListBoard(_ context.Context, pid uuid.UUID, _ int) ([]domain
 	return out, nil
 }
 
-func (f *fakeStore) LockProject(context.Context, uuid.UUID) error { f.projectLock++; return nil }
+func (f *fakeStore) LockProject(_ context.Context, pid uuid.UUID) (domain.LockedProject, error) {
+	f.projectLock++
+	p, ok := f.projects[pid]
+	if !ok {
+		return domain.LockedProject{}, domain.ErrProjectNotFound
+	}
+	return domain.LockedProject{ManagerID: p.ManagerID, WIPLimit: p.WIPLimit}, nil
+}
 
 func (f *fakeStore) Lock(_ context.Context, id uuid.UUID) error {
 	if _, ok := f.tasks[id]; !ok {
@@ -195,6 +203,7 @@ func setup(t *testing.T) *env {
 			{e.review, e.done, mb}: true,
 		},
 	}
+	e.st.projects = pr.projects
 	e.pub = &fakePublisher{}
 	e.svc = kanban.NewService(e.st, e.st, pr, e.pub)
 	return e
@@ -298,6 +307,9 @@ func TestMove_WhoCanDrag_CF04(t *testing.T) {
 	_, err = e.move(e.ceo, tk, e.doing, 0)
 	expectErr(t, err, domain.ErrForbidden)
 	_, err = e.move(e.outsider, tk, e.doing, 0)
+	expectErr(t, err, domain.ErrTaskNotFound)
+	admin := authz.Principal{UserID: uuid.New(), Role: domain.RoleAdmin}
+	_, err = e.move(admin, tk, e.doing, 0) // Admin không xem dự án → như việc không tồn tại
 	expectErr(t, err, domain.ErrTaskNotFound)
 	if e.st.tasks[tk.ID].ColumnID != e.backlog || len(e.pub.events) != 0 {
 		t.Fatalf("task changed by forbidden actor")
@@ -436,4 +448,23 @@ func TestBoard_Visibility_CF04(t *testing.T) {
 	}
 	_, err := e.svc.Board(context.Background(), e.outsider, e.project.ID)
 	expectErr(t, err, domain.ErrProjectNotFound)
+}
+
+// Giới hạn WIP và Manager phụ trách lấy trên dòng dự án ĐÃ KHÓA, không phải bản đọc trước transaction:
+// Manager vừa hạ giới hạn (hoặc dự án vừa đổi người phụ trách) thì lần kéo đang chờ khóa dùng số mới.
+func TestMove_UsesProjectStateReadUnderLock_CF04_CF05(t *testing.T) {
+	e := setup(t) // bản ngoài transaction: WIPLimit = 2, Manager = e.mgr
+	e.add(e.doing, &e.member)
+	tk := e.add(e.backlog, &e.member)
+
+	newMgr := authz.Principal{UserID: uuid.New(), Role: domain.RoleManager}
+	e.st.projects = map[uuid.UUID]domain.Project{e.project.ID: {ID: e.project.ID, ManagerID: newMgr.UserID, WIPLimit: 1}}
+
+	_, err := e.move(e.member, tk, e.doing, 0)
+	expectErr(t, err, domain.ErrWIPLimitReached) // 1 việc đang làm, giới hạn mới là 1
+	_, err = e.move(e.mgr, tk, e.review, 0)      // e.mgr không còn phụ trách khi đã khóa
+	expectErr(t, err, domain.ErrTaskNotAssignee)
+	if e.st.tasks[tk.ID].ColumnID != e.backlog {
+		t.Fatalf("task moved on stale project state")
+	}
 }

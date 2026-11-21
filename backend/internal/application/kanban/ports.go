@@ -28,7 +28,8 @@ type Store interface {
 	ListBoard(ctx context.Context, projectID uuid.UUID, limit int) ([]domain.Task, error)
 	// LockProject khóa dòng dự án tới hết transaction: mọi lần kéo trong dự án xếp hàng,
 	// nên phép đếm WIP và phép đánh lại vị trí không bị hai request song song làm sai.
-	LockProject(ctx context.Context, projectID uuid.UUID) error
+	// Trả người phụ trách và giới hạn WIP đọc trên dòng đã khóa; dự án không còn → ErrProjectNotFound.
+	LockProject(ctx context.Context, projectID uuid.UUID) (domain.LockedProject, error)
 	// Lock khóa dòng công việc; trả ErrTaskNotFound.
 	Lock(ctx context.Context, id uuid.UUID) error
 	// ColumnGroup trả nhóm trạng thái của cột; cột không thuộc dự án → ErrColumnNotFound.

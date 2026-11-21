@@ -57,7 +57,8 @@ type Store interface {
 	// Lock khóa dòng công việc tới hết transaction; trả ErrTaskNotFound.
 	Lock(ctx context.Context, id uuid.UUID) error
 	// LockProject khóa dòng dự án; luôn gọi TRƯỚC Lock (cùng thứ tự với kéo thả Kanban) để không deadlock.
-	LockProject(ctx context.Context, projectID uuid.UUID) error
+	// Trả người phụ trách và giới hạn WIP đọc trên dòng đã khóa.
+	LockProject(ctx context.Context, projectID uuid.UUID) (domain.LockedProject, error)
 	// FirstTodoColumn trả domain.ErrBoardNeedsTodoColumn khi dự án không có cột nhóm todo.
 	FirstTodoColumn(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
 	// Create trả domain.ErrLabelNotFound khi có nhãn không tồn tại.

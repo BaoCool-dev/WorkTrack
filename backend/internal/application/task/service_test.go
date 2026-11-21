@@ -49,6 +49,7 @@ type fakeStore struct {
 	labels     map[uuid.UUID]string
 	locks      int
 	projLocks  int
+	projects   map[uuid.UUID]domain.Project // dùng chung map với fakeProjects
 	lastFilter task.Filter
 	lastMine   task.MyFilter
 }
@@ -167,12 +168,16 @@ func (f *fakeStore) GetAssignable(_ context.Context, pid, uid uuid.UUID) (task.A
 	return a, ok, nil
 }
 
-func (f *fakeStore) LockProject(_ context.Context, pid uuid.UUID) error {
+func (f *fakeStore) LockProject(_ context.Context, pid uuid.UUID) (domain.LockedProject, error) {
 	if f.locks > f.projLocks { // dự án phải khóa TRƯỚC task
-		return errors.New("lock order: project after task")
+		return domain.LockedProject{}, errors.New("lock order: project after task")
 	}
 	f.projLocks++
-	return nil
+	p, ok := f.projects[pid]
+	if !ok {
+		return domain.LockedProject{}, domain.ErrProjectNotFound
+	}
+	return domain.LockedProject{ManagerID: p.ManagerID, WIPLimit: p.WIPLimit}, nil
 }
 
 func (f *fakeStore) CountProjectWIP(_ context.Context, pid, uid uuid.UUID) (int, error) {
@@ -248,6 +253,7 @@ func setup(t *testing.T) *env {
 		labels: map[uuid.UUID]string{e.label: "Backend"},
 	}
 	e.pub = &fakePublisher{}
+	e.st.projects = e.pr.projects
 	e.svc = task.NewService(e.st, e.st, e.pr, fakeSettings{hours: 4}, e.pub)
 	return e
 }

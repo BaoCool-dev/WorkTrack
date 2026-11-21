@@ -45,12 +45,14 @@ func (r *TaskRepo) ListBoard(ctx context.Context, projectID uuid.UUID, limit int
 	return r.withLabels(ctx, rows)
 }
 
-// LockProject khóa dòng dự án — luôn khóa TRƯỚC dòng task để không deadlock.
-func (r *TaskRepo) LockProject(ctx context.Context, projectID uuid.UUID) error {
-	if _, err := r.q.LockProject(ctx, projectID); err != nil {
-		return projectErr(err)
+// LockProject khóa dòng dự án — luôn khóa TRƯỚC dòng task để không deadlock — và trả người phụ trách
+// cùng giới hạn WIP đọc ngay trên dòng đã khóa.
+func (r *TaskRepo) LockProject(ctx context.Context, projectID uuid.UUID) (domain.LockedProject, error) {
+	row, err := r.q.LockProjectBoard(ctx, projectID)
+	if err != nil {
+		return domain.LockedProject{}, projectErr(err)
 	}
-	return nil
+	return domain.LockedProject{ManagerID: row.ManagerID, WIPLimit: int(row.WipLimit)}, nil
 }
 
 // ColumnGroup trả nhóm trạng thái của cột; cột không thuộc dự án → ErrColumnNotFound.

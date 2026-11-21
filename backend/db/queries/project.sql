@@ -35,6 +35,11 @@ WHERE p.id = @id;
 -- Khóa dòng dự án trong transaction để các thay đổi cấu hình Kanban chạy tuần tự (giữ ràng buộc 2–8 cột).
 SELECT id FROM project WHERE id = @id FOR UPDATE;
 
+-- name: LockProjectBoard :one
+-- Khóa dòng dự án và trả người phụ trách + giới hạn WIP tại thời điểm khóa: kéo thả/nhận việc kiểm
+-- quyền và WIP trên số đã khóa (CF-04, CF-05), không trên bản đọc trước transaction.
+SELECT manager_id, wip_limit FROM project WHERE id = @id FOR UPDATE;
+
 -- name: CreateProject :one
 INSERT INTO project (name, description, status, start_date, end_date, manager_id, created_by)
 VALUES (@name, @description, @status, sqlc.narg(start_date), sqlc.narg(end_date), @manager_id, @created_by)

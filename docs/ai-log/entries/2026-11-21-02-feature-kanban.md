@@ -28,6 +28,7 @@ Bảng Kanban kéo thả realtime (CF-04, UC05) và giới hạn WIP theo dự �
 - **Infrastructure:** `postgres/kanban_repo.go`, `realtime/hub.go` (phòng theo dự án, presence, bỏ client chậm).
 - **Transport:** `kanban_handler.go` (`GET /projects/{id}/board/tasks`, `POST /tasks/{id}/move`, `PUT /projects/{id}/wip-limit`), `ws_handler.go` (xác thực token + thành viên trước khi nâng cấp), ánh xạ lỗi, test API + WebSocket.
 - **Frontend (`features/kanban/`):** model thuần (`dropRules` mô phỏng luật server để chặn có lý do trước khi gửi, `boardState` tính vị trí thả/WIP/bộ lọc), `useMoveTask` (cập nhật lạc quan + rollback), `useBoardDrag` (kiểm luật → gửi → toast "Hoàn tác" hoặc dải lỗi), `useProjectSocket` (áp sự kiện vào cache, tự kết nối lại với backoff, presence), các component `KanbanBoard`, `KanbanColumn`, `TaskCard`, `BoardToolbar`, `WipFullDialog`, `WipLimitControl`, `Banners`; tab "Kanban" trong chi tiết dự án; test Vitest/RTL/MSW (bảng theo 3 vai trò, hook kéo thả, socket).
+- **Sửa sau rà soát gate:** query `LockProjectBoard` (khóa dòng dự án và trả `manager_id`, `wip_limit` tại thời điểm khóa), kiểu `domain.LockedProject`; `kanban.Service.Move`, `task.Service.Claim/Update` kiểm quyền và WIP trên số đã khóa thay vì bản đọc trước transaction; test unit `TestMove_UsesProjectStateReadUnderLock_CF04_CF05`, ca Admin → 404; integration `postgres/kanban_integration_test.go` (WIP loại việc con, version cũ 0 dòng, vị trí 0..n-1 + lịch sử, hai lần kéo song song không vượt WIP, `LockProject` đọc giới hạn mới); cập nhật ma trận truy vết mục CF-04/CF-05.
 - **KPI 1 và tài liệu:** `scripts/kpi/kanban-sync-latency.mjs` (2 client WebSocket, đo đến lúc B nhận `task.moved`), bằng chứng `docs/testing/evidence/kpi1-kanban-sync-latency.{md,json}`; mục §4.4 và checklist CF-04/CF-05 trong `docs/testing/manual-test-guide.md`.
 
 ## Phần tôi đã sửa / hoàn thiện
@@ -45,9 +46,12 @@ Bảng Kanban kéo thả realtime (CF-04, UC05) và giới hạn WIP theo dự �
 | Test "Hoàn tác" chờ nút mà fixture không có luật quay lại c-2→c-1 | Quên rằng hook chỉ hứa hoàn tác khi đường quay lại hợp lệ | Test đỏ | Thêm luật quay lại vào test và test riêng trường hợp không có nút |
 | Bản nháp hướng dẫn curl dùng version 1 ngay sau khi Member nhận việc | Quên rằng nhận việc cũng tăng version | Chạy thử các lệnh trong hướng dẫn trên API dev: 409 thay vì 200 | Thêm hàm `ver` đọc version hiện tại trước mỗi lần kéo, ghi rõ nhận việc trả `version` 2 |
 | Gọi `defer c.CloseNow()` và `websocket.Dial` không đóng `resp.Body` | Bỏ qua giá trị lỗi trả về | `golangci-lint` (errcheck, bodyclose) | Bọc `_ =` và đóng body |
+| Integration test Kanban gọi `e.projects.Board(...)` và `e.repo.db` — hai API không tồn tại (đúng là `GetBoard`, còn `TaskRepo` chỉ giữ `sqlcgen.Querier`) | Viết test theo trí nhớ, không tra gopls/định nghĩa thật | `go vet -tags=integration ./...` báo undefined | Đổi sang `GetBoard`, thêm trường `db *pgxpool.Pool` vào env test |
+| Kéo thả/nhận việc kiểm WIP và Manager phụ trách trên `domain.Project` đọc TRƯỚC khi khóa dòng dự án | Khóa đúng thứ tự nhưng quên đọc lại cấu hình sau khóa | Tự rà lúc chạy feature-gate (luồng Manager đổi giới hạn song song) | Query `LockProjectBoard` trả số trên dòng đã khóa; test unit + integration |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - Backend: `go vet ./...`, `go vet -tags=integration ./...`, `golangci-lint run ./...` (0 issues), `go test ./...` xanh.
 - Frontend: `tsc -b --noEmit`, `eslint src`, `prettier --check`, `vitest run` (21 file, 215 test) xanh; `make lint`, `make test` xanh.
 - KPI 1: 40 lượt trên localhost, p95 = 10 ms (≤ 2000 ms) — ĐẠT. Toàn bộ lệnh curl §4.4 chạy thử trên API dev, kết quả khớp mong đợi; 3 câu SQL chạy được.
+- Integration chạy cục bộ trên PostgreSQL Homebrew qua `TEST_DATABASE_URL` (schema tạm, DB riêng `worktrack_it_kanban`): `go test -tags=integration ./internal/infrastructure/postgres/` xanh, gồm 5 ca `TestKanbanRepo_*`.
