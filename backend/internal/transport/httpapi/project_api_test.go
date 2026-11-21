@@ -30,6 +30,7 @@ type fakeProjects struct {
 	gotUserID   uuid.UUID
 	gotSearch   string
 	gotColumnID uuid.UUID
+	gotWIP      int
 }
 
 var (
@@ -84,6 +85,14 @@ func (f *fakeProjects) Update(_ context.Context, a authz.Principal, id uuid.UUID
 	f.hit(a)
 	f.gotInput = in
 	return sampleProject(id, in), f.err
+}
+
+func (f *fakeProjects) SetWIPLimit(_ context.Context, a authz.Principal, id uuid.UUID, limit int) (domain.Project, error) {
+	f.hit(a)
+	f.gotWIP = limit
+	p := sampleProject(id, project.Input{})
+	p.WIPLimit = limit
+	return p, f.err
 }
 
 func (f *fakeProjects) ListMembers(_ context.Context, a authz.Principal, _ uuid.UUID) ([]domain.ProjectMember, error) {

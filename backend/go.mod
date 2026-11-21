@@ -3,6 +3,7 @@ module github.com/BaoCool-dev/WorkTrack/backend
 go 1.27
 
 require (
+	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-playground/validator/v10 v10.30.6
 	github.com/golang-jwt/jwt/v5 v5.3.1

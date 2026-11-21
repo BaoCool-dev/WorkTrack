@@ -104,6 +104,7 @@ func toTask(v sqlcgen.TaskView) domain.Task {
 		Labels:    []domain.TaskLabel{},
 		CreatedBy: v.CreatedBy, CreatedByName: v.CreatedByName,
 		CreatedAt: v.CreatedAt.Time, UpdatedAt: v.UpdatedAt.Time,
+		Position: int(v.Position), Version: int(v.Version),
 	}
 }
 
