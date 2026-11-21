@@ -48,6 +48,7 @@ type fakeStore struct {
 	members    map[uuid.UUID]map[uuid.UUID]task.Assignable
 	labels     map[uuid.UUID]string
 	locks      int
+	projLocks  int
 	lastFilter task.Filter
 	lastMine   task.MyFilter
 }
@@ -166,6 +167,30 @@ func (f *fakeStore) GetAssignable(_ context.Context, pid, uid uuid.UUID) (task.A
 	return a, ok, nil
 }
 
+func (f *fakeStore) LockProject(_ context.Context, pid uuid.UUID) error {
+	if f.locks > f.projLocks { // dự án phải khóa TRƯỚC task
+		return errors.New("lock order: project after task")
+	}
+	f.projLocks++
+	return nil
+}
+
+func (f *fakeStore) CountProjectWIP(_ context.Context, pid, uid uuid.UUID) (int, error) {
+	n := 0
+	for _, t := range f.tasks {
+		if t.ProjectID == pid && t.AssigneeID != nil && *t.AssigneeID == uid && t.ParentID == nil && t.StatusGroup == domain.GroupInProgress {
+			n++
+		}
+	}
+	return n, nil
+}
+
+type fakePublisher struct{ events []domain.BoardEvent }
+
+func (f *fakePublisher) Publish(_ context.Context, e domain.BoardEvent) {
+	f.events = append(f.events, e)
+}
+
 func (f *fakeStore) CountWIP(_ context.Context, uid uuid.UUID) (int, error) {
 	n := 0
 	for _, t := range f.tasks {
@@ -179,6 +204,7 @@ func (f *fakeStore) CountWIP(_ context.Context, uid uuid.UUID) (int, error) {
 type env struct {
 	svc                       *task.Service
 	st                        *fakeStore
+	pub                       *fakePublisher
 	pr                        *fakeProjects
 	project                   domain.Project
 	mgr, member, other, admin authz.Principal
@@ -200,7 +226,7 @@ func setup(t *testing.T) *env {
 		doing:    uuid.New(),
 		label:    uuid.New(),
 	}
-	e.project = domain.Project{ID: uuid.New(), Name: "Dự án A", ManagerID: e.mgr.UserID}
+	e.project = domain.Project{ID: uuid.New(), Name: "Dự án A", ManagerID: e.mgr.UserID, WIPLimit: domain.WIPLimitDefault}
 	pid := e.project.ID
 	e.pr = &fakeProjects{
 		projects: map[uuid.UUID]domain.Project{pid: e.project},
@@ -221,7 +247,8 @@ func setup(t *testing.T) *env {
 		}},
 		labels: map[uuid.UUID]string{e.label: "Backend"},
 	}
-	e.svc = task.NewService(e.st, e.st, e.pr, fakeSettings{hours: 4})
+	e.pub = &fakePublisher{}
+	e.svc = task.NewService(e.st, e.st, e.pr, fakeSettings{hours: 4}, e.pub)
 	return e
 }
 
@@ -356,7 +383,7 @@ func TestUpdate_ReplaceAndEstimateSnapshot_CF06_B1(t *testing.T) {
 	created := e.create(t, task.Input{Title: "x", StoryPoint: ptr(2), LabelIDs: []uuid.UUID{e.label}})
 
 	// Đổi hệ số sau khi tạo: giữ nguyên SP → giữ giờ ước tính đã chụp.
-	e.svc = task.NewService(e.st, e.st, e.pr, fakeSettings{hours: 8})
+	e.svc = task.NewService(e.st, e.st, e.pr, fakeSettings{hours: 8}, e.pub)
 	got, err := e.svc.Update(ctx, e.mgr, created.ID, task.Input{Title: "y", StoryPoint: ptr(2), AssigneeID: &e.member.UserID})
 	if err != nil {
 		t.Fatal(err)
@@ -554,4 +581,81 @@ func TestListMine_AndWIP_CF06(t *testing.T) {
 	}
 	_, err = e.svc.ListMine(ctx, e.member, task.MyListInput{StatusGroup: "bad"}, domain.NewPageRequest(1, 20))
 	expectErr(t, err, domain.ErrInvalidStatusGroup)
+}
+
+// setWIPLimit đổi giới hạn WIP của dự án trong fake.
+func (e *env) setWIPLimit(n int) {
+	e.project.WIPLimit = n
+	e.pr.projects[e.project.ID] = e.project
+}
+
+// inProgress đặt một việc vào cột đang làm, giao cho uid.
+func (e *env) inProgress(t *testing.T, uid uuid.UUID) domain.Task {
+	t.Helper()
+	c := e.create(t, task.Input{Title: "đang làm", AssigneeID: &uid})
+	d := e.st.tasks[c.ID]
+	d.ColumnID, d.StatusGroup = e.doing, domain.GroupInProgress
+	e.st.tasks[c.ID] = d
+	return d
+}
+
+func TestClaim_BlockedWhenWIPFull_CF05(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	e.setWIPLimit(1)
+	e.inProgress(t, e.member.UserID)
+	open := e.create(t, task.Input{Title: "mở"})
+
+	_, err := e.svc.Claim(ctx, e.member, open.ID)
+	expectErr(t, err, domain.ErrWIPLimitReached)
+	if e.st.tasks[open.ID].AssigneeID != nil {
+		t.Fatal("bị chặn WIP thì không được nhận")
+	}
+	if e.st.projLocks == 0 {
+		t.Fatal("phải khóa dự án trước khi đếm WIP")
+	}
+	e.setWIPLimit(2)
+	if _, err := e.svc.Claim(ctx, e.member, open.ID); err != nil {
+		t.Fatalf("còn chỗ WIP thì nhận được: %v", err)
+	}
+}
+
+func TestUpdate_ReassignInProgressChecksNewAssigneeWIP_CF05(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	e.setWIPLimit(1)
+	e.inProgress(t, e.member.UserID)      // member đã đầy
+	mine := e.inProgress(t, e.mgr.UserID) // việc đang làm của manager
+
+	_, err := e.svc.Update(ctx, e.mgr, mine.ID, task.Input{Title: "đổi người", AssigneeID: &e.member.UserID})
+	expectErr(t, err, domain.ErrWIPLimitReached)
+
+	// Giữ nguyên người nhận thì không kiểm lại (họ đang giữ chính việc này).
+	if _, err := e.svc.Update(ctx, e.mgr, mine.ID, task.Input{Title: "đổi tên", AssigneeID: &e.mgr.UserID}); err != nil {
+		t.Fatal(err)
+	}
+	// Việc ở nhóm todo giao cho người đầy WIP vẫn được — chỉ chặn khi việc vào in_progress.
+	todo := e.create(t, task.Input{Title: "todo"})
+	if _, err := e.svc.Update(ctx, e.mgr, todo.ID, task.Input{Title: "todo", AssigneeID: &e.member.UserID}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPublish_AfterCommit_CF04(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	c := e.create(t, task.Input{Title: "x"})
+	if _, err := e.svc.Claim(ctx, e.member, c.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.pub.events) != 2 || e.pub.events[0].Type != domain.EventTaskCreated || e.pub.events[1].Type != domain.EventTaskUpdated {
+		t.Fatalf("events = %+v", e.pub.events)
+	}
+	if e.pub.events[1].ProjectID != e.project.ID || e.pub.events[1].ActorID != e.member.UserID {
+		t.Fatalf("bad event %+v", e.pub.events[1])
+	}
+	_, _ = e.svc.Claim(ctx, e.member, c.ID) // lỗi → không phát
+	if len(e.pub.events) != 2 {
+		t.Fatal("thao tác lỗi không được phát sự kiện")
+	}
 }

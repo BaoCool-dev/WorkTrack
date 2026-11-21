@@ -46,11 +46,44 @@ type Service struct {
 	tx       Transactor
 	projects Projects
 	settings Settings
+	pub      Publisher
 }
 
 // NewService tạo Service.
-func NewService(store Store, tx Transactor, projects Projects, settings Settings) *Service {
-	return &Service{store: store, tx: tx, projects: projects, settings: settings}
+func NewService(store Store, tx Transactor, projects Projects, settings Settings, pub Publisher) *Service {
+	return &Service{store: store, tx: tx, projects: projects, settings: settings, pub: pub}
+}
+
+// publish phát sự kiện bảng Kanban sau khi transaction đã commit.
+func (s *Service) publish(ctx context.Context, typ string, actor authz.Principal, t domain.Task) {
+	s.pub.Publish(ctx, domain.BoardEvent{
+		Type: typ, ProjectID: t.ProjectID, TaskID: t.ID, ActorID: actor.UserID,
+		ToColumnID: t.ColumnID, Position: t.Position, Version: t.Version,
+	})
+}
+
+// lockForWrite khóa dự án rồi công việc (thứ tự cố định — xem kanban.Service.Move) và đọc bản đã khóa.
+func lockForWrite(ctx context.Context, st Store, projectID, id uuid.UUID) (domain.Task, error) {
+	if err := st.LockProject(ctx, projectID); err != nil {
+		return domain.Task{}, fmt.Errorf("lock project: %w", err)
+	}
+	if err := st.Lock(ctx, id); err != nil {
+		return domain.Task{}, fmt.Errorf("lock task: %w", err)
+	}
+	t, err := st.Get(ctx, id)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("get task: %w", err)
+	}
+	return t, nil
+}
+
+// checkWIP chặn khi userID đã có đủ số việc đang làm trong dự án (CF-05). Gọi sau khi đã khóa dự án.
+func checkWIP(ctx context.Context, st Store, p domain.Project, userID uuid.UUID) error {
+	n, err := st.CountProjectWIP(ctx, p.ID, userID)
+	if err != nil {
+		return fmt.Errorf("count project wip: %w", err)
+	}
+	return domain.CheckWIP(n, p.WIPLimit)
 }
 
 // view tải công việc rồi kiểm quyền xem dự án chứa nó. Không xem được → ErrTaskNotFound (không lộ sự tồn tại).
@@ -146,7 +179,8 @@ func (s *Service) ListMine(ctx context.Context, actor authz.Principal, in MyList
 	return page(items, total, p), nil
 }
 
-// MyWIP trả số công việc cha nhóm in_progress của người gọi (§5.6). Chỉ hiển thị, không chặn (giới hạn WIP là Mở rộng).
+// MyWIP trả số công việc cha nhóm in_progress của người gọi trên mọi dự án (§5.6). Chỉ hiển thị;
+// giới hạn WIP theo dự án (CF-05) chặn ở Claim/Update và kanban.Service.Move.
 func (s *Service) MyWIP(ctx context.Context, actor authz.Principal) (int, error) {
 	if err := authz.Require(actor, authz.ViewOwnProjects); err != nil {
 		return 0, err
@@ -240,14 +274,15 @@ func (s *Service) Create(ctx context.Context, actor authz.Principal, projectID u
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return s.reload(ctx, id)
+	return s.reloadAndPublish(ctx, domain.EventTaskCreated, actor, id)
 }
 
-func (s *Service) reload(ctx context.Context, id uuid.UUID) (domain.Task, error) {
+func (s *Service) reloadAndPublish(ctx context.Context, typ string, actor authz.Principal, id uuid.UUID) (domain.Task, error) {
 	t, err := s.store.Get(ctx, id)
 	if err != nil {
 		return domain.Task{}, fmt.Errorf("reload task: %w", err)
 	}
+	s.publish(ctx, typ, actor, t)
 	return t, nil
 }
 
@@ -269,12 +304,9 @@ func (s *Service) Update(ctx context.Context, actor authz.Principal, id uuid.UUI
 		return domain.Task{}, err
 	}
 	err = s.tx.InTx(ctx, func(st Store) error {
-		if err := st.Lock(ctx, id); err != nil {
-			return fmt.Errorf("lock task: %w", err)
-		}
-		locked, err := st.Get(ctx, id)
+		locked, err := lockForWrite(ctx, st, p.ID, id)
 		if err != nil {
-			return fmt.Errorf("get task: %w", err)
+			return err
 		}
 		switch {
 		case f.StoryPoint == nil:
@@ -288,6 +320,12 @@ func (s *Service) Update(ctx context.Context, actor authz.Principal, id uuid.UUI
 		if err := checkAssignee(ctx, st, locked.ProjectID, f.AssigneeID); err != nil {
 			return err
 		}
+		// Giao lại một việc ĐANG LÀM cho người khác = người đó thêm 1 việc in_progress → kiểm WIP của họ.
+		if locked.StatusGroup == domain.GroupInProgress && f.AssigneeID != nil && !sameUser(locked.AssigneeID, f.AssigneeID) {
+			if err := checkWIP(ctx, st, p, *f.AssigneeID); err != nil {
+				return err
+			}
+		}
 		if err := st.Update(ctx, id, f); err != nil {
 			return fmt.Errorf("update task: %w", err)
 		}
@@ -296,12 +334,16 @@ func (s *Service) Update(ctx context.Context, actor authz.Principal, id uuid.UUI
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return s.reload(ctx, id)
+	return s.reloadAndPublish(ctx, domain.EventTaskUpdated, actor, id)
+}
+
+func sameUser(a, b *uuid.UUID) bool {
+	return a != nil && b != nil && *a == *b
 }
 
 // Claim: Member tự nhận công việc cha chưa có người nhận, đang ở nhóm todo. Không chuyển cột.
 func (s *Service) Claim(ctx context.Context, actor authz.Principal, id uuid.UUID) (domain.Task, error) {
-	cur, _, err := s.view(ctx, actor, id)
+	cur, p, err := s.view(ctx, actor, id)
 	if err != nil {
 		return domain.Task{}, err
 	}
@@ -312,12 +354,9 @@ func (s *Service) Claim(ctx context.Context, actor authz.Principal, id uuid.UUID
 		return domain.Task{}, err
 	}
 	err = s.tx.InTx(ctx, func(st Store) error {
-		if err := st.Lock(ctx, id); err != nil {
-			return fmt.Errorf("lock task: %w", err)
-		}
-		t, err := st.Get(ctx, id)
+		t, err := lockForWrite(ctx, st, p.ID, id)
 		if err != nil {
-			return fmt.Errorf("get task: %w", err)
+			return err
 		}
 		if t.AssigneeID != nil {
 			return domain.ErrTaskAlreadyAssigned
@@ -332,6 +371,10 @@ func (s *Service) Claim(ctx context.Context, actor authz.Principal, id uuid.UUID
 		if !ok || !domain.CanBeAssigned(a.Role, a.Status) {
 			return domain.ErrForbidden
 		}
+		// Đã đủ WIP thì không nhận thêm việc: làm xong việc đang dở trước (CF-05, quyết định mục C).
+		if err := checkWIP(ctx, st, p, actor.UserID); err != nil {
+			return err
+		}
 		uid := actor.UserID
 		if err := st.SetAssignee(ctx, id, &uid); err != nil {
 			return fmt.Errorf("set assignee: %w", err)
@@ -341,5 +384,5 @@ func (s *Service) Claim(ctx context.Context, actor authz.Principal, id uuid.UUID
 	if err != nil {
 		return domain.Task{}, err
 	}
-	return s.reload(ctx, id)
+	return s.reloadAndPublish(ctx, domain.EventTaskUpdated, actor, id)
 }

@@ -56,6 +56,8 @@ type Store interface {
 	Get(ctx context.Context, id uuid.UUID) (domain.Task, error)
 	// Lock khóa dòng công việc tới hết transaction; trả ErrTaskNotFound.
 	Lock(ctx context.Context, id uuid.UUID) error
+	// LockProject khóa dòng dự án; luôn gọi TRƯỚC Lock (cùng thứ tự với kéo thả Kanban) để không deadlock.
+	LockProject(ctx context.Context, projectID uuid.UUID) error
 	// FirstTodoColumn trả domain.ErrBoardNeedsTodoColumn khi dự án không có cột nhóm todo.
 	FirstTodoColumn(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
 	// Create trả domain.ErrLabelNotFound khi có nhãn không tồn tại.
@@ -67,6 +69,8 @@ type Store interface {
 	// GetAssignable trả ok=false khi userID không là thành viên dự án.
 	GetAssignable(ctx context.Context, projectID, userID uuid.UUID) (a Assignable, ok bool, err error)
 	CountWIP(ctx context.Context, userID uuid.UUID) (int, error)
+	// CountProjectWIP đếm công việc cha nhóm in_progress của userID trong một dự án (CF-05).
+	CountProjectWIP(ctx context.Context, projectID, userID uuid.UUID) (int, error)
 }
 
 // Transactor chạy fn trong một transaction; fn lỗi → rollback toàn bộ.
@@ -82,4 +86,9 @@ type Projects interface {
 // Settings cung cấp hệ số quy đổi Story Point → giờ (B1).
 type Settings interface {
 	HoursPerStoryPoint(ctx context.Context) (int, error)
+}
+
+// Publisher báo thay đổi lên bảng Kanban realtime (CF-04). Gọi sau commit; lỗi gửi không làm hỏng thao tác.
+type Publisher interface {
+	Publish(ctx context.Context, e domain.BoardEvent)
 }
