@@ -5,7 +5,7 @@
 # lập bảng test case, báo lỗi lên GitHub Issues và viết báo cáo tổng kết kiểm thử.
 #
 #   ./scripts/test-cases.sh            # đầy đủ; ca thủ công ghi "Chưa chạy"
-#   ./scripts/test-cases.sh --ui       # thêm: Claude chạy app và thực thi ca giao diện bằng Playwright, chụp minh chứng
+#   ./scripts/test-cases.sh --ui       # thêm: Claude chạy app, thực thi MỌI ca giao diện bằng trình duyệt, chụp minh chứng từng ca
 #   ./scripts/test-cases.sh --no-ai    # chỉ chạy test thật và in tóm tắt (= scripts/run-all-tests.sh)
 #
 # Chạy trên nhánh tính năng mới nhất (các nhánh xếp chồng nên nhánh cuối có đủ chức năng).
@@ -37,7 +37,7 @@ fi
 mkdir -p docs/testing/runs && cp "$RUN/summary.md" "docs/testing/runs/$STAMP-before.md"
 
 UI_RULE="Ca giao diện/thủ công: không chạy app — Trạng thái 'Chưa chạy', Kết quả thực tế để trống."
-[ "$UI" = 1 ] && UI_RULE="Ca giao diện/thủ công: make seed, chạy make dev-local ở chế độ nền, dùng Playwright MCP ở 1366x768 thực thi từng ca theo docs/testing/manual-test-guide.md; ghi Kết quả thực tế đúng như quan sát và Trạng thái; lưu ảnh docs/testing/evidence/<MÃ_TC>.png cho mọi ca Fail và 1 ca tiêu biểu mỗi chức năng; tắt app khi xong. Ca realtime cần 2 trình duyệt: mở 2 tab với 2 vai trò."
+[ "$UI" = 1 ] && UI_RULE="Ca giao diện/thủ công: THỰC THI BẰNG TRÌNH DUYỆT. Chuẩn bị: kiểm tra cổng 5173, 8080 trống (nếu bận, dừng tiến trình dev cũ của dự án); make migrate-up; make seed (ghi lại mật khẩu in ra, không ghi vào tài liệu); chạy make dev-local ở chế độ nền, đợi /healthz trả 200. Dùng Playwright MCP ở cửa sổ 1366x768 thực thi TỪNG ca thủ công theo docs/testing/manual-test-guide.md và bảng test case, với đúng vai trò. Chụp minh chứng cho MỌI ca đã thực thi: ảnh màn hình tại bước kiểm kết quả, lưu docs/testing/evidence/ui/<MÃ_TC>.png (nhiều ảnh thì <MÃ_TC>-1.png, -2.png); ca kiểm email thì chụp hộp thư Mailpit http://localhost:8025; ca realtime mở 2 tab với 2 vai trò và chụp cả hai. Ghi Kết quả thực tế đúng như quan sát, Trạng thái Pass/Fail, đường dẫn ảnh vào cột Minh chứng. Không đưa mật khẩu, token vào ảnh hay tài liệu. Xong thì tắt app và giải phóng cổng. Cuối docs/testing/test-report.md thêm mục Minh chứng giao diện: số ca đã chạy bằng trình duyệt, số ảnh, ca bị chặn và lý do."
 
 PROMPT="Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Nhánh: test/test-cases (mọc từ $SRC_BRANCH). KHÔNG sửa code sản phẩm, KHÔNG sửa hay xóa test có sẵn.
 
@@ -52,7 +52,7 @@ Các bước:
 4. THỰC THI THỦ CÔNG — $UI_RULE
 5. BÁO LỖI — mỗi ca Fail (kể cả test mới viết bị Fail vì code sai): tìm trùng bằng gh issue list --search, nếu chưa có thì gh issue create theo mẫu .github/ISSUE_TEMPLATE/bug_report.md (label bug, severity, priority, các bước tái hiện, mong đợi/thực tế, môi trường = commit + máy); ghi số issue vào ca. Không sửa lỗi ở nhánh này.
 6. ĐẦU RA:
-   - docs/testing/test-cases.md: đầu file ngày, nhánh, commit, bảng tổng hợp theo chức năng (số ca, theo kỹ thuật, tự động/thủ công, Pass/Fail/Chưa chạy, tỷ lệ Pass); rồi mỗi chức năng một mục gồm (a) điều kiện kiểm thử, (b) thiết kế theo kỹ thuật, (c) bảng test case đủ cột chuẩn §2: Mã TC (TC_<MODULE>_<NNN>, giữ mã cũ nếu file đã có) | Mô tả | Điều kiện kiểm thử | Kỹ thuật | Tiền điều kiện | Dữ liệu kiểm thử | Các bước | Kết quả mong đợi | Tiêu chí Pass/Fail | Kết quả thực tế | Trạng thái | Ưu tiên | Loại | Hình thức | Test tự động | Bug.
+   - docs/testing/test-cases.md: đầu file ngày, nhánh, commit, bảng tổng hợp theo chức năng (số ca, theo kỹ thuật, tự động/thủ công, Pass/Fail/Chưa chạy, tỷ lệ Pass); rồi mỗi chức năng một mục gồm (a) điều kiện kiểm thử, (b) thiết kế theo kỹ thuật, (c) bảng test case đủ cột chuẩn §2: Mã TC (TC_<MODULE>_<NNN>, giữ mã cũ nếu file đã có) | Mô tả | Điều kiện kiểm thử | Kỹ thuật | Tiền điều kiện | Dữ liệu kiểm thử | Các bước | Kết quả mong đợi | Tiêu chí Pass/Fail | Kết quả thực tế | Trạng thái | Ưu tiên | Loại | Hình thức | Test tự động | Minh chứng | Bug.
    - docs/testing/test-cases.csv: mọi ca, thêm cột Chức năng đầu; UTF-8 có BOM, RFC 4180 (mở bằng Excel tiếng Việt).
    - docs/testing/test-report.md: báo cáo tổng kết theo chuẩn §8 — phạm vi, môi trường, số liệu, độ phủ, danh sách lỗi theo severity/trạng thái, đối chiếu tiêu chí kết thúc, kết luận đạt/chưa đạt, bài học.
    - cập nhật docs/testing/traceability-matrix.md thêm cột Mã TC; lưu docs/testing/runs/$STAMP-after.md.
