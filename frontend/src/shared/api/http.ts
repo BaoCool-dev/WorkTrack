@@ -35,6 +35,22 @@ export function configureHttpAuth(next: HttpAuth | null): void {
   auth = next
 }
 
+/**
+ * URL WebSocket kèm access token hiện tại (trình duyệt không cho đặt header Authorization cho WebSocket).
+ * Token hết hạn thì làm mới trước — kết nối realtime mở lâu và tự kết nối lại nhiều lần.
+ */
+export async function wsUrl(
+  path: string,
+  opts: { refresh?: boolean } = {},
+): Promise<string | null> {
+  if (!auth) return null
+  const token = opts.refresh ? await auth.refresh() : auth.getToken()
+  if (!token) return null
+  const base = API_BASE_URL.replace(/^http/, 'ws')
+  const sep = path.includes('?') ? '&' : '?'
+  return `${base}${path}${sep}access_token=${encodeURIComponent(token)}`
+}
+
 export interface HttpInit extends Omit<RequestInit, 'body'> {
   /** Body JSON — tự đặt Content-Type. */
   json?: unknown

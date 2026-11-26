@@ -14,6 +14,8 @@ export function makeTask(over: Partial<Task> = {}): Task {
     dueDate: '2026-12-15',
     labels: [{ id: 'l-1', name: 'Backend' }],
     createdBy: { id: 'u-manager', name: 'Trần Bình' },
+    position: 0,
+    version: 1,
     createdAt: '2026-11-20T02:00:00Z',
     updatedAt: '2026-11-20T02:00:00Z',
     ...over,

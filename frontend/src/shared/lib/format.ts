@@ -35,7 +35,12 @@ const hoursFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 })
 
 /** Số giờ → "16h", "14,5h" (tối đa 1 chữ số thập phân). */
 export function formatHours(h: number): string {
-  return `${hoursFormat.format(h)}h`
+  return `${formatHoursValue(h)}h`
+}
+
+/** Số giờ không kèm đơn vị: 14.5 → "14,5" (dùng cho dạng "14,5/16h"). */
+export function formatHoursValue(h: number): string {
+  return hoursFormat.format(h)
 }
 
 /** Phút → giờ hiển thị: 960 → "16h", 870 → "14,5h". */

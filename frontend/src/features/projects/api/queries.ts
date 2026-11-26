@@ -64,6 +64,17 @@ export function useUpdateProject(id: string) {
   })
 }
 
+/** Manager phụ trách đổi giới hạn WIP (CF-05). */
+export function useSetWipLimit(id: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (wipLimit: number) => projectsApi.setWipLimit(id, wipLimit),
+    onSuccess: (p) => {
+      qc.setQueryData(projectKeys.detail(id), p)
+    },
+  })
+}
+
 /** Thêm/bớt thành viên đổi số thành viên ở danh sách và chi tiết → làm mới cả nhóm dự án. */
 export function useAddMember(id: string) {
   const qc = useQueryClient()

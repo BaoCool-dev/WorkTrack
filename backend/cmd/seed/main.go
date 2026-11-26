@@ -27,6 +27,7 @@ import (
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/domain"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres/sqlcgen"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/realtime"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/security"
 )
 
@@ -205,7 +206,7 @@ func seedTaskData(ctx context.Context, pool *pgxpool.Pool, q *sqlcgen.Queries, m
 	}
 	projects := project.NewService(postgres.NewProjectRepo(pool), postgres.NewProjectTx(pool))
 	settings := setting.NewService(postgres.NewSettingRepo(pool))
-	svc := task.NewService(postgres.NewTaskRepo(pool), postgres.NewTaskTx(pool), projects, settings)
+	svc := task.NewService(postgres.NewTaskRepo(pool), postgres.NewTaskTx(pool), projects, settings, realtime.NewHub())
 	mgr := authz.Principal{UserID: managerID, Role: domain.RoleManager}
 	today := time.Now().UTC().Truncate(24 * time.Hour)
 	created := 0

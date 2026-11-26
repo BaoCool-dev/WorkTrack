@@ -69,6 +69,7 @@ type Project struct {
 	CreatedBy   uuid.UUID          `json:"createdBy"`
 	CreatedAt   pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt   pgtype.Timestamptz `json:"updatedAt"`
+	WipLimit    int16              `json:"wipLimit"`
 }
 
 type ProjectMember struct {
@@ -121,11 +122,22 @@ type Task struct {
 	CreatedBy        uuid.UUID          `json:"createdBy"`
 	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt        pgtype.Timestamptz `json:"updatedAt"`
+	Version          int32              `json:"version"`
 }
 
 type TaskLabel struct {
 	TaskID  uuid.UUID `json:"taskId"`
 	LabelID uuid.UUID `json:"labelId"`
+}
+
+type TaskMoveHistory struct {
+	ID           uuid.UUID          `json:"id"`
+	TaskID       uuid.UUID          `json:"taskId"`
+	ProjectID    uuid.UUID          `json:"projectId"`
+	FromColumnID uuid.UUID          `json:"fromColumnId"`
+	ToColumnID   uuid.UUID          `json:"toColumnId"`
+	MovedBy      uuid.UUID          `json:"movedBy"`
+	MovedAt      pgtype.Timestamptz `json:"movedAt"`
 }
 
 type TaskView struct {
@@ -149,6 +161,7 @@ type TaskView struct {
 	CreatedByName    string             `json:"createdByName"`
 	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt        pgtype.Timestamptz `json:"updatedAt"`
+	Version          int32              `json:"version"`
 }
 
 type UserSkill struct {

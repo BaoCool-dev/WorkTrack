@@ -192,6 +192,21 @@ func (s *Service) lockedManage(ctx context.Context, actor authz.Principal, id uu
 	})
 }
 
+// SetWIPLimit: Manager phụ trách đặt giới hạn WIP mỗi người của dự án (CF-05, 1–20).
+// Giảm giới hạn xuống dưới số việc đang làm không chuyển việc nào ra — chỉ chặn kéo/nhận thêm.
+func (s *Service) SetWIPLimit(ctx context.Context, actor authz.Principal, id uuid.UUID, limit int) (domain.Project, error) {
+	if _, err := s.manage(ctx, actor, id); err != nil {
+		return domain.Project{}, err
+	}
+	if err := domain.ValidateWIPLimit(limit); err != nil {
+		return domain.Project{}, err
+	}
+	if err := s.store.UpdateWIPLimit(ctx, id, limit); err != nil {
+		return domain.Project{}, fmt.Errorf("update wip limit: %w", err)
+	}
+	return s.get(ctx, id)
+}
+
 // Get trả chi tiết dự án.
 func (s *Service) Get(ctx context.Context, actor authz.Principal, id uuid.UUID) (domain.Project, error) {
 	return s.canView(ctx, actor, id)

@@ -31,6 +31,7 @@ type ProjectService interface {
 	DeleteColumn(ctx context.Context, actor authz.Principal, id, columnID uuid.UUID) (project.Board, error)
 	ReorderColumns(ctx context.Context, actor authz.Principal, id uuid.UUID, ids []uuid.UUID) (project.Board, error)
 	ReplaceTransitions(ctx context.Context, actor authz.Principal, id uuid.UUID, ts []domain.Transition) (project.Board, error)
+	SetWIPLimit(ctx context.Context, actor authz.Principal, id uuid.UUID, limit int) (domain.Project, error)
 }
 
 type projectHandler struct {
@@ -89,6 +90,7 @@ type projectResponse struct {
 	EndDate     *string              `json:"endDate"`
 	Manager     refResponse          `json:"manager"`
 	MemberCount int                  `json:"memberCount"`
+	WIPLimit    int                  `json:"wipLimit"`
 	CreatedAt   time.Time            `json:"createdAt"`
 	UpdatedAt   time.Time            `json:"updatedAt"`
 }
@@ -143,7 +145,7 @@ func toProjectResponse(p domain.Project) projectResponse {
 		ID: p.ID.String(), Name: p.Name, Description: p.Description, Status: p.Status,
 		StartDate: formatDate(p.StartDate), EndDate: formatDate(p.EndDate),
 		Manager:     refResponse{ID: p.ManagerID.String(), Name: p.ManagerName},
-		MemberCount: p.MemberCount, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
+		MemberCount: p.MemberCount, WIPLimit: p.WIPLimit, CreatedAt: p.CreatedAt, UpdatedAt: p.UpdatedAt,
 	}
 }
 

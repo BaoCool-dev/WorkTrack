@@ -23,6 +23,8 @@ type Deps struct {
 	Tasks    TaskService
 	Labels   LabelService
 	Settings SettingService
+	Kanban   KanbanService
+	Hub      BoardHub
 	Tokens   TokenVerifier
 
 	// Now mặc định time.Now; test truyền đồng hồ giả.
@@ -55,8 +57,21 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(requestLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(cors(d.CORSOrigin))
-	r.Use(middleware.Timeout(30 * time.Second))
 
+	// WebSocket sống lâu (hàng giờ) nên KHÔNG nằm dưới middleware.Timeout — mọi route còn lại có Timeout 30s.
+	// Tự xác thực bằng access_token trên query (trình duyệt không gửi được header khi mở WebSocket).
+	wsh := &wsHandler{hub: d.Hub, projects: d.Projects, tokens: d.Tokens, now: d.Now, origins: wsOriginPatterns(d.CORSOrigin)}
+	r.Get("/api/v1/projects/{projectID}/ws", wsh.serve)
+
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Timeout(30 * time.Second))
+		mountHTTP(r, d)
+	})
+	return r
+}
+
+// mountHTTP gắn các route HTTP thường (có Timeout).
+func mountHTTP(r chi.Router, d Deps) {
 	h := &healthHandler{db: d.DB, pingTimeout: 2 * time.Second}
 	r.Get("/healthz", h.healthz)
 	r.Get("/readyz", h.readyz)
@@ -67,6 +82,7 @@ func NewRouter(d Deps) http.Handler {
 	oh := &orgHandler{svc: d.Org, validate: v}
 	ph := &projectHandler{svc: d.Projects, validate: v}
 	th := &taskHandler{svc: d.Tasks, labels: d.Labels, settings: d.Settings, validate: v}
+	kh := &kanbanHandler{svc: d.Kanban, projects: d.Projects, validate: v}
 	loginRL := newRateLimiter(d.LoginLimit, d.Now)
 	refreshRL := newRateLimiter(d.RefreshLimit, d.Now)
 
@@ -129,17 +145,20 @@ func NewRouter(d Deps) http.Handler {
 					r.Delete("/columns/{columnID}", ph.deleteColumn)
 					r.Put("/column-order", ph.reorderColumns)
 					r.Put("/transitions", ph.replaceTransitions)
+					// CF-04, CF-05: bảng Kanban (toàn bộ việc cha) và giới hạn WIP của dự án.
+					r.Get("/board/tasks", kh.boardTasks)
+					r.Put("/wip-limit", kh.setWIPLimit)
 					r.Get("/tasks", th.listProjectTasks)
 					r.Post("/tasks", th.createTask)
 				})
 			})
 
 			// CF-06: công việc cha, nhãn, tham số B1. Quyền kiểm trong service (IDOR → 404).
-			// Không có API chuyển cột — thuộc CF-04 (feature/kanban).
 			r.Route("/tasks/{taskID}", func(r chi.Router) {
 				r.Get("/", th.getTask)
 				r.Put("/", th.updateTask)
 				r.Post("/claim", th.claimTask)
+				r.Post("/move", kh.move) // CF-04: kéo thả (luật chuyển cột, WIP, version kiểm trong kanban.Service)
 			})
 			r.Get("/me/tasks", th.listMyTasks)
 			r.Get("/me/wip", th.myWIP)
@@ -151,6 +170,4 @@ func NewRouter(d Deps) http.Handler {
 			r.Put("/settings", th.updateSettings)
 		})
 	})
-
-	return r
 }

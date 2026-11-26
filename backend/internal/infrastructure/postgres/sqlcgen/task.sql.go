@@ -88,6 +88,29 @@ func (q *Queries) CountProjectTasks(ctx context.Context, arg CountProjectTasksPa
 	return count, err
 }
 
+const countProjectWIP = `-- name: CountProjectWIP :one
+
+SELECT count(*) FROM task t
+JOIN board_column c ON c.id = t.column_id
+WHERE t.project_id = $1 AND t.assignee_id = $2::uuid
+  AND t.parent_task_id IS NULL AND c.status_group = 'in_progress'
+`
+
+type CountProjectWIPParams struct {
+	ProjectID  uuid.UUID `json:"projectId"`
+	AssigneeID uuid.UUID `json:"assigneeId"`
+}
+
+// CF-04, CF-05 — Kanban.
+// WIP của một người trong MỘT dự án: chỉ đếm công việc cha (parent_task_id IS NULL, CLAUDE.md §5.6)
+// đang ở cột nhóm in_progress. Gọi sau khi đã khóa dòng dự án để hai lần kéo song song không cùng lọt.
+func (q *Queries) CountProjectWIP(ctx context.Context, arg CountProjectWIPParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countProjectWIP, arg.ProjectID, arg.AssigneeID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countWIP = `-- name: CountWIP :one
 SELECT count(*) FROM task t
 JOIN board_column c ON c.id = t.column_id
@@ -95,7 +118,8 @@ JOIN project_member pm ON pm.project_id = t.project_id AND pm.user_id = t.assign
 WHERE t.assignee_id = $1::uuid AND t.parent_task_id IS NULL AND c.status_group = 'in_progress'
 `
 
-// WIP: số công việc cha nhóm in_progress của một người (CLAUDE.md §5.6). Chỉ hiển thị, không chặn.
+// WIP: số công việc cha nhóm in_progress của một người trên mọi dự án (CLAUDE.md §5.6). Chỉ để hiển thị;
+// việc chặn dùng CountProjectWIP (giới hạn tính theo từng dự án).
 func (q *Queries) CountWIP(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countWIP, userID)
 	var count int64
@@ -192,6 +216,23 @@ func (q *Queries) GetAssignableMember(ctx context.Context, arg GetAssignableMemb
 	return i, err
 }
 
+const getColumnGroup = `-- name: GetColumnGroup :one
+SELECT status_group FROM board_column WHERE project_id = $1 AND id = $2
+`
+
+type GetColumnGroupParams struct {
+	ProjectID uuid.UUID `json:"projectId"`
+	ID        uuid.UUID `json:"id"`
+}
+
+// Nhóm trạng thái của một cột trong dự án (cột khác dự án → không có dòng).
+func (q *Queries) GetColumnGroup(ctx context.Context, arg GetColumnGroupParams) (string, error) {
+	row := q.db.QueryRow(ctx, getColumnGroup, arg.ProjectID, arg.ID)
+	var status_group string
+	err := row.Scan(&status_group)
+	return status_group, err
+}
+
 const getSeedTaskIDByTitle = `-- name: GetSeedTaskIDByTitle :one
 SELECT id FROM task WHERE project_id = $1 AND title = $2 AND parent_task_id IS NULL LIMIT 1
 `
@@ -210,7 +251,7 @@ func (q *Queries) GetSeedTaskIDByTitle(ctx context.Context, arg GetSeedTaskIDByT
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at FROM task_view v WHERE v.id = $1
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v WHERE v.id = $1
 `
 
 func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (TaskView, error) {
@@ -237,12 +278,124 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (TaskView, error) {
 		&i.CreatedByName,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Version,
 	)
 	return i, err
 }
 
+const insertTaskMoveHistory = `-- name: InsertTaskMoveHistory :exec
+INSERT INTO task_move_history (task_id, project_id, from_column_id, to_column_id, moved_by)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type InsertTaskMoveHistoryParams struct {
+	TaskID       uuid.UUID `json:"taskId"`
+	ProjectID    uuid.UUID `json:"projectId"`
+	FromColumnID uuid.UUID `json:"fromColumnId"`
+	ToColumnID   uuid.UUID `json:"toColumnId"`
+	MovedBy      uuid.UUID `json:"movedBy"`
+}
+
+func (q *Queries) InsertTaskMoveHistory(ctx context.Context, arg InsertTaskMoveHistoryParams) error {
+	_, err := q.db.Exec(ctx, insertTaskMoveHistory,
+		arg.TaskID,
+		arg.ProjectID,
+		arg.FromColumnID,
+		arg.ToColumnID,
+		arg.MovedBy,
+	)
+	return err
+}
+
+const listBoardTasks = `-- name: ListBoardTasks :many
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v
+WHERE v.project_id = $1 AND v.parent_task_id IS NULL
+ORDER BY v.column_position, v.position, v.created_at, v.id
+LIMIT $2
+`
+
+type ListBoardTasksParams struct {
+	ProjectID uuid.UUID `json:"projectId"`
+	MaxRows   int32     `json:"maxRows"`
+}
+
+// Toàn bộ công việc cha của bảng Kanban (lọc nhãn/người nhận làm ở client). Giới hạn an toàn @max_rows.
+func (q *Queries) ListBoardTasks(ctx context.Context, arg ListBoardTasksParams) ([]TaskView, error) {
+	rows, err := q.db.Query(ctx, listBoardTasks, arg.ProjectID, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TaskView{}
+	for rows.Next() {
+		var i TaskView
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.ColumnID,
+			&i.ColumnName,
+			&i.StatusGroup,
+			&i.ColumnPosition,
+			&i.ParentTaskID,
+			&i.Title,
+			&i.Description,
+			&i.StoryPoint,
+			&i.EstimatedMinutes,
+			&i.AssigneeID,
+			&i.AssigneeName,
+			&i.DueDate,
+			&i.Position,
+			&i.CreatedBy,
+			&i.CreatedByName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listColumnTaskIDs = `-- name: ListColumnTaskIDs :many
+SELECT id FROM task
+WHERE project_id = $1 AND column_id = $2 AND parent_task_id IS NULL
+ORDER BY position, created_at, id
+`
+
+type ListColumnTaskIDsParams struct {
+	ProjectID uuid.UUID `json:"projectId"`
+	ColumnID  uuid.UUID `json:"columnId"`
+}
+
+// Thứ tự hiện tại các công việc cha trong một cột (để chèn thẻ vào vị trí mới).
+func (q *Queries) ListColumnTaskIDs(ctx context.Context, arg ListColumnTaskIDsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listColumnTaskIDs, arg.ProjectID, arg.ColumnID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMyTasks = `-- name: ListMyTasks :many
-SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at FROM task_view v
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v
 WHERE v.assignee_id = $1::uuid
   AND v.parent_task_id IS NULL
   AND EXISTS (SELECT 1 FROM project_member pm WHERE pm.project_id = v.project_id AND pm.user_id = $1)
@@ -298,6 +451,7 @@ func (q *Queries) ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]Tas
 			&i.CreatedByName,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -310,7 +464,7 @@ func (q *Queries) ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]Tas
 }
 
 const listProjectTasks = `-- name: ListProjectTasks :many
-SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at FROM task_view v
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v
 WHERE v.project_id = $1
   AND v.parent_task_id IS NULL
   AND ($2::text IS NULL OR v.title ILIKE $2::text ESCAPE '\')
@@ -378,6 +532,7 @@ func (q *Queries) ListProjectTasks(ctx context.Context, arg ListProjectTasksPara
 			&i.CreatedByName,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -435,8 +590,28 @@ func (q *Queries) LockTask(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	return id_2, err
 }
 
+const moveTaskColumn = `-- name: MoveTaskColumn :execrows
+UPDATE task SET column_id = $1, version = version + 1, updated_at = now()
+WHERE id = $2 AND version = $3
+`
+
+type MoveTaskColumnParams struct {
+	ColumnID uuid.UUID `json:"columnId"`
+	ID       uuid.UUID `json:"id"`
+	Version  int32     `json:"version"`
+}
+
+// Đổi cột và tăng version. Điều kiện version = @version là chốt chặn cuối chống ghi đè.
+func (q *Queries) MoveTaskColumn(ctx context.Context, arg MoveTaskColumnParams) (int64, error) {
+	result, err := q.db.Exec(ctx, moveTaskColumn, arg.ColumnID, arg.ID, arg.Version)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setTaskAssignee = `-- name: SetTaskAssignee :execrows
-UPDATE task SET assignee_id = $1, updated_at = now() WHERE id = $2
+UPDATE task SET assignee_id = $1, version = version + 1, updated_at = now() WHERE id = $2
 `
 
 type SetTaskAssigneeParams struct {
@@ -452,11 +627,50 @@ func (q *Queries) SetTaskAssignee(ctx context.Context, arg SetTaskAssigneeParams
 	return result.RowsAffected(), nil
 }
 
+const setTaskPositions = `-- name: SetTaskPositions :exec
+UPDATE task SET position = x.ord - 1
+FROM unnest($1::uuid[]) WITH ORDINALITY AS x(id, ord)
+WHERE task.id = x.id
+`
+
+// Đánh lại vị trí 0..n-1 theo thứ tự mảng @ids (một câu lệnh, không vòng lặp).
+func (q *Queries) SetTaskPositions(ctx context.Context, ids []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, setTaskPositions, ids)
+	return err
+}
+
+const transitionAllowed = `-- name: TransitionAllowed :one
+SELECT EXISTS (
+    SELECT 1 FROM workflow_transition
+    WHERE project_id = $1 AND from_column_id = $2
+      AND to_column_id = $3 AND role = $4
+)
+`
+
+type TransitionAllowedParams struct {
+	ProjectID    uuid.UUID `json:"projectId"`
+	FromColumnID uuid.UUID `json:"fromColumnId"`
+	ToColumnID   uuid.UUID `json:"toColumnId"`
+	Role         string    `json:"role"`
+}
+
+func (q *Queries) TransitionAllowed(ctx context.Context, arg TransitionAllowedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, transitionAllowed,
+		arg.ProjectID,
+		arg.FromColumnID,
+		arg.ToColumnID,
+		arg.Role,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const updateTask = `-- name: UpdateTask :execrows
 UPDATE task
 SET title = $1, description = $2, story_point = $3,
     estimated_minutes = $4, assignee_id = $5,
-    due_date = $6, updated_at = now()
+    due_date = $6, version = version + 1, updated_at = now()
 WHERE id = $7
 `
 

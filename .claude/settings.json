@@ -110,7 +110,10 @@
       "Read(./**)",
       "Edit(./**)",
       "WebSearch",
-      "WebFetch"
+      "WebFetch",
+      "Bash(git push -u origin test/:*)",
+      "Bash(git push origin test/:*)",
+      "Bash(./scripts/run-all-tests.sh:*)"
     ],
     "ask": [
       "Bash(docker compose down:*)",
