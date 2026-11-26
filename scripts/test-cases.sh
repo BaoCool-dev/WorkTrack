@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# MỘT LỆNH: chạy toàn bộ test tự động của mọi tính năng đã có, rồi để Claude Code dựng bảng test case
-# cho từng chức năng (docs/testing/test-cases.md + .csv mở được bằng Excel).
+# MỘT LỆNH: kiểm thử toàn bộ chức năng đã có theo chuẩn docs/testing/test-design-standard.md
+# (bài giảng Kiểm thử phần mềm HCM-UTE): chạy thật mọi test tự động → Claude Code phân tích điều kiện kiểm thử,
+# thiết kế ca bằng EP/BVA/bảng quyết định/chuyển trạng thái/use case, viết thêm test còn thiếu, chạy lại,
+# lập bảng test case, báo lỗi lên GitHub Issues và viết báo cáo tổng kết kiểm thử.
 #
-#   ./scripts/test-cases.sh            # chạy test + dựng bảng (ca thủ công ghi "Chưa chạy")
-#   ./scripts/test-cases.sh --ui       # thêm: Claude chạy app, thử các ca giao diện bằng Playwright, ghi kết quả thực tế + ảnh
-#   ./scripts/test-cases.sh --no-ai    # chỉ chạy test và in tóm tắt, không gọi Claude
+#   ./scripts/test-cases.sh            # đầy đủ; ca thủ công ghi "Chưa chạy"
+#   ./scripts/test-cases.sh --ui       # thêm: Claude chạy app và thực thi ca giao diện bằng Playwright, chụp minh chứng
+#   ./scripts/test-cases.sh --no-ai    # chỉ chạy test thật và in tóm tắt (= scripts/run-all-tests.sh)
 #
-# Chạy trên nhánh tính năng mới nhất: các nhánh xếp chồng nên nhánh cuối có đủ mọi tính năng.
-# Kết quả thô: .ai-log/test-runs/<thời gian>/ (không commit). Bảng: nhánh docs/test-cases + PR draft.
+# Chạy trên nhánh tính năng mới nhất (các nhánh xếp chồng nên nhánh cuối có đủ chức năng).
+# Kết quả: nhánh test/test-cases + PR draft; kết quả thô ở .ai-log/test-runs/ (không commit).
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
 UI=0; AI=1
@@ -20,112 +22,48 @@ need go; need node; need python3; need git; [ "$AI" = 1 ] && { need claude; need
 notify() { command -v osascript >/dev/null && osascript -e "display notification \"$1\" with title \"WorkTrack test-cases\"" >/dev/null 2>&1; echo "$1"; }
 
 SRC_BRANCH="$(git branch --show-current)"
-[ "$SRC_BRANCH" = "docs/test-cases" ] && SRC_BRANCH="$(git rev-parse --abbrev-ref '@{-1}' 2>/dev/null || echo feature/kanban)"
-STAMP="$(date +%Y%m%d-%H%M)"; RUN=".ai-log/test-runs/$STAMP"; mkdir -p "$RUN"
+[ "$SRC_BRANCH" = "test/test-cases" ] && SRC_BRANCH="$(git rev-parse --abbrev-ref '@{-1}' 2>/dev/null || echo feature/kanban)"
+STAMP="$(date +%Y%m%d-%H%M)"; RUN=".ai-log/test-runs/$STAMP"
 command -v caffeinate >/dev/null && { caffeinate -dims -w $$ & }
-echo "== Chạy test trên nhánh $SRC_BRANCH → $RUN"
 
-# 1. Backend: unit + API
-echo "-- go test (unit, API)"
-( cd backend && go test -json -count=1 ./... ) > "$RUN/go-unit.json" 2> "$RUN/go-unit.err"
-
-# 2. Backend: tích hợp với PostgreSQL thật (CSDL riêng, không đụng dữ liệu dev)
-IT_DB="worktrack_it_testcases"
-DEV_URL="postgres://worktrack:worktrack@localhost:5432/worktrack?sslmode=disable"
-if command -v psql >/dev/null && psql "$DEV_URL" -Atc "select 1" >/dev/null 2>&1; then
-  echo "-- go test -tags=integration (CSDL $IT_DB)"
-  psql "$DEV_URL" -Atc "select 1 from pg_database where datname='$IT_DB'" | grep -q 1 \
-    || psql "$DEV_URL" -qc "create database $IT_DB owner worktrack" >/dev/null
-  ( cd backend && TEST_DATABASE_URL="postgres://worktrack:worktrack@localhost:5432/$IT_DB?sslmode=disable" \
-      go test -tags=integration -json -count=1 ./... ) > "$RUN/go-integration.json" 2> "$RUN/go-integration.err"
-else
-  echo "⚠ Không kết nối được PostgreSQL ở localhost:5432 — bỏ qua test tích hợp (brew services start postgresql@16)."
-  : > "$RUN/go-integration.json"
-fi
-
-# 3. Frontend
-echo "-- vitest"
-( cd frontend && npx vitest run --reporter=json --outputFile="$ROOT/$RUN/vitest.json" ) > "$RUN/vitest.log" 2>&1
-
-# 4. Tóm tắt máy đọc được (không dùng AI): mọi test, trạng thái, mã CF trong tên test
-python3 - "$RUN" <<'PY'
-import json, re, sys, pathlib
-run = pathlib.Path(sys.argv[1]); rows = {}
-def cf(name): return ",".join(sorted(set(re.findall(r"CF-?\d{2}", name.replace("CF-", "CF")))) ).replace("CF","CF-") or ""
-for src in ("go-unit", "go-integration"):
-    f = run / f"{src}.json"
-    if not f.exists(): continue
-    for line in f.read_text(encoding="utf-8", errors="ignore").splitlines():
-        try: e = json.loads(line)
-        except Exception: continue
-        if not e.get("Test") or e.get("Action") not in ("pass", "fail", "skip"): continue
-        key = f'{e["Package"]}::{e["Test"]}'
-        kind = "Integration" if src == "go-integration" and "integration" in e["Package"] + e["Test"].lower() else ("API" if "httpapi" in e["Package"] else "Unit")
-        if src == "go-integration" and key in rows and kind != "Integration": continue
-        rows[key] = {"layer": "backend", "kind": kind, "file": e["Package"].split("/backend/")[-1], "test": e["Test"], "status": e["Action"], "cf": cf(e["Test"])}
-vf = run / "vitest.json"
-if vf.exists() and vf.stat().st_size:
-    v = json.loads(vf.read_text(encoding="utf-8"))
-    for tr in v.get("testResults", []):
-        for a in tr.get("assertionResults", []):
-            name = a.get("fullName") or a.get("title", "")
-            st = {"passed": "pass", "failed": "fail"}.get(a.get("status"), "skip")
-            rows["fe::" + tr["name"] + "::" + name] = {"layer": "frontend", "kind": "Unit/UI", "file": tr["name"].split("/frontend/")[-1], "test": name, "status": st, "cf": cf(name + " " + tr["name"]), "error": (a.get("failureMessages") or [""])[0][:300]}
-out = list(rows.values())
-(run / "summary.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
-tot = {s: sum(1 for r in out if r["status"] == s) for s in ("pass", "fail", "skip")}
-lines = [f"Tổng: {len(out)} test — pass {tot['pass']}, fail {tot['fail']}, skip {tot['skip']}", "", "| Tầng | Loại | Pass | Fail | Skip |", "|---|---|---|---|---|"]
-for layer in ("backend", "frontend"):
-    for kind in sorted({r["kind"] for r in out if r["layer"] == layer}):
-        sel = [r for r in out if r["layer"] == layer and r["kind"] == kind]
-        lines.append(f"| {layer} | {kind} | " + " | ".join(str(sum(1 for r in sel if r['status'] == s)) for s in ("pass", "fail", "skip")) + " |")
-fails = [r for r in out if r["status"] == "fail"]
-if fails:
-    lines += ["", "Test lỗi:"] + [f"- {r['file']} :: {r['test']}" for r in fails[:50]]
-(run / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-print("\n".join(lines))
-PY
-
+./scripts/run-all-tests.sh "$RUN"
 [ "$AI" = 0 ] && { notify "Đã chạy xong test — xem $RUN/summary.md"; exit 0; }
 
-# 5. Claude Code dựng bảng test case trên nhánh docs/test-cases
-if git show-ref --verify --quiet refs/heads/docs/test-cases; then
-  git switch -q docs/test-cases && git merge -q --no-edit "$SRC_BRANCH" || { echo "✗ Không gộp được $SRC_BRANCH vào docs/test-cases"; exit 1; }
+if git show-ref --verify --quiet refs/heads/test/test-cases; then
+  git switch -q test/test-cases && git merge -q --no-edit "$SRC_BRANCH" || { echo "✗ Không gộp được $SRC_BRANCH vào test/test-cases"; exit 1; }
 else
-  git switch -q -c docs/test-cases "$SRC_BRANCH"
+  git switch -q -c test/test-cases "$SRC_BRANCH"
 fi
-mkdir -p docs/testing/runs && cp "$RUN/summary.md" "docs/testing/runs/$STAMP-summary.md"
+mkdir -p docs/testing/runs && cp "$RUN/summary.md" "docs/testing/runs/$STAMP-before.md"
 
-UI_RULE="Ca giao diện/thủ công: KHÔNG chạy app — ghi Trạng thái 'Chưa chạy', Kết quả thực tế để trống."
-[ "$UI" = 1 ] && UI_RULE="Ca giao diện/thủ công: chạy make seed rồi make dev-local ở chế độ nền, dùng Playwright MCP ở 1366x768 thực hiện từng ca theo docs/testing/manual-test-guide.md; ghi Kết quả thực tế đúng như quan sát, Trạng thái Pass/Fail, lưu ảnh docs/testing/evidence/tc-<mã>.png cho ca Fail và cho 1 ca tiêu biểu mỗi chức năng; tắt app khi xong."
+UI_RULE="Ca giao diện/thủ công: không chạy app — Trạng thái 'Chưa chạy', Kết quả thực tế để trống."
+[ "$UI" = 1 ] && UI_RULE="Ca giao diện/thủ công: make seed, chạy make dev-local ở chế độ nền, dùng Playwright MCP ở 1366x768 thực thi từng ca theo docs/testing/manual-test-guide.md; ghi Kết quả thực tế đúng như quan sát và Trạng thái; lưu ảnh docs/testing/evidence/<MÃ_TC>.png cho mọi ca Fail và 1 ca tiêu biểu mỗi chức năng; tắt app khi xong. Ca realtime cần 2 trình duyệt: mở 2 tab với 2 vai trò."
 
-PROMPT="Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Nhánh: docs/test-cases (mọc từ $SRC_BRANCH). KHÔNG sửa code sản phẩm và KHÔNG sửa test.
+PROMPT="Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Nhánh: test/test-cases (mọc từ $SRC_BRANCH). KHÔNG sửa code sản phẩm, KHÔNG sửa hay xóa test có sẵn.
 
-Nhiệm vụ: dựng BẢNG TEST CASE cho từng chức năng đã có của WorkTrack, dùng cho Chương 5 báo cáo và minh chứng M27–M32.
+Nhiệm vụ: kiểm thử TOÀN BỘ chức năng đã có của WorkTrack theo đúng chuẩn trong docs/testing/test-design-standard.md (skill test-case-design) — tài liệu này tóm tắt bài giảng Kiểm thử phần mềm của trường và là căn cứ chấm. Đọc kỹ chuẩn đó trước tiên.
 
-Nguồn dữ liệu (đọc hết trước khi viết):
-- Kết quả chạy THẬT vừa xong: docs/testing/runs/$STAMP-summary.md và $RUN/summary.json (mọi test, trạng thái, mã CF), log thô trong $RUN/.
-- docs/testing/traceability-matrix.md, docs/testing/manual-test-guide.md, docs/gates/*.md, docs/decisions.md, skill worktrack-domain, và code (router, domain, test) để hiểu đúng hành vi.
+Nguồn: kết quả chạy THẬT $RUN/summary.json và summary.md (mọi test, trạng thái, mã CF, độ phủ), log thô trong $RUN/; docs/testing/traceability-matrix.md, manual-test-guide.md, docs/gates/*.md, docs/decisions.md, skill worktrack-domain; code (validator, domain, router, migrations) để lấy đúng miền giá trị và luật.
 
-Đầu ra:
-1. docs/testing/test-cases.md:
-   - Đầu file: ngày chạy, nhánh, commit; bảng tổng hợp theo chức năng (CF): số ca, tự động/thủ công, Pass/Fail/Chưa chạy; tỷ lệ pass.
-   - Mỗi chức năng một mục (CF-01 ... theo thứ tự), bảng cột: STT | Mã TC | Mô tả | Vai trò | Tiền điều kiện | Các bước thực hiện | Dữ liệu kiểm thử | Kết quả mong đợi | Kết quả thực tế | Trạng thái | Loại (Unit/Integration/API/UI) | Phân loại (dương/âm/biên/bảo mật/phân quyền/validate) | Hình thức (Tự động/Thủ công) | Test tự động liên quan.
-   - Mã TC dạng TC-CF01-001, ổn định: nếu file đã tồn tại thì GIỮ NGUYÊN mã cũ, chỉ cập nhật kết quả và thêm ca mới ở cuối mục.
-   - Ca tự động: gom các test cùng kiểm một hành vi thành 1 ca nghiệp vụ dễ hiểu (không liệt kê từng hàm test như 1 ca); Kết quả thực tế và Trạng thái lấy ĐÚNG từ kết quả chạy thật (Pass/Fail), không suy đoán; liệt kê tên test ở cột cuối.
-   - Ca thủ công: lấy từ manual-test-guide (luồng người dùng, giao diện, email Mailpit, realtime 2 trình duyệt). $UI_RULE
-   - Mỗi chức năng có đủ ca dương, âm, biên, phân quyền theo từng vai trò, validate, bảo mật liên quan.
-   - Cuối file: mục 'Lỗi phát hiện' (test Fail: mã TC, thông điệp lỗi rút gọn, file) và mục 'Chưa kiểm thử được' (vd. docker build, test cần Docker) kèm lý do.
-2. docs/testing/test-cases.csv: cùng nội dung các bảng chi tiết, thêm cột Chức năng ở đầu; UTF-8 có BOM, phân cách dấu phẩy, chuẩn RFC 4180 (mở được bằng Excel tiếng Việt).
-3. Kiểm tra: số ca và số Pass/Fail trong bảng tổng hợp khớp với chi tiết; CSV đọc được bằng python csv; mọi tên test ở cột cuối có thật trong summary.json.
-
-Kết thúc: commit qua skill ai-usage-log (nhật ký AI chế độ tối giản: một entry, type test) — trailer AI-Log bắt buộc; git push -u origin docs/test-cases; tạo PR draft --base $SRC_BRANCH nếu chưa có PR (đã có thì chỉ push). In đúng một dòng cuối: DONE=OK hoặc DONE=FAIL kèm lý do."
+Các bước:
+1. PHÂN TÍCH — mỗi chức năng đã có (CF-01, CF-02, CF-03, CF-04/05, CF-06 và các CF khác nếu code đã có): bảng điều kiện kiểm thử TCond_<MODULE>_<NN> có cột nguồn; mục 'Câu hỏi cần làm rõ' cho yêu cầu mơ hồ.
+2. THIẾT KẾ — áp dụng kỹ thuật theo bảng §4 của chuẩn, trình bày TƯỜNG MINH trong tài liệu: bảng EP + BVA cho từng trường có miền giá trị (lấy ngưỡng từ code); bảng quyết định cho phân quyền vai trò × hành động, luật chuyển cột vai trò × nhóm nguồn × nhóm đích, đăng nhập; sơ đồ chuyển trạng thái Mermaid cho tài khoản/đăng nhập sai/công việc/dự án kèm ca chuyển hợp lệ và không hợp lệ; use case (chính/thay thế/ngoại lệ) cho luồng chính; checklist đoán lỗi bảo mật (IDOR, token, XSS, SQL injection, bấm hai lần, hai người cùng sửa). Mỗi ca suy ra từ một điều kiện và một kỹ thuật.
+3. LẤP KHOẢNG TRỐNG — với ca ưu tiên Cao tự động hóa được mà chưa có test: VIẾT THÊM test tự động mới (Go table-driven hoặc Vitest), tên chứa mã TC; không sửa test cũ, không sửa code sản phẩm. Sau đó chạy lại: ./scripts/run-all-tests.sh $RUN-after  — mọi Kết quả thực tế/Trạng thái lấy từ lần chạy này.
+4. THỰC THI THỦ CÔNG — $UI_RULE
+5. BÁO LỖI — mỗi ca Fail (kể cả test mới viết bị Fail vì code sai): tìm trùng bằng gh issue list --search, nếu chưa có thì gh issue create theo mẫu .github/ISSUE_TEMPLATE/bug_report.md (label bug, severity, priority, các bước tái hiện, mong đợi/thực tế, môi trường = commit + máy); ghi số issue vào ca. Không sửa lỗi ở nhánh này.
+6. ĐẦU RA:
+   - docs/testing/test-cases.md: đầu file ngày, nhánh, commit, bảng tổng hợp theo chức năng (số ca, theo kỹ thuật, tự động/thủ công, Pass/Fail/Chưa chạy, tỷ lệ Pass); rồi mỗi chức năng một mục gồm (a) điều kiện kiểm thử, (b) thiết kế theo kỹ thuật, (c) bảng test case đủ cột chuẩn §2: Mã TC (TC_<MODULE>_<NNN>, giữ mã cũ nếu file đã có) | Mô tả | Điều kiện kiểm thử | Kỹ thuật | Tiền điều kiện | Dữ liệu kiểm thử | Các bước | Kết quả mong đợi | Tiêu chí Pass/Fail | Kết quả thực tế | Trạng thái | Ưu tiên | Loại | Hình thức | Test tự động | Bug.
+   - docs/testing/test-cases.csv: mọi ca, thêm cột Chức năng đầu; UTF-8 có BOM, RFC 4180 (mở bằng Excel tiếng Việt).
+   - docs/testing/test-report.md: báo cáo tổng kết theo chuẩn §8 — phạm vi, môi trường, số liệu, độ phủ, danh sách lỗi theo severity/trạng thái, đối chiếu tiêu chí kết thúc, kết luận đạt/chưa đạt, bài học.
+   - cập nhật docs/testing/traceability-matrix.md thêm cột Mã TC; lưu docs/testing/runs/$STAMP-after.md.
+7. TỰ KIỂM: số liệu tổng hợp khớp chi tiết; mọi tên test ở cột Test tự động có thật trong summary sau khi chạy lại; CSV đọc được bằng python csv; mỗi chức năng có ít nhất: 1 bảng EP/BVA, 1 bảng quyết định hoặc sơ đồ trạng thái, ca phân quyền cho cả 4 vai trò, ca âm và ca biên.
+Kết thúc: commit thành vài commit hợp lý qua skill ai-usage-log (nhật ký AI chế độ tối giản, type test, một entry), trailer AI-Log bắt buộc; git push -u origin test/test-cases; tạo PR draft --base $SRC_BRANCH nếu chưa có. In đúng một dòng cuối: DONE=OK hoặc DONE=FAIL kèm lý do."
 
 ATTEMPT=1
 while :; do
   LOG="$RUN/claude$([ "$ATTEMPT" -gt 1 ] && echo "-$ATTEMPT").jsonl"
   claude -p "$PROMPT" --permission-mode "${PERMISSION_MODE:-auto}" --disallowedTools "AskUserQuestion" \
-    --max-turns "${MAX_TURNS:-250}" --output-format stream-json --verbose > "$LOG" 2> "${LOG%.jsonl}.err"
+    --max-turns "${MAX_TURNS:-400}" --output-format stream-json --verbose > "$LOG" 2> "${LOG%.jsonl}.err"
   RESULT="$(python3 -c 'import json,sys
 r=""
 for l in open(sys.argv[1],encoding="utf-8"):
@@ -146,5 +84,5 @@ t=t if t>now else t+datetime.timedelta(days=1); print(int((t-now).total_seconds(
   fi
   break
 done
-if printf '%s' "$RESULT" | grep -q "DONE=OK"; then notify "Bảng test case xong — docs/testing/test-cases.md (.csv), PR draft trên GitHub"
+if printf '%s' "$RESULT" | grep -q "DONE=OK"; then notify "Kiểm thử xong — docs/testing/test-cases.md, test-report.md, PR draft"
 else notify "Chưa xong — xem $RUN/claude*.jsonl"; exit 1; fi

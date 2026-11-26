@@ -12,7 +12,7 @@
 ## 1. Git và PR (M22, M23, M24)
 
 - `main` được bảo vệ, chỉ merge qua PR, CI phải xanh.
-- Nhánh: `feature/<ten-tinh-nang>`, `fix/<mo-ta>`, `chore/<mo-ta>`, `docs/<mo-ta>` — chữ thường, kebab-case, không dấu (xem §10).
+- Nhánh: `feature/<ten-tinh-nang>`, `fix/<mo-ta>`, `chore/<mo-ta>`, `docs/<mo-ta>`, `test/<mo-ta>` — chữ thường, kebab-case, không dấu (xem §10).
 - Conventional Commits, kèm mã yêu cầu: `feat(timesheet): chặn log giờ âm [CF-08][YCCN-31]`.
 - Mỗi tuần **ít nhất 1 commit**. Không sửa ngày commit.
 - PR dùng template `.github/pull_request_template.md` (checklist tự review + mã yêu cầu + cách test + mục AI log).
@@ -143,6 +143,6 @@ Nguyên tắc chung: **tiếng Anh, không dấu** cho mọi tên file, thư m�
 **Git**
 | Loại | Quy ước | Ví dụ |
 |---|---|---|
-| Nhánh | `<loai>/<ten>` kebab-case | `feature/kanban`, `fix/logtime-negative`, `chore/scaffold` |
+| Nhánh | `<loai>/<ten>` kebab-case (`feature`, `fix`, `chore`, `docs`, `test`) | `feature/kanban`, `fix/logtime-negative`, `test/test-cases` |
 | Commit | Conventional Commits + mã yêu cầu | `feat(kanban): chặn Member kéo sang Done [CF-04][UC05]` |
 | Tag phiên bản | SemVer có `v` | `v0.1.0` |
