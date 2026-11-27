@@ -22,9 +22,6 @@ const (
 // storyPoints là thang Fibonacci cho phép (giả định mục C, 2026-11-20).
 var storyPoints = map[int]bool{1: true, 2: true, 3: true, 5: true, 8: true, 13: true, 21: true}
 
-// StoryPointScale trả thang Story Point theo thứ tự tăng dần (dùng cho UI/tài liệu).
-func StoryPointScale() []int { return []int{1, 2, 3, 5, 8, 13, 21} }
-
 // TaskLabel là nhãn gắn trên một công việc.
 type TaskLabel struct {
 	ID   uuid.UUID

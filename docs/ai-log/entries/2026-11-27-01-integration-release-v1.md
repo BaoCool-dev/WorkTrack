@@ -56,6 +56,12 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 - Ghi điểm không chắc: Admin 403/404, Manager phụ trách cố định, độ phủ giảm còn 90,3%, tồn đọng issue #4.
 - `docs/integration/05-projects.md`: báo cáo bước 05.
 
+### Bước 06 — feature/tasks
+- Đọc kết quả test sau gộp: 831/831 pass, không lỗi do gộp → không commit `fix(integration)`, không tạo issue.
+- Rà cấu hình: không thêm biến môi trường; tidy/lockfile/sqlc/goose (4 migration)/gitleaks/golangci-lint sạch → không commit `fix(config)`.
+- Rà code rác: deadcode báo `domain.StoryPointScale` — không ai gọi ở cả HEAD lẫn bản cuối `test/test-cases` (FE dùng hằng `STORY_POINTS` riêng) → xóa (`chore(cleanup)`). knip báo thêm `taskKeys`, `Ref` (tasks) — bản cuối dùng ở `features/kanban` → giữ.
+- `docs/integration/06-tasks.md`: báo cáo bước 06.
+
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
 
@@ -88,3 +94,7 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 ### Bước 05
 - Test sau gộp và sau dọn: 693 test, pass 693 (API 271, Unit 289, FE 133); coverage 90.3%.
 - `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (3 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found.
+
+### Bước 06
+- Test sau gộp: 831 test, pass 831 (API 328, Unit 332, FE 171); coverage 90.3%.
+- `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (4 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found.
