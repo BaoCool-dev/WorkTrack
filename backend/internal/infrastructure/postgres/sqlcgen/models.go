@@ -58,6 +58,18 @@ type Label struct {
 	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
+type Notification struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"userId"`
+	Type      string             `json:"type"`
+	TaskID    uuid.UUID          `json:"taskId"`
+	ProjectID uuid.UUID          `json:"projectId"`
+	ActorID   uuid.NullUUID      `json:"actorId"`
+	Message   string             `json:"message"`
+	ReadAt    pgtype.Timestamptz `json:"readAt"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
+}
+
 type Project struct {
 	ID          uuid.UUID          `json:"id"`
 	Name        string             `json:"name"`
@@ -123,6 +135,14 @@ type Task struct {
 	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt        pgtype.Timestamptz `json:"updatedAt"`
 	Version          int32              `json:"version"`
+}
+
+type TaskComment struct {
+	ID        uuid.UUID          `json:"id"`
+	TaskID    uuid.UUID          `json:"taskId"`
+	AuthorID  uuid.UUID          `json:"authorId"`
+	Body      string             `json:"body"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
 type TaskLabel struct {

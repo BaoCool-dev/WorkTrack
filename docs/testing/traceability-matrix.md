@@ -164,3 +164,34 @@ Trạng thái "pass" = `make test` ngày 2026-11-21 (Go xanh; Vitest 21 file / 2
 | 17 | CF-05: chip WIP `n/giới hạn` của người xem trên bảng | dương | board "Member: có gợi ý quyền, chip WIP của mình…" | pass | TC_KANBAN_007 |
 
 **Khoảng trống đã biết:** (1) Integration `kit` đã phủ `CountProjectWIP`, `MoveTaskColumn` theo version, `SetTaskPositions`, `task_move_history`, hai lần kéo song song; còn thiếu ca CSDL cho `ck_task_story_point_parent_only`. (2) Client realtime (`useProjectSocket`: backoff, tải lại khi nối lại, bỏ sự kiện cũ) chưa có test riêng; tên test board tiêu chí 11 hứa nhiều hơn nội dung kiểm. (3) `WipLimitControl` chưa có test tương tác. (4) Chưa có E2E Playwright cho hành trình Kanban (đã có checklist tay §4.4 `manual-test-guide.md`). (5) Chưa có AC chính thức UC05 — xem ghi chú đầu mục.
+
+## CF-07 — Công việc con, bình luận, thông báo trong hệ thống (nhánh `feature/subtasks`)
+
+> Chưa có acceptance criteria chính thức cho CF-07 trong `docs/requirements/` (chỉ có `README.md`). Tiêu chí dưới đây lấy từ
+> CLAUDE.md §5.4, skill `worktrack-domain`, mục C ngày 2026-11-27 của `docs/decisions.md` và checklist CF-07 trong
+> `docs/testing/manual-test-guide.md` §4.5. Không đặt mã AC mới.
+
+Viết tắt: **cdom** = `backend/internal/domain/collab_test.go` · **ssvc** = `backend/internal/application/subtask/service_test.go` ·
+**csvc** = `backend/internal/application/comment/service_test.go` · **nsvc** = `backend/internal/application/notification/service_test.go` ·
+**tsvc** = `backend/internal/application/task/service_test.go` · **capi** = `backend/internal/transport/httpapi/collab_api_test.go` ·
+**cit** = `backend/internal/infrastructure/postgres/collab_integration_test.go` (tag `integration`) ·
+**collab** = `frontend/src/features/tasks/components/TaskCollab.test.tsx` · **bell** = `frontend/src/features/notifications/components/NotificationBell.test.tsx`
+
+Trạng thái "pass" = `make test` ngày 2026-11-27 (Go xanh; Vitest 246/246, chạy lại sau khi QA bổ sung tiêu chí 11–12). Integration (`cit` và toàn gói `postgres`) chạy cục bộ trên PostgreSQL Homebrew qua `TEST_DATABASE_URL` (CSDL tạo mới `worktrack_gate_subtasks`) ngày 2026-11-27: xanh.
+
+| # | Tiêu chí | Loại ca | Test | Trạng thái |
+|---|---|---|---|---|
+| 1 | Việc con do người nhận việc cha (hoặc Manager phụ trách) tạo; kế thừa người nhận, vào nhóm todo; CEO → 403 `SUBTASK_NOT_ALLOWED`, Admin/người ngoài → 404 | dương/âm | cdom `TestCheckSubtaskActor_CF07`; ssvc `TestCreate_CF07`; capi `TestCollabAPI_Subtasks_CF07`, `TestCollabAPI_ErrorMapping_CF07`, `TestCollabAPI_SubtaskTitleBoundary_CF07` (BVA tiêu đề 1/200 ký tự, 200 ký tự có dấu → 201; rỗng/201/mô tả 5001 → 400 trong `TestCollabAPI_BadPathBodyQuery_CF07`); cit (người ngoài → 404); collab "người nhận việc cha thêm việc con…", "lỗi server khi thêm việc con…", "không phải người nhận: ẩn nút thêm…" | pass |
+| 2 | Chỉ 1 cấp: cha phải là việc gốc → 422 `SUBTASK_PARENT_NOT_ROOT` (domain + trigger `trg_task_one_level`) | âm | cdom `TestCheckSubtaskParent_CF07`; ssvc `TestCreate_CF07`; cit (tạo cháu bị chặn); collab "chi tiết của một việc con không có khối việc con" | pass |
+| 3 | Việc con không có Story Point (CHECK `ck_task_story_point_parent_only`, kể cả ghi thẳng CSDL) | âm | cit `UPDATE task SET story_point` trên con → 23514; `tc_constraints_integration_test.go` TC_TASK_038 (INSERT); collab (POST không gửi Story Point) | pass |
+| 4 | Member tự chuyển cột việc con, không qua `workflow_transition`; cột dự án khác → 404; API con không dùng cho việc cha | dương/âm | ssvc `TestMove_CF07`; cit (chuyển tự do, cột dự án khác, việc cha qua API con); collab "chuyển cột việc con của mình qua ô chọn" | pass |
+| 5 | Danh sách con + tiến độ "x/y con xong"; xóa có bước xác nhận; xóa lần 2 → 404 | dương/âm | ssvc `TestList_CF07`, `TestDelete_CF07`; cit; collab "hiện danh sách con và tiến độ…", "trạng thái rỗng…", "xóa việc con có bước xác nhận…" | pass |
+| 6 | Bình luận 1–2000 ký tự (đếm theo code point, cắt khoảng trắng); rỗng/quá dài → 422 `COMMENT_INVALID`; chỉ Manager/Member là thành viên dự án được viết, CEO/Admin chỉ đọc; cũ nhất trước | dương/âm/biên | cdom `TestNormalizeComment_CF07`, `TestCanComment_CF07`; csvc `TestCreateComment_CF07`, `TestListComments_CF07`; capi `TestCollabAPI_Comments_CF07`, `TestCollabAPI_CommentErrorMapping_CF07` (CEO/Admin viết → 403 `FORBIDDEN`, ngoài dự án → 404, quá dài → 422); cit; collab 4 ca bình luận | pass |
+| 7 | Thông báo `task_assigned` khi tạo/đổi người nhận (cùng giao dịch, không tự báo cho mình) | dương/âm | cdom `TestAssignmentRecipient_CF07`; tsvc `TestNotifyAssigned_CF07`; cit | pass |
+| 8 | Thông báo `task_commented` cho người nhận và người tạo việc, không trùng, không gửi cho tác giả; trích đoạn ngắn | dương/âm | cdom `TestNotificationRecipients_CF07`, `TestNotificationExcerpt_CF07`; csvc `TestCreateComment_CF07`; cit (hai chiều) | pass |
+| 9 | Chuông: đếm chưa đọc, danh sách mới nhất trước, đánh dấu đã đọc từng cái / tất cả; thông báo của người khác → 404 `NOTIFICATION_NOT_FOUND` (IDOR) | dương/âm | nsvc `TestNotifications_CF07`; capi `TestCollabAPI_Notifications_CF07`; cit (thứ tự, IDOR mark-read); bell 8 ca | pass |
+| 10 | Loại `review_rejected` hợp lệ trong mô hình và câu hiển thị | dương | cdom `TestNotificationTypeValid_CF07`; bell "mở chuông hiện câu thông báo theo loại…" | pass (luồng kích hoạt thuộc CF-09) |
+| 11 | Đoán lỗi bảo mật: mọi endpoint CF-07 (10 endpoint) không token → 401, không gọi service; mã sai định dạng UUID (việc cha, việc con, cột, thông báo), JSON hỏng/sai kiểu/trường lạ, `unread` ngoài {true,false} → 400 kèm mã lỗi, không gọi service | âm | capi `TestCollabAPI_AllEndpointsRequireLogin_CF07`, `TestCollabAPI_BadPathBodyQuery_CF07` | pass |
+| 12 | Đoán lỗi XSS: bình luận/tên/trích đoạn thông báo chứa HTML được lưu và trả nguyên văn (JSON escape `<`), hiển thị dạng chữ, không sinh thẻ `img`/`script` | âm | capi `TestCollabAPI_CommentWithHTMLRoundTrip_CF07`; collab "bình luận chứa HTML hiển thị nguyên văn…"; bell "trích đoạn và tên chứa HTML hiển thị nguyên văn…" | pass |
+
+**Khoảng trống đã biết:** (1) Thông báo `review_rejected` mới có kiểu và câu hiển thị; chỗ phát sinh (từ chối nghiệm thu) thuộc CF-09 `feature/review`. (2) Chưa có E2E Playwright tự động (checklist tay §4.5 `manual-test-guide.md`). (3) Chưa có AC chính thức — xem ghi chú đầu mục. (4) Chuông cập nhật bằng hỏi lại 30 giây/lần, chưa đẩy qua WebSocket.

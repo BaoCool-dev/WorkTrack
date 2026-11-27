@@ -6,7 +6,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { projectKeys } from '@/features/projects'
-import type { Task, TaskInput } from '../model/types'
+import { COMMENT_PAGE_SIZE, type SubtaskInput, type Task, type TaskInput } from '../model/types'
 import { tasksApi, type MyTaskListParams, type TaskListParams } from './tasksApi'
 
 export const taskKeys = {
@@ -16,6 +16,9 @@ export const taskKeys = {
   /** Thẻ trên bảng Kanban — nằm dưới project(...) để mọi lần ghi công việc cũng làm mới bảng. */
   board: (projectId: string) => [...taskKeys.project(projectId), 'board'] as const,
   detail: (id: string) => [...taskKeys.all, 'detail', id] as const,
+  subtasks: (parentId: string) => [...taskKeys.detail(parentId), 'subtasks'] as const,
+  comments: (taskId: string) => [...taskKeys.detail(taskId), 'comments'] as const,
+  commentPage: (taskId: string, page: number) => [...taskKeys.comments(taskId), page] as const,
   mine: () => [...taskKeys.all, 'mine'] as const,
   mineList: (p: MyTaskListParams) => [...taskKeys.mine(), 'list', p] as const,
   wip: () => [...taskKeys.mine(), 'wip'] as const,
@@ -128,5 +131,60 @@ export function useUpdateSettings() {
     onSuccess: (s) => {
       qc.setQueryData(taskKeys.settings, s)
     },
+  })
+}
+
+// ---- CF-07: công việc con ----
+// Con không phát sự kiện realtime và không lên bảng Kanban (decisions.md C) — sau mỗi thao tác
+// chỉ cần làm mới danh sách con của cha.
+
+export function useSubtasks(parentId: string, enabled = true) {
+  return useQuery({
+    queryKey: taskKeys.subtasks(parentId),
+    queryFn: async () => (await tasksApi.subtasks(parentId)).items,
+    enabled,
+  })
+}
+
+export function useCreateSubtask(parentId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: SubtaskInput) => tasksApi.createSubtask(parentId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.subtasks(parentId) }),
+  })
+}
+
+export function useMoveSubtask(parentId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, columnId }: { id: string; columnId: string }) =>
+      tasksApi.moveSubtask(id, columnId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.subtasks(parentId) }),
+  })
+}
+
+export function useDeleteSubtask(parentId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => tasksApi.deleteSubtask(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.subtasks(parentId) }),
+  })
+}
+
+// ---- CF-07: bình luận ----
+
+export function useComments(taskId: string, page: number) {
+  return useQuery({
+    queryKey: taskKeys.commentPage(taskId, page),
+    queryFn: () => tasksApi.comments(taskId, page, COMMENT_PAGE_SIZE),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useCreateComment(taskId: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: string) => tasksApi.createComment(taskId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.comments(taskId) }),
   })
 }

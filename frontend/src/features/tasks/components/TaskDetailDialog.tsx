@@ -23,6 +23,8 @@ import {
 } from '@/shared/ui'
 import { useClaimTask, useTask, useUpdateTask } from '../api/queries'
 import type { Task } from '../model/types'
+import { CommentsSection } from './CommentsSection'
+import { SubtasksSection } from './SubtasksSection'
 import { TaskFormDialog } from './TaskFormDialog'
 
 const t = messages.tasks.detail
@@ -45,7 +47,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-/** Chi tiết công việc cha (CF-06). Công việc con, bình luận, Log time thuộc các nhánh sau. */
+/** Chi tiết công việc (CF-06) kèm việc con và bình luận (CF-07). Log time thuộc nhánh sau. */
 export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialogProps) {
   const query = useTask(initial.id)
   const claim = useClaimTask()
@@ -158,6 +160,9 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
             <p className="text-base text-ink-faint">{t.noDescription}</p>
           )}
         </section>
+        {/* Con chỉ 1 cấp: chi tiết của một việc con không có khối việc con. */}
+        {task.parentId === null && <SubtasksSection task={task} canEdit={canEdit} />}
+        <CommentsSection taskId={task.id} />
         <p className="rounded-md border border-line bg-subtle p-3 text-sm text-ink-muted">
           {t.later}
         </p>

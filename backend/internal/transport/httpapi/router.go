@@ -24,8 +24,12 @@ type Deps struct {
 	Labels   LabelService
 	Settings SettingService
 	Kanban   KanbanService
-	Hub      BoardHub
-	Tokens   TokenVerifier
+	// CF-07
+	Subtasks      SubtaskService
+	Comments      CommentService
+	Notifications NotificationService
+	Hub           BoardHub
+	Tokens        TokenVerifier
 
 	// Now mặc định time.Now; test truyền đồng hồ giả.
 	Now func() time.Time
@@ -83,6 +87,7 @@ func mountHTTP(r chi.Router, d Deps) {
 	ph := &projectHandler{svc: d.Projects, validate: v}
 	th := &taskHandler{svc: d.Tasks, labels: d.Labels, settings: d.Settings, validate: v}
 	kh := &kanbanHandler{svc: d.Kanban, projects: d.Projects, validate: v}
+	ch := &collabHandler{subtasks: d.Subtasks, comments: d.Comments, notifications: d.Notifications, validate: v}
 	loginRL := newRateLimiter(d.LoginLimit, d.Now)
 	refreshRL := newRateLimiter(d.RefreshLimit, d.Now)
 
@@ -159,7 +164,19 @@ func mountHTTP(r chi.Router, d Deps) {
 				r.Put("/", th.updateTask)
 				r.Post("/claim", th.claimTask)
 				r.Post("/move", kh.move) // CF-04: kéo thả (luật chuyển cột, WIP, version kiểm trong kanban.Service)
+				// CF-07: việc con 1 cấp và bình luận của một công việc.
+				r.Get("/subtasks", ch.listSubtasks)
+				r.Post("/subtasks", ch.createSubtask)
+				r.Get("/comments", ch.listComments)
+				r.Post("/comments", ch.createComment)
 			})
+			r.Post("/subtasks/{subtaskID}/move", ch.moveSubtask)
+			r.Delete("/subtasks/{subtaskID}", ch.deleteSubtask)
+			// CF-07: chuông thông báo — luôn là thông báo của chính người gọi.
+			r.Get("/me/notifications", ch.listNotifications)
+			r.Get("/me/notifications/unread-count", ch.unreadCount)
+			r.Post("/me/notifications/read-all", ch.markAllRead)
+			r.Post("/me/notifications/{notificationID}/read", ch.markRead)
 			r.Get("/me/tasks", th.listMyTasks)
 			r.Get("/me/wip", th.myWIP)
 			r.Get("/labels", th.listLabels)

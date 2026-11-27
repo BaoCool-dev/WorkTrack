@@ -8,6 +8,9 @@ export const TASK_LABELS_MAX = 10
 export const LABEL_NAME_MAX = 100
 export const SP_HOURS_MIN = 1
 export const SP_HOURS_MAX = 40
+// Khớp domain/collab.go (CF-07).
+export const COMMENT_MAX = 2000
+export const COMMENT_PAGE_SIZE = 20
 
 export interface Ref {
   id: string
@@ -18,6 +21,8 @@ export interface Task {
   id: string
   projectId: string
   projectName: string
+  /** null = công việc cha (gốc); có giá trị = công việc con (CF-07, chỉ 1 cấp). */
+  parentId: string | null
   title: string
   description: string
   storyPoint: number | null
@@ -68,4 +73,18 @@ export interface Label {
 export interface Settings {
   storyPointHours: number
   updatedAt: string
+}
+
+/** Body POST công việc con — không có Story Point (CHECK ở CSDL). */
+export interface SubtaskInput {
+  title: string
+  description: string
+}
+
+export interface Comment {
+  id: string
+  taskId: string
+  author: Ref
+  body: string
+  createdAt: string
 }

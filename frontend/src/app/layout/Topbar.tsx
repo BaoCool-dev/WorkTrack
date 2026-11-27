@@ -1,8 +1,9 @@
 import { useLocation } from 'react-router'
+import { NotificationBell } from '@/features/notifications'
 import { messages } from '@/shared/lib/messages'
 import { findMenuItem } from './menu'
 
-/** §4: topbar nền surface, viền dưới, padding 8/20; trái là breadcrumb. */
+/** §4: topbar nền surface, viền dưới, padding 8/20; trái là breadcrumb, phải là chuông thông báo. */
 export function Topbar() {
   const { pathname } = useLocation()
   const current = findMenuItem(pathname)
@@ -23,6 +24,9 @@ export function Topbar() {
           )}
         </ol>
       </nav>
+      <div className="ml-auto flex items-center gap-3">
+        <NotificationBell />
+      </div>
     </header>
   )
 }

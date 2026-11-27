@@ -72,6 +72,8 @@ type Store interface {
 	CountWIP(ctx context.Context, userID uuid.UUID) (int, error)
 	// CountProjectWIP đếm công việc cha nhóm in_progress của userID trong một dự án (CF-05).
 	CountProjectWIP(ctx context.Context, projectID, userID uuid.UUID) (int, error)
+	// AddNotification ghi thông báo cho n.UserIDs (CF-07); danh sách rỗng thì không làm gì.
+	AddNotification(ctx context.Context, n domain.NewNotification) error
 }
 
 // Transactor chạy fn trong một transaction; fn lỗi → rollback toàn bộ.

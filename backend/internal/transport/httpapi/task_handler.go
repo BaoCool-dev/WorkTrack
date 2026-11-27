@@ -80,6 +80,7 @@ type taskResponse struct {
 	ID               string             `json:"id"`
 	ProjectID        string             `json:"projectId"`
 	ProjectName      string             `json:"projectName"`
+	ParentID         *string            `json:"parentId"` // CF-07: khác null → đây là việc con
 	Title            string             `json:"title"`
 	Description      string             `json:"description"`
 	StoryPoint       *int               `json:"storyPoint"`
@@ -116,7 +117,7 @@ func toTaskResponse(t domain.Task) taskResponse {
 		labels = append(labels, refResponse{ID: l.ID.String(), Name: l.Name})
 	}
 	return taskResponse{
-		ID: t.ID.String(), ProjectID: t.ProjectID.String(), ProjectName: t.ProjectName,
+		ID: t.ID.String(), ProjectID: t.ProjectID.String(), ProjectName: t.ProjectName, ParentID: uuidString(t.ParentID),
 		Title: t.Title, Description: t.Description, StoryPoint: t.StoryPoint, EstimatedMinutes: t.EstimatedMinutes,
 		Column:   taskColumnResponse{ID: t.ColumnID.String(), Name: t.ColumnName, StatusGroup: t.StatusGroup},
 		Assignee: toRef(t.AssigneeID, t.AssigneeName), DueDate: formatDate(t.DueDate), Labels: labels,

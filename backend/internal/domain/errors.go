@@ -87,4 +87,10 @@ var (
 	ErrTaskVersionConflict  = errors.New("task was changed by someone else")
 	ErrWIPLimitReached      = errors.New("assignee reached the project WIP limit")
 	ErrInvalidWIPLimit      = errors.New("WIP limit must be between 1 and 20")
+
+	// CF-07 — công việc con, bình luận, thông báo.
+	ErrSubtaskNotAllowed    = errors.New("only the project manager or the assignee can change subtasks")
+	ErrSubtaskParentNotRoot = errors.New("subtask parent must be a root task")
+	ErrInvalidComment       = errors.New("comment is empty or too long")
+	ErrNotificationNotFound = errors.New("notification not found")
 )
