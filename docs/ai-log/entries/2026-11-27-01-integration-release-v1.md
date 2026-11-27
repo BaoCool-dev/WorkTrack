@@ -18,6 +18,9 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 ### Bước 02 — chore/scaffold
 > Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh release/v1 (KHÔNG phải main). Bước 02/9: vừa gộp nhánh chore/scaffold … Việc phải làm: 1. TEST … 2. CẤU HÌNH … 3. CODE RÁC … 4. Chạy lại … 5. BÁO CÁO docs/integration/02-scaffold.md … 6. Commit báo cáo qua skill ai-usage-log … [rút gọn]
 
+### Bước 03 — feature/auth
+> Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh release/v1 (KHÔNG phải main). Bước 03/9: vừa gộp nhánh feature/auth … Việc phải làm: 1. TEST … 2. CẤU HÌNH … 3. CODE RÁC … 4. Chạy lại … 5. BÁO CÁO docs/integration/03-auth.md … 6. Commit báo cáo qua skill ai-usage-log … [rút gọn]
+
 ## Nội dung AI tạo ra
 ### Bước 01 — chore/ai-workflow
 - `.gitignore`: thêm `.playwright-mcp/` (trước đó chỉ được bỏ qua nhờ `.git/info/exclude` cục bộ).
@@ -29,6 +32,12 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 - Rà cấu hình (env, compose, CI, Makefile, tidy, lockfile, sqlc, goose, gitignore, JSON, gitleaks, golangci-lint): không cần commit `fix(config)`.
 - Rà code rác (deadcode, knip, grep): mọi mục giữ lại vì dùng ở bước sau hoặc bản cuối giữ nguyên; không có commit `chore(cleanup)`.
 - `docs/integration/02-scaffold.md`: báo cáo bước 02.
+
+### Bước 03 — feature/auth
+- Đọc kết quả test sau gộp: 228/228 pass, không có lỗi do gộp → không commit `fix(integration)`. Ghi bình luận vào issue #12 (test Ping đã pass khi có `TEST_DATABASE_URL`).
+- Rà cấu hình: `.env.example` lệch tên biến so với `backend/cmd/api/config.go` (SMTP_USER/MAIL_FROM, thiếu APP_BASE_URL…); không sửa được vì settings chặn `Edit(./.env*)` → tạo issue #13. Các mục khác sạch, không có commit `fix(config)`.
+- Rà code rác (deadcode rỗng; knip chỉ báo export/type chưa dùng, đều còn dùng ở bước sau hoặc bản cuối) → không có commit `chore(cleanup)`.
+- `docs/integration/03-auth.md`: báo cáo bước 03.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -50,3 +59,7 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 - Test sau gộp và sau dọn: 10 test, pass 9, fail 1 (cùng test, lỗi môi trường không Docker — issue #12).
 - `go mod tidy`, `npm install --package-lock-only`: không khác biệt. `goose validate`: OK. `sqlc generate`: chưa có query (đúng ở bước này).
 - `golangci-lint run`: 0 issues. `deadcode -test ./...`: rỗng. `gitleaks detect`: no leaks found (87 commit).
+
+### Bước 03
+- Test sau gộp và sau dọn: 228 test, pass 228 (API 67, Unit 86, FE 75); coverage 94.0%.
+- `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate`: OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found.
