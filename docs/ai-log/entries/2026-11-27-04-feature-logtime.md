@@ -19,6 +19,7 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 ## Nội dung AI tạo ra
 - CSDL: migration `20261127114535_add_time_log.sql` (bảng `time_log` với CHECK phút 1–1440 và mô tả 1–500 ký tự; `task_view` thêm `logged_minutes`, `actual_minutes` = cha + con, `subtask_count`, `subtask_done_count`); query `time_log.sql` (tạo, đọc, lịch sử gồm cả log của con, xóa, mốc Done cuối từ `task_move_history`); sinh lại sqlcgen.
 - Domain: `internal/domain/timelog.go` + `timelog_test.go` viết trước (RED → GREEN): chuẩn hóa phút/mô tả, cửa sổ 24 giờ sau Done, ngày làm việc theo giờ Việt Nam, quyền ghi/xóa; lỗi CF-08 trong `errors.go`; `Task` thêm giờ thực tế và số việc con.
+- Application: gói `timelog` (port + service + `service_test.go` viết trước với fake store): ghi/xem/xóa log; quyền theo người nhận của việc gốc, kiểm lại trong giao dịch đã khóa dự án → công việc; luật 24 giờ áp cho cả việc cha khi ghi vào con; phát `task.updated` cho thẻ việc gốc sau commit.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -30,4 +31,4 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 |---|---|---|---|
 
 ## Kiểm chứng
-- `go test ./internal/domain/` xanh.
+- `go test ./internal/domain/ ./internal/application/timelog/` xanh.
