@@ -39,6 +39,13 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 - Rà code rác (deadcode rỗng; knip chỉ báo export/type chưa dùng, đều còn dùng ở bước sau hoặc bản cuối) → không có commit `chore(cleanup)`.
 - `docs/integration/03-auth.md`: báo cáo bước 03.
 
+### Bước 04 — feature/org
+- Đọc kết quả test sau gộp: 513/513 pass, không lỗi do gộp → không commit `fix(integration)`, không tạo issue.
+- Rà cấu hình: bước này không đổi file cấu hình, không thêm biến môi trường; tidy/lockfile/sqlc/goose/gitleaks/golangci-lint sạch → không commit `fix(config)`.
+- Rà code rác: deadcode rỗng; knip chỉ báo export/type (`adminKeys`, `Ref`, `PaginationProps`, `SelectProps`…) giữ nguyên ở bản cuối → không commit `chore(cleanup)`.
+- Ghi điểm không chắc: CEO có quyền ghi cơ cấu tổ chức (`ManageOrg`).
+- `docs/integration/04-org.md`: báo cáo bước 04.
+
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
 
@@ -63,3 +70,7 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 ### Bước 03
 - Test sau gộp và sau dọn: 228 test, pass 228 (API 67, Unit 86, FE 75); coverage 94.0%.
 - `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate`: OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found.
+
+### Bước 04
+- Test sau gộp và sau dọn: 513 test, pass 513 (API 216, Unit 190, FE 107); coverage 92.4%.
+- `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (2 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found.
