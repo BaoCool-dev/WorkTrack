@@ -26,6 +26,8 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 
 ### Bước 07 — docs/manual-testing
 > Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh release/v1 (KHÔNG phải main). Bước 07/9: vừa gộp nhánh docs/manual-testing … Việc phải làm: 1. TEST … 2. CẤU HÌNH … 3. CODE RÁC … 4. Chạy lại … 5. BÁO CÁO docs/integration/07-manual-testing.md … 6. Commit báo cáo qua skill ai-usage-log … [rút gọn]
+### Bước 08 — feature/kanban
+> Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh release/v1 (KHÔNG phải main). Bước 08/9: vừa gộp nhánh feature/kanban … Việc phải làm: 1. TEST … 2. CẤU HÌNH … 3. CODE RÁC … 4. Chạy lại … 5. BÁO CÁO docs/integration/08-kanban.md … 6. Commit báo cáo qua skill ai-usage-log … [rút gọn]
 
 ## Nội dung AI tạo ra
 ### Bước 01 — chore/ai-workflow
@@ -71,6 +73,12 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 - Rà code rác: deadcode rỗng, knip giống bước 06 → giữ; không commit `chore(cleanup)`.
 - `docs/integration/07-manual-testing.md`: báo cáo bước 07.
 
+### Bước 08 — feature/kanban
+- 16 commit CF-04/CF-05 (Kanban kéo thả, WIP, WebSocket, KPI 1) + chuẩn kiểm thử và script test. Test sau gộp/sau dọn 974/974 → không `fix(integration)`, không issue mới.
+- Rà cấu hình: không biến môi trường mới; dependency mới (`coder/websocket`, `@dnd-kit/core`) khớp CLAUDE.md; tidy/lockfile/sqlc sạch; 5 migration validate OK. Không commit `fix(config)`.
+- Rà code rác: deadcode rỗng; export knip báo đều dùng nội bộ và còn ở bản cuối → giữ. Không commit `chore(cleanup)`.
+- `docs/integration/08-kanban.md`: báo cáo bước 08.
+
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
 
@@ -111,3 +119,7 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 ### Bước 07
 - Test sau gộp và sau dọn: 831 test, pass 831 (API 328, Unit 332, FE 171); coverage 90.4%.
 - `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (4 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found. JSON `.claude/settings.json`, `.mcp.json`: hợp lệ.
+
+### Bước 08
+- Test sau gộp và sau dọn: 974 test, pass 974 (API 363, Unit 391, FE 220); coverage 90.2%.
+- `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (5 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found. JSON `.claude/settings.json`, `.mcp.json`: hợp lệ.
