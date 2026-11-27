@@ -53,8 +53,8 @@ export function useProjectTasks(projectId: string, params: TaskListParams) {
   })
 }
 
-export function useTask(id: string) {
-  return useQuery({ queryKey: taskKeys.detail(id), queryFn: () => tasksApi.get(id) })
+export function useTask(id: string, enabled = true) {
+  return useQuery({ queryKey: taskKeys.detail(id), queryFn: () => tasksApi.get(id), enabled })
 }
 
 export function useCreateTask(projectId: string) {

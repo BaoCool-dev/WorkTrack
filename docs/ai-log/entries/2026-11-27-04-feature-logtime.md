@@ -24,6 +24,7 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 - Thẻ Kanban: `TaskCard.tsx` dùng `actualMinutes` thay số 0 tạm, thêm `x/y con`; việc không có định mức chỉ hiện giờ đã log; `TaskCard.test.tsx` viết trước (mức B5, thanh tối đa 100%, việc con).
 - Hạ tầng: `postgres/timelog_repo.go` (TimeLogRepo nhúng TaskRepo, TimeLogTx; ánh xạ CHECK/FK sang lỗi domain) + `timelog_integration_test.go` (giờ con cộng lên cha, lịch sử cha gồm log con, CHECK phút, luật 24 giờ cho cha và con).
 - HTTP: `httpapi/timelog_handler.go` (`GET/POST /tasks/{taskID}/time-logs`, `DELETE /time-logs/{logID}`), ánh xạ 6 lỗi CF-08 trong `errors.go`, `taskResponse` thêm `loggedMinutes`, `actualMinutes`, `subtaskCount`, `subtaskDoneCount`; wiring `main.go`; `timelog_api_test.go` viết trước với service giả (201/200/204, 400, 401, 403, 404, 409).
+- Giao diện Log time: `tasks/model/timeLogForm.ts` + `timeLogForm.test.ts` (viết trước: đọc số giờ có dấu phẩy, làm tròn phút, giới hạn 1440 phút, mô tả 1–500 ký tự, ngày không ở tương lai); `TimeLogSection.tsx` (giờ thực tế/ước tính kèm ký hiệu mức B5, nút Log giờ theo quyền, lịch sử có phân trang, xóa log của mình với xác nhận ngay trong dòng); `LogTimeDialog.tsx` (chọn việc cha hoặc một việc con, ngày làm, số giờ, mô tả; 409 `TIME_LOG_CLOSED` → khối khóa); `TaskDetailDialog.tsx` gắn mục giờ thực tế và chuyển sang hộp Log giờ; `useTask` thêm cờ `enabled` để tải việc cha khi xem việc con; câu chữ trong `messages.ts`.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -34,8 +35,11 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
 | Test API cho rằng `?page=0` bị từ chối 400 | Đoán hành vi `pageFrom` thay vì đọc code (thực tế chuẩn hóa về trang 1) | Test `TestTimeLogAPI_BadInput_CF08/page` đỏ (200) | Đổi ca test sang `page=abc` (không phải số → 400) |
+| Test UI cho CEO mở chi tiết từ `/my-tasks` | Quên guard route: CEO không có trang "Việc của tôi" (TC_TASK_042) | Test "CEO chỉ xem" đỏ: không tìm thấy nút mở chi tiết | CEO mở chi tiết từ tab Công việc của dự án |
+| Test dùng `buttons[0]` (kiểu `HTMLElement \| undefined`) | Quên `noUncheckedIndexedAccess` của tsconfig strict | `tsc --noEmit` báo TS2345 | Dùng `getByRole` trả một phần tử |
 
 ## Kiểm chứng
 - `go test ./internal/domain/ ./internal/application/timelog/` xanh.
 - `go test ./...` và `golangci-lint run` (backend): xanh, 0 issues.
 - Test tích hợp `go test -tags=integration ./internal/infrastructure/postgres/` trên PostgreSQL Homebrew (B12, DB `worktrack_it_logtime`, schema tạm): ok; CI chạy lại.
+- Frontend: `npx vitest run` 278/278 xanh; `eslint`, `tsc --noEmit`, `prettier --check` xanh (`make lint`, `make test` từ gốc repo).

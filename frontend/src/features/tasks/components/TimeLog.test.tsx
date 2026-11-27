@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http as mock, HttpResponse } from 'msw'
 import type { Role, Session } from '@/features/auth'
-import { makeBoard } from '@/features/projects/test-data'
+import { MEMBERS, makeBoard, makeProject } from '@/features/projects/test-data'
 import { messages } from '@/shared/lib/messages'
 import { renderApp } from '@/test/render'
 import { API, server } from '@/test/server'
@@ -44,11 +44,16 @@ function mockAll({ task = parent, subtasks = [], logs = [] }: Mocks = {}) {
     ),
     mock.get(`${API}/api/v1/tasks/${task.id}/comments`, () => HttpResponse.json(page([]))),
     mock.get(`${API}/api/v1/tasks/${task.id}/time-logs`, () => HttpResponse.json(page(logs))),
+    // CEO không có trang "Việc của tôi" → mở chi tiết từ tab Công việc của dự án.
+    mock.get(`${API}/api/v1/projects/p-1`, () => HttpResponse.json(makeProject())),
+    mock.get(`${API}/api/v1/projects/p-1/members`, () => HttpResponse.json({ items: MEMBERS })),
+    mock.get(`${API}/api/v1/projects/p-1/tasks`, () => HttpResponse.json(page([task]))),
+    mock.get(`${API}/api/v1/labels`, () => HttpResponse.json({ items: [] })),
   )
 }
 
 async function openDetail(role: Role = 'member') {
-  const r = renderApp('/my-tasks', role)
+  const r = renderApp(role === 'ceo' ? '/projects/p-1?tab=tasks' : '/my-tasks', role)
   current = r.session
   const user = userEvent.setup()
   await user.click(await screen.findByRole('button', { name: t.list.open(parent.title) }))
@@ -211,7 +216,7 @@ describe('Lịch sử Log giờ (CF-08)', () => {
     const list = await within(dialog).findByRole('list', { name: tl.listLabel })
     const buttons = within(list).getAllByRole('button', { name: /^Xóa log giờ/ })
     expect(buttons).toHaveLength(1)
-    await user.click(buttons[0])
+    await user.click(within(list).getByRole('button', { name: /^Xóa log giờ/ }))
     await user.click(within(list).getByRole('button', { name: tl.confirm }))
     await waitFor(() => {
       expect(deleted).toBe('tl-1')

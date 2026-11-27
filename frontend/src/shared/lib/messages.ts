@@ -497,7 +497,8 @@ export const messages = {
       listLabel: 'Lịch sử Log giờ',
       loadError: 'Không tải được lịch sử Log giờ',
       emptyTitle: 'Chưa có giờ nào được log',
-      emptyHint: 'Ghi lại thời gian bạn đã làm trên công việc này để báo cáo phản ánh đúng thực tế.',
+      emptyHint:
+        'Ghi lại thời gian bạn đã làm trên công việc này để báo cáo phản ánh đúng thực tế.',
       onSubtask: (title: string) => `Việc con: ${title}`,
       delete: 'Xóa',
       deleteLabel: (who: string, date: string) => `Xóa log giờ của ${who} ngày ${date}`,
