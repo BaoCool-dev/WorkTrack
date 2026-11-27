@@ -28,9 +28,11 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
 | Bước 01: commit `fix(config)` đầu tiên bị hook `commit-msg` chặn vì trailer `AI-Log` trỏ tới entry chưa tạo | Viết commit trước khi tạo entry nhật ký | Hook báo "file không tồn tại" | Tạo entry rồi commit lại kèm entry |
+| Bước 01: commit `8712025` đặt `Co-Authored-By` thành đoạn riêng sau `AI-Log`, nên git chỉ coi đoạn cuối là trailer → `ai_log.py check` báo thiếu `AI-Log` | Không để ý cách git phân tích trailer (chỉ đoạn cuối) | Chạy `ai_log.py check` sau commit | Không amend (cấm); các commit sau gộp mọi trailer vào một đoạn; ghi ở báo cáo mục f |
 
 ## Kiểm chứng
 ### Bước 01
 - Test sau gộp và sau dọn: 0 test (chưa có backend/frontend ở bước này).
+- `bash -n` các script/hook, `py_compile` các file Python: OK.
 - `gitleaks detect`: no leaks found (85 commit).
 - JSON hợp lệ: `.claude/settings.json`, `.mcp.json`, `.vscode/*.json`.
