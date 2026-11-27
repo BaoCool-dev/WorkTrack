@@ -1,12 +1,15 @@
 -- name: CreateUser :one
-INSERT INTO app_user (email, full_name, role_id, activation_token_hash, activation_expires_at, created_by)
+INSERT INTO app_user (email, full_name, role_id, activation_token_hash, activation_expires_at, created_by,
+                      department_id, job_title_id)
 VALUES (
     @email,
     @full_name,
     (SELECT r.id FROM role r WHERE r.code = @role_code),
     @activation_token_hash,
     @activation_expires_at,
-    sqlc.narg(created_by)
+    sqlc.narg(created_by),
+    sqlc.narg(department_id),
+    sqlc.narg(job_title_id)
 )
 RETURNING id;
 
@@ -90,12 +93,68 @@ SET full_name = EXCLUDED.full_name,
 RETURNING id;
 
 -- name: ListUsers :many
--- B9: phân trang offset; mới tạo trước.
-SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at
+-- B9: phân trang offset; mới tạo trước. CF-02: lọc theo từ khóa (họ tên/email), vai trò, trạng thái,
+-- chức danh và phòng ban (gồm cả phòng ban con). @search là mẫu ILIKE đã thoát ký tự ở Go.
+WITH RECURSIVE dept_scope AS (
+    SELECT d.id FROM department d WHERE d.id = sqlc.narg(department_id)::uuid
+    UNION -- UNION (không ALL): tự dừng nếu cây lỡ có vòng
+    SELECT c.id FROM department c JOIN dept_scope s ON c.parent_id = s.id
+)
+SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at,
+       u.department_id, d.name AS department_name, u.job_title_id, j.name AS job_title_name
 FROM app_user u
 JOIN role r ON r.id = u.role_id
+LEFT JOIN department d ON d.id = u.department_id
+LEFT JOIN job_title j ON j.id = u.job_title_id
+WHERE (sqlc.narg(search)::text IS NULL
+       OR u.full_name ILIKE sqlc.narg(search)::text ESCAPE '\'
+       OR u.email ILIKE sqlc.narg(search)::text ESCAPE '\')
+  AND (sqlc.narg(role_code)::text IS NULL OR r.code = sqlc.narg(role_code)::text)
+  AND (sqlc.narg(status)::text IS NULL OR u.status = sqlc.narg(status)::text)
+  AND (sqlc.narg(job_title_id)::uuid IS NULL OR u.job_title_id = sqlc.narg(job_title_id)::uuid)
+  AND (sqlc.narg(department_id)::uuid IS NULL OR u.department_id IN (SELECT id FROM dept_scope))
 ORDER BY u.created_at DESC, u.id
 LIMIT @page_limit OFFSET @page_offset;
 
 -- name: CountUsers :one
-SELECT count(*) FROM app_user;
+WITH RECURSIVE dept_scope AS (
+    SELECT d.id FROM department d WHERE d.id = sqlc.narg(department_id)::uuid
+    UNION -- UNION (không ALL): tự dừng nếu cây lỡ có vòng
+    SELECT c.id FROM department c JOIN dept_scope s ON c.parent_id = s.id
+)
+SELECT count(*)
+FROM app_user u
+JOIN role r ON r.id = u.role_id
+WHERE (sqlc.narg(search)::text IS NULL
+       OR u.full_name ILIKE sqlc.narg(search)::text ESCAPE '\'
+       OR u.email ILIKE sqlc.narg(search)::text ESCAPE '\')
+  AND (sqlc.narg(role_code)::text IS NULL OR r.code = sqlc.narg(role_code)::text)
+  AND (sqlc.narg(status)::text IS NULL OR u.status = sqlc.narg(status)::text)
+  AND (sqlc.narg(job_title_id)::uuid IS NULL OR u.job_title_id = sqlc.narg(job_title_id)::uuid)
+  AND (sqlc.narg(department_id)::uuid IS NULL OR u.department_id IN (SELECT id FROM dept_scope));
+
+-- name: GetUserDetail :one
+-- CF-02: một tài khoản kèm phòng ban/chức danh (cùng tập cột với ListUsers).
+SELECT u.id, u.email, u.full_name, r.code AS role_code, u.status, u.last_login_at, u.created_at,
+       u.department_id, d.name AS department_name, u.job_title_id, j.name AS job_title_name
+FROM app_user u
+JOIN role r ON r.id = u.role_id
+LEFT JOIN department d ON d.id = u.department_id
+LEFT JOIN job_title j ON j.id = u.job_title_id
+WHERE u.id = @id;
+
+-- name: UpdateUserProfile :execrows
+-- CF-02: email không sửa được sau khi tạo (mục C).
+UPDATE app_user
+SET full_name = @full_name,
+    role_id = (SELECT r.id FROM role r WHERE r.code = @role_code),
+    department_id = sqlc.narg(department_id),
+    job_title_id = sqlc.narg(job_title_id),
+    updated_at = now()
+WHERE app_user.id = @id;
+
+-- name: SetSeedUserOrg :exec
+-- Chỉ dùng cho make seed.
+UPDATE app_user
+SET department_id = sqlc.narg(department_id), job_title_id = sqlc.narg(job_title_id), updated_at = now()
+WHERE id = @id;

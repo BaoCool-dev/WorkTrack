@@ -6,11 +6,10 @@ import { useForm } from 'react-hook-form'
 import { useNavigate, useSearchParams } from 'react-router'
 import { ApiError } from '@/shared/api/http'
 import { messages } from '@/shared/lib/messages'
-import { Button, EmptyState, ErrorState, Input, Skeleton, useToast } from '@/shared/ui'
+import { Button, EmptyState, ErrorState, FormAlert, Input, Skeleton, useToast } from '@/shared/ui'
 import { authApi } from '../api/auth'
 import { activateSchema, type ActivateValues } from '../model/schemas'
 import { AuthCard } from './AuthCard'
-import { FormAlert } from './FormAlert'
 
 const t = messages.auth
 
