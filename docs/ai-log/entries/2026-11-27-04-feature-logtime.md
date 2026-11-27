@@ -25,6 +25,7 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 - Hạ tầng: `postgres/timelog_repo.go` (TimeLogRepo nhúng TaskRepo, TimeLogTx; ánh xạ CHECK/FK sang lỗi domain) + `timelog_integration_test.go` (giờ con cộng lên cha, lịch sử cha gồm log con, CHECK phút, luật 24 giờ cho cha và con).
 - HTTP: `httpapi/timelog_handler.go` (`GET/POST /tasks/{taskID}/time-logs`, `DELETE /time-logs/{logID}`), ánh xạ 6 lỗi CF-08 trong `errors.go`, `taskResponse` thêm `loggedMinutes`, `actualMinutes`, `subtaskCount`, `subtaskDoneCount`; wiring `main.go`; `timelog_api_test.go` viết trước với service giả (201/200/204, 400, 401, 403, 404, 409).
 - Giao diện Log time: `tasks/model/timeLogForm.ts` + `timeLogForm.test.ts` (viết trước: đọc số giờ có dấu phẩy, làm tròn phút, giới hạn 1440 phút, mô tả 1–500 ký tự, ngày không ở tương lai); `TimeLogSection.tsx` (giờ thực tế/ước tính kèm ký hiệu mức B5, nút Log giờ theo quyền, lịch sử có phân trang, xóa log của mình với xác nhận ngay trong dòng); `LogTimeDialog.tsx` (chọn việc cha hoặc một việc con, ngày làm, số giờ, mô tả; 409 `TIME_LOG_CLOSED` → khối khóa); `TaskDetailDialog.tsx` gắn mục giờ thực tế và chuyển sang hộp Log giờ; `useTask` thêm cờ `enabled` để tải việc cha khi xem việc con; câu chữ trong `messages.ts`.
+- Tài liệu: `docs/testing/manual-test-guide.md` §4.6 CF-08 (các bước trên giao diện, curl ghi/xem/xóa và các ca bị chặn, SQL xem `time_log` và `task_view.actual_minutes` = cha + con, cách giả Done quá 24 giờ trên CSDL dev), dòng `time_log` ở §5.2, checklist CF-08 ở §8.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -43,3 +44,4 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 - `go test ./...` và `golangci-lint run` (backend): xanh, 0 issues.
 - Test tích hợp `go test -tags=integration ./internal/infrastructure/postgres/` trên PostgreSQL Homebrew (B12, DB `worktrack_it_logtime`, schema tạm): ok; CI chạy lại.
 - Frontend: `npx vitest run` 278/278 xanh; `eslint`, `tsc --noEmit`, `prettier --check` xanh (`make lint`, `make test` từ gốc repo).
+- Hướng dẫn kiểm thử thủ công: câu chữ UI đối chiếu với `messages.ts`, đường dẫn/mã lỗi đối chiếu với `router.go` và `errors.go`; chưa chạy curl trực tiếp (app dev không chạy, `make seed` sẽ đặt lại mật khẩu dev).
