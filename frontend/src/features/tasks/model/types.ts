@@ -11,6 +11,10 @@ export const SP_HOURS_MAX = 40
 // Khớp domain/collab.go (CF-07).
 export const COMMENT_MAX = 2000
 export const COMMENT_PAGE_SIZE = 20
+// Khớp domain/timelog.go (CF-08).
+export const TIME_LOG_MINUTES_MAX = 1440
+export const TIME_LOG_NOTE_MAX = 500
+export const TIME_LOG_PAGE_SIZE = 20
 
 export interface Ref {
   id: string
@@ -37,6 +41,12 @@ export interface Task {
   position: number
   /** Tăng sau mỗi lần ghi — gửi kèm khi kéo thả để server phát hiện xung đột (409). */
   version: number
+  /** CF-08: phút đã log trên chính công việc này. */
+  loggedMinutes: number
+  /** CF-08: giờ thực tế (phút) = giờ của chính việc + giờ các việc con. */
+  actualMinutes: number
+  subtaskCount: number
+  subtaskDoneCount: number
   createdAt: string
   updatedAt: string
 }
@@ -87,4 +97,25 @@ export interface Comment {
   author: Ref
   body: string
   createdAt: string
+}
+
+/** Một lần Log time (CF-08). Lịch sử của việc cha gồm cả log của các việc con. */
+export interface TimeLog {
+  id: string
+  taskId: string
+  taskTitle: string
+  /** Khác null khi log thuộc một việc con. */
+  parentId: string | null
+  user: Ref
+  minutes: number
+  note: string
+  /** Ngày làm việc YYYY-MM-DD. */
+  workDate: string
+  createdAt: string
+}
+
+export interface TimeLogInput {
+  minutes: number
+  note: string
+  workDate?: string
 }

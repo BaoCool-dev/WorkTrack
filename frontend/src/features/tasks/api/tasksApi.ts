@@ -9,6 +9,8 @@ import type {
   Task,
   TaskFilters,
   TaskInput,
+  TimeLog,
+  TimeLogInput,
 } from '../model/types'
 
 const id = encodeURIComponent
@@ -70,6 +72,15 @@ export const tasksApi = {
     ),
   createComment: (taskId: string, body: string) =>
     http<Comment>(`/api/v1/tasks/${id(taskId)}/comments`, { method: 'POST', json: { body } }),
+  // CF-08 — Log time.
+  timeLogs: (taskId: string, page: number, pageSize: number) =>
+    http<Page<TimeLog>>(
+      `/api/v1/tasks/${id(taskId)}/time-logs?${new URLSearchParams({ page: String(page), pageSize: String(pageSize) }).toString()}`,
+    ),
+  createTimeLog: (taskId: string, body: TimeLogInput) =>
+    http<TimeLog>(`/api/v1/tasks/${id(taskId)}/time-logs`, { method: 'POST', json: body }),
+  deleteTimeLog: (logId: string) =>
+    http<undefined>(`/api/v1/time-logs/${id(logId)}`, { method: 'DELETE' }),
   settings: () => http<Settings>('/api/v1/settings'),
   updateSettings: (body: { storyPointHours: number }) =>
     http<Settings>('/api/v1/settings', { method: 'PUT', json: body }),
