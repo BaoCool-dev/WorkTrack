@@ -140,7 +140,7 @@ describe('Công việc con trong chi tiết công việc (CF-07)', () => {
     server.use(
       mock.post(`${API}/api/v1/tasks/t-1/subtasks`, () =>
         HttpResponse.json(
-          { error: { code: 'SUBTASK_FORBIDDEN', message: 'Bạn không được thêm việc con.' } },
+          { error: { code: 'SUBTASK_NOT_ALLOWED', message: 'Bạn không được thêm việc con.' } },
           { status: 403 },
         ),
       ),

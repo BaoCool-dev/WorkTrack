@@ -44,4 +44,5 @@ Làm CF-07: công việc con 1 cấp (Member tự tạo, tự chuyển, không S
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - `make lint`: xanh (golangci-lint, eslint, tsc, prettier).
 - `make test`: xanh — Go unit + API; Vitest 243/243 (gồm `TaskCollab.test.tsx` 12, `NotificationBell.test.tsx` 8).
-- Test tích hợp PostgreSQL (`collab_integration_test.go`) chạy trong CI (B12: máy dev không có Docker).
+- Test tích hợp PostgreSQL (`collab_integration_test.go`, thêm ca ghi thẳng `story_point` vào việc con bị CHECK `ck_task_story_point_parent_only` chặn): chạy cục bộ trên PostgreSQL Homebrew (B12: không Docker), DB `worktrack_gate_subtasks` — `go test -tags=integration ./internal/infrastructure/postgres/` ok; CI chạy lại.
+- Tài liệu: hướng dẫn kiểm thử tay §4.5 CF-07 (`docs/testing/manual-test-guide.md`), mục CF-07 trong `traceability-matrix.md`, 2 dòng giả định mục C trong `docs/decisions.md`.

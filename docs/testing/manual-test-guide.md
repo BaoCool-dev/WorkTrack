@@ -860,6 +860,106 @@ GROUP BY p.name, p.wip_limit, v.assignee_name ORDER BY p.name;
 
 ---
 
+### 4.5. CF-07 — Việc con, bình luận, thông báo
+
+**Trên giao diện** (cửa sổ thường đăng nhập Manager, cửa sổ ẩn danh đăng nhập Member):
+1. Manager tạo một công việc trong **Cổng thông tin nội bộ** và giao cho Member. Ở cửa sổ Member, trong vòng
+   30 giây (hoặc tải lại trang) **chuông** trên Topbar có chấm đỏ, nhãn đọc "Thông báo, 1 chưa đọc".
+2. Member bấm chuông → bảng thông báo hiện câu "… đã giao cho bạn công việc …". Bấm vào thông báo → được đánh dấu
+   đã đọc, số chưa đọc giảm. Nút **Đánh dấu đọc hết** báo toast. `Escape` đóng bảng.
+3. Member → **Công việc của tôi** → mở công việc vừa nhận. Hộp chi tiết có khối **Công việc con** (trống: "Chưa có công việc con").
+   Bấm **Thêm việc con** → bấm **Lưu** khi chưa nhập tên → lỗi ngay dưới ô. Nhập tên → **Lưu** → toast, việc con hiện
+   trong danh sách, **không có Story Point**.
+4. Đổi cột việc con qua ô chọn (vd. sang Done) → toast, dòng tiến độ "1/1 việc con đã xong". Member tự chuyển được cả
+   sang Done vì việc con không đi qua luật chuyển cột (R04).
+5. Bấm nút xóa việc con → hỏi xác nhận ngay trong danh sách → **Xóa** → toast.
+6. Mở chi tiết một **việc con** → không có khối Công việc con (chỉ 1 cấp), chỉ có khối Bình luận.
+7. Khối **Bình luận**: gửi rỗng → lỗi "Vui lòng nhập nội dung bình luận."; gõ nội dung → bộ đếm ký tự (tối đa 2000) → **Gửi** →
+   toast, ô nhập được xóa, bình luận hiện cuối danh sách (cũ nhất ở trên) kèm tên tác giả.
+8. Ở cửa sổ Manager, chuông báo "… đã bình luận trong …" kèm trích đoạn. Người viết bình luận không tự nhận thông báo.
+9. Member mở một công việc **không giao cho mình** trong dự án: thấy danh sách việc con chỉ ở dạng đọc (không có nút thêm,
+   không có ô chọn cột), vẫn bình luận được. CEO mở chi tiết: chỉ xem, không có ô bình luận.
+
+**Bằng curl** (cần `H`, `$API` ở §2.2; `SEED_PID`, `MEMBER_ID` ở §4.3 bước 1; hàm `col` ở §4.4 bước 1):
+1. Manager tạo việc cha giao cho Member, Member tạo việc con:
+   ```bash
+   P1=$(jq -n --arg a "$MEMBER_ID" '{title:"Cha CF-07", storyPoint:5, assigneeId:$a}' |
+        curl -s -X POST $API/projects/$SEED_PID/tasks -H "$(H manager)" -H 'Content-Type: application/json' -d @- | jq -r .id)
+   S1=$(curl -s -X POST $API/tasks/$P1/subtasks -H "$(H member)" -H 'Content-Type: application/json' \
+        -d '{"title":"Con 1","description":""}' | jq -r .id)
+   curl -s $API/tasks/$P1/subtasks -H "$(H member)" | jq -c '[.items[] | {title, parentId, storyPoint, column: .column.name}]'
+   ```
+   Mong đợi: một phần tử, `parentId` = `$P1`, `storyPoint` = `null`.
+2. Member chuyển việc con sang Done (không cần version, không qua luật chuyển cột):
+   ```bash
+   DONE=$(col Done)
+   jq -n --arg c "$DONE" '{columnId:$c}' | curl -s -X POST $API/subtasks/$S1/move -H "$(H member)" \
+     -H 'Content-Type: application/json' -d @- | jq -c '{column: .column.name}'
+   ```
+   Mong đợi: `{"column":"Done"}`.
+3. Các ca bị chặn:
+   ```bash
+   # Con của con → 422 SUBTASK_PARENT_NOT_ROOT
+   curl -s -X POST $API/tasks/$S1/subtasks -H "$(H member)" -H 'Content-Type: application/json' -d '{"title":"Cháu","description":""}' | jq -c .error.code
+   # Tên rỗng → 400 VALIDATION_FAILED
+   curl -s -X POST $API/tasks/$P1/subtasks -H "$(H member)" -H 'Content-Type: application/json' -d '{"title":"","description":""}' | jq -c .error.code
+   # Việc không giao cho Member → 403 SUBTASK_NOT_ALLOWED
+   K3=$(curl -s -X POST $API/projects/$SEED_PID/tasks -H "$(H manager)" -H 'Content-Type: application/json' -d '{"title":"Không phải của Member"}' | jq -r .id)
+   curl -s -X POST $API/tasks/$K3/subtasks -H "$(H member)" -H 'Content-Type: application/json' -d '{"title":"x","description":""}' | jq -c .error.code
+   # CEO chỉ xem → 403; Admin không thấy dự án → 404
+   curl -s -X POST $API/tasks/$P1/subtasks -H "$(H ceo)"   -H 'Content-Type: application/json' -d '{"title":"x","description":""}' | jq -c .error.code
+   curl -s -X POST $API/tasks/$P1/subtasks -H "$(H admin)" -H 'Content-Type: application/json' -d '{"title":"x","description":""}' | jq -c .error.code
+   ```
+4. Bình luận và thông báo:
+   ```bash
+   curl -s -X POST $API/tasks/$P1/comments -H "$(H member)" -H 'Content-Type: application/json' -d '{"body":"Xong phần API"}' | jq -c '{author: .author.name, body}'
+   curl -s -X POST $API/tasks/$P1/comments -H "$(H member)" -H 'Content-Type: application/json' -d '{"body":"   "}' | jq -c .error.code   # 422 COMMENT_INVALID
+   python3 -c 'print("{\"body\":\"" + "á"*2001 + "\"}")' |
+     curl -s -X POST $API/tasks/$P1/comments -H "$(H member)" -H 'Content-Type: application/json' -d @- | jq -c .error.code  # 422 COMMENT_INVALID
+   curl -s $API/tasks/$P1/comments -H "$(H manager)" | jq -c '[.items[] | .body]'
+   curl -s $API/me/notifications/unread-count -H "$(H manager)" | jq .count            # ≥ 1 (bình luận)
+   curl -s "$API/me/notifications?unread=true" -H "$(H member)" | jq -c '[.items[] | {type, task: .task.name, read}]'  # có task_assigned
+   ```
+   Mong đợi: 2001 ký tự có dấu bị chặn (đếm theo ký tự, không theo byte; 2000 ký tự thì được).
+5. Đánh dấu đã đọc:
+   ```bash
+   N1=$(curl -s "$API/me/notifications?unread=true" -H "$(H member)" | jq -r '.items[0].id')
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/me/notifications/$N1/read -H "$(H member)"     # 204
+   curl -s -X POST $API/me/notifications/$N1/read -H "$(H manager)" | jq -c .error.code                 # 404: thông báo của người khác
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST $API/me/notifications/read-all -H "$(H member)"    # 204
+   curl -s $API/me/notifications/unread-count -H "$(H member)" | jq .count                              # 0
+   ```
+6. Xóa việc con:
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' -X DELETE $API/subtasks/$S1 -H "$(H member)"   # 204
+   ```
+
+**Xem trong CSDL:**
+```sql
+-- Việc con và việc cha; con không có Story Point
+SELECT c.title AS viec_con, p.title AS viec_cha, c.story_point, bc.name AS cot
+FROM task c JOIN task p ON p.id = c.parent_task_id JOIN board_column bc ON bc.id = c.column_id
+ORDER BY c.created_at DESC LIMIT 10;
+```
+```sql
+-- Ràng buộc ở CSDL: con có Story Point và con của con đều bị chặn (chạy trong giao dịch rồi ROLLBACK)
+BEGIN;
+UPDATE task SET story_point = 3 WHERE parent_task_id IS NOT NULL;     -- lỗi CHECK (23514)
+ROLLBACK;
+```
+```sql
+-- Bình luận và thông báo mới nhất
+SELECT t.title, u.full_name, left(c.body, 40) AS noi_dung, c.created_at
+FROM task_comment c JOIN task t ON t.id = c.task_id JOIN app_user u ON u.id = c.author_id
+ORDER BY c.created_at DESC LIMIT 10;
+
+SELECT u.full_name AS nguoi_nhan, n.type, left(n.message, 40) AS trich, n.read_at, n.created_at
+FROM notification n JOIN app_user u ON u.id = n.user_id
+ORDER BY n.created_at DESC LIMIT 10;
+```
+
+---
+
 ## 5. Xem CSDL bằng psql và pgAdmin
 
 ### 5.1. psql
@@ -1131,6 +1231,17 @@ Không dùng `DROP DATABASE`, không xóa thư mục dữ liệu của PostgreSQ
 - [ ] WebSocket không token → 401, người ngoài dự án → 404 (§4.4 curl bước 6)
 - [ ] KPI 1: p95 ≤ 2 giây trên ≥ 30 lượt (§4.4 curl bước 7)
 - [ ] `task_move_history` có dòng cho mỗi lần đổi cột (SQL §4.4)
+
+### CF-07 — Việc con, bình luận, thông báo
+- [ ] Được giao việc → chuông có chấm đỏ, câu thông báo đúng loại; bấm → đã đọc; đọc hết → toast (§4.5 UI bước 1–2)
+- [ ] Người nhận việc cha thêm việc con, không có Story Point; tên rỗng bị chặn (§4.5 UI bước 3, curl bước 1)
+- [ ] Member tự chuyển việc con kể cả sang Done; tiến độ "x/y việc con đã xong" (§4.5 UI bước 4, curl bước 2)
+- [ ] Con của con → 422 `SUBTASK_PARENT_NOT_ROOT`; việc không phải của mình → 403 `SUBTASK_NOT_ALLOWED`; CEO → 403; Admin → 404 (§4.5 curl bước 3)
+- [ ] Xóa việc con có bước xác nhận (§4.5 UI bước 5)
+- [ ] Bình luận: rỗng/khoảng trắng hoặc > 2000 ký tự → 422 `COMMENT_INVALID`; cũ nhất ở trên (§4.5 curl bước 4)
+- [ ] Có bình luận → người nhận việc và người tạo việc được báo, người viết không tự nhận (§4.5 UI bước 8)
+- [ ] Đánh dấu đọc thông báo của người khác → 404 `NOTIFICATION_NOT_FOUND` (§4.5 curl bước 5)
+- [ ] CSDL chặn Story Point ở việc con (SQL §4.5)
 
 ### Dọn dẹp
 - [ ] Chạy SQL §7.3 với `ROLLBACK` trước, rồi `COMMIT`

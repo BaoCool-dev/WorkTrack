@@ -68,6 +68,9 @@ func TestCollab_ServiceFlow_CF07(t *testing.T) {
 		child.StatusGroup != domain.GroupTodo || child.StoryPoint != nil {
 		t.Fatalf("việc con sai: %+v", child)
 	}
+	// Lớp bảo vệ cuối ở CSDL: ghi thẳng Story Point vào việc con vẫn bị CHECK chặn (R04).
+	_, err = pool.Exec(ctx, `UPDATE task SET story_point = 3 WHERE id = $1`, child.ID)
+	wantCheckViolation(t, err, "ck_task_story_point_parent_only")
 	// Con chỉ 1 cấp.
 	if _, err := subtasks.Create(ctx, mem, child.ID, subtask.Input{Title: "Cháu"}); !errors.Is(err, domain.ErrSubtaskParentNotRoot) {
 		t.Fatalf("cháu: %v", err)
