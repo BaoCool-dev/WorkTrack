@@ -143,6 +143,6 @@ Nguyên tắc chung: **tiếng Anh, không dấu** cho mọi tên file, thư m�
 **Git**
 | Loại | Quy ước | Ví dụ |
 |---|---|---|
-| Nhánh | `<loai>/<ten>` kebab-case (`feature`, `fix`, `chore`, `docs`, `test`) | `feature/kanban`, `fix/logtime-negative`, `test/test-cases` |
+| Nhánh | `<loai>/<ten>` kebab-case (`feature`, `fix`, `chore`, `docs`, `test`, `release`) | `feature/kanban`, `fix/logtime-negative`, `test/test-cases` |
 | Commit | Conventional Commits + mã yêu cầu | `feat(kanban): chặn Member kéo sang Done [CF-04][UC05]` |
 | Tag phiên bản | SemVer có `v` | `v0.1.0` |
