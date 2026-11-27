@@ -15,11 +15,20 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 ### Bước 01 — chore/ai-workflow
 > Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh release/v1 (KHÔNG phải main). Bước 01/9: vừa gộp nhánh chore/ai-workflow … Việc phải làm: 1. TEST … 2. CẤU HÌNH … 3. CODE RÁC … 4. Chạy lại … 5. BÁO CÁO docs/integration/01-ai-workflow.md … 6. Commit báo cáo qua skill ai-usage-log … [rút gọn]
 
+### Bước 02 — chore/scaffold
+> Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh release/v1 (KHÔNG phải main). Bước 02/9: vừa gộp nhánh chore/scaffold … Việc phải làm: 1. TEST … 2. CẤU HÌNH … 3. CODE RÁC … 4. Chạy lại … 5. BÁO CÁO docs/integration/02-scaffold.md … 6. Commit báo cáo qua skill ai-usage-log … [rút gọn]
+
 ## Nội dung AI tạo ra
 ### Bước 01 — chore/ai-workflow
 - `.gitignore`: thêm `.playwright-mcp/` (trước đó chỉ được bỏ qua nhờ `.git/info/exclude` cục bộ).
 - `docs/integration/01-ai-workflow.md`: báo cáo bước 01 (test, cấu hình, code rác, việc người dùng tự kiểm, điểm không chắc chắn).
 - Entry nhật ký này.
+
+### Bước 02 — chore/scaffold
+- Phân loại test lỗi `TestNewPool_RealPostgres_Pings` là lỗi có sẵn (không Docker, B12) → tạo GitHub issue #12, không sửa.
+- Rà cấu hình (env, compose, CI, Makefile, tidy, lockfile, sqlc, goose, gitignore, JSON, gitleaks, golangci-lint): không cần commit `fix(config)`.
+- Rà code rác (deadcode, knip, grep): mọi mục giữ lại vì dùng ở bước sau hoặc bản cuối giữ nguyên; không có commit `chore(cleanup)`.
+- `docs/integration/02-scaffold.md`: báo cáo bước 02.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -36,3 +45,8 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 - `bash -n` các script/hook, `py_compile` các file Python: OK.
 - `gitleaks detect`: no leaks found (85 commit).
 - JSON hợp lệ: `.claude/settings.json`, `.mcp.json`, `.vscode/*.json`.
+
+### Bước 02
+- Test sau gộp và sau dọn: 10 test, pass 9, fail 1 (cùng test, lỗi môi trường không Docker — issue #12).
+- `go mod tidy`, `npm install --package-lock-only`: không khác biệt. `goose validate`: OK. `sqlc generate`: chưa có query (đúng ở bước này).
+- `golangci-lint run`: 0 issues. `deadcode -test ./...`: rỗng. `gitleaks detect`: no leaks found (87 commit).
