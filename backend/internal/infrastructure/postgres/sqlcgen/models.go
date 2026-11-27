@@ -182,6 +182,21 @@ type TaskView struct {
 	CreatedAt        pgtype.Timestamptz `json:"createdAt"`
 	UpdatedAt        pgtype.Timestamptz `json:"updatedAt"`
 	Version          int32              `json:"version"`
+	LoggedMinutes    int32              `json:"loggedMinutes"`
+	ActualMinutes    int32              `json:"actualMinutes"`
+	SubtaskCount     int32              `json:"subtaskCount"`
+	SubtaskDoneCount int32              `json:"subtaskDoneCount"`
+}
+
+type TimeLog struct {
+	ID        uuid.UUID          `json:"id"`
+	TaskID    uuid.UUID          `json:"taskId"`
+	ProjectID uuid.UUID          `json:"projectId"`
+	UserID    uuid.UUID          `json:"userId"`
+	Minutes   int32              `json:"minutes"`
+	Note      string             `json:"note"`
+	WorkDate  pgtype.Date        `json:"workDate"`
+	CreatedAt pgtype.Timestamptz `json:"createdAt"`
 }
 
 type UserSkill struct {

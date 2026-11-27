@@ -59,6 +59,13 @@ type Task struct {
 	// Position: thứ tự trong cột (0 = trên cùng). Version tăng mỗi lần thay đổi — chống ghi đè (CF-04).
 	Position int
 	Version  int
+	// Giờ thực tế (CF-08), tính sẵn trong task_view:
+	// LoggedMinutes là log ghi trực tiếp trên việc này; ActualMinutes = LoggedMinutes + tổng log của các con.
+	LoggedMinutes int
+	ActualMinutes int
+	// SubtaskCount / SubtaskDoneCount: số con và số con ở nhóm done (dòng "2/3 con" trên thẻ).
+	SubtaskCount     int
+	SubtaskDoneCount int
 }
 
 // NormalizeTaskTitle gộp khoảng trắng; 1–200 ký tự.
