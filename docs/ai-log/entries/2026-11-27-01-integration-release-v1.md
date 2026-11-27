@@ -21,6 +21,9 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 ### Bước 03 — feature/auth
 > Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh release/v1 (KHÔNG phải main). Bước 03/9: vừa gộp nhánh feature/auth … Việc phải làm: 1. TEST … 2. CẤU HÌNH … 3. CODE RÁC … 4. Chạy lại … 5. BÁO CÁO docs/integration/03-auth.md … 6. Commit báo cáo qua skill ai-usage-log … [rút gọn]
 
+### Bước 05 — feature/projects
+> Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh release/v1 (KHÔNG phải main). Bước 05/9: vừa gộp nhánh feature/projects … Việc phải làm: 1. TEST … 2. CẤU HÌNH … 3. CODE RÁC … 4. Chạy lại … 5. BÁO CÁO docs/integration/05-projects.md … 6. Commit báo cáo qua skill ai-usage-log … [rút gọn]
+
 ## Nội dung AI tạo ra
 ### Bước 01 — chore/ai-workflow
 - `.gitignore`: thêm `.playwright-mcp/` (trước đó chỉ được bỏ qua nhờ `.git/info/exclude` cục bộ).
@@ -45,6 +48,13 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 - Rà code rác: deadcode rỗng; knip chỉ báo export/type (`adminKeys`, `Ref`, `PaginationProps`, `SelectProps`…) giữ nguyên ở bản cuối → không commit `chore(cleanup)`.
 - Ghi điểm không chắc: CEO có quyền ghi cơ cấu tổ chức (`ManageOrg`).
 - `docs/integration/04-org.md`: báo cáo bước 04.
+
+### Bước 05 — feature/projects
+- Đọc kết quả test sau gộp: 693/693 pass, không lỗi do gộp → không commit `fix(integration)`, không tạo issue.
+- Rà cấu hình: bước này không đổi file cấu hình, không thêm biến môi trường; tidy/lockfile/sqlc/goose (3 migration)/gitleaks/golangci-lint sạch → không commit `fix(config)`.
+- Rà code rác: deadcode rỗng; knip báo thêm `projectKeys` — bản cuối `test/test-cases` dùng ở `features/kanban` → giữ; không commit `chore(cleanup)`.
+- Ghi điểm không chắc: Admin 403/404, Manager phụ trách cố định, độ phủ giảm còn 90,3%, tồn đọng issue #4.
+- `docs/integration/05-projects.md`: báo cáo bước 05.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -74,3 +84,7 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 ### Bước 04
 - Test sau gộp và sau dọn: 513 test, pass 513 (API 216, Unit 190, FE 107); coverage 92.4%.
 - `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (2 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found.
+
+### Bước 05
+- Test sau gộp và sau dọn: 693 test, pass 693 (API 271, Unit 289, FE 133); coverage 90.3%.
+- `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (3 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found.
