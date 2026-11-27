@@ -135,3 +135,14 @@ Dùng agent qa-tester kiểm tra UC07 đã đủ test chưa.
 - [ ] Xác nhận thư viện frontend đề xuất trong `frontend/CLAUDE.md`.
 - [ ] Kiểm tra lại phiên bản Go và các thư viện tại trang chính thức trước khi `go mod init`.
 - [ ] Bật branch protection cho `main` trên GitHub (bắt buộc PR + CI xanh).
+
+## Chạy không người trông (day-run, auto-run, integrate)
+
+Đăng nhập thường của Claude Code có hạn và không tự gia hạn trong chế độ `-p`. Với các lần chạy dài, dùng token dài hạn và lưu trong Keychain của macOS (ngoài repo):
+
+```bash
+claude setup-token
+security add-generic-password -a "$USER" -s worktrack-claude-token -w "<token>"
+```
+
+Các script tự đọc mục `worktrack-claude-token` khi biến `CLAUDE_CODE_OAUTH_TOKEN` chưa được đặt. Đổi token: thêm cờ `-U` vào lệnh `security add-generic-password`.
