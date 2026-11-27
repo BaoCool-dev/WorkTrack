@@ -106,5 +106,7 @@ Môi trường: máy không có Docker (B12).
   - kiểm vai trò tạm ở domain;
   - thao tác con không phụ thuộc trạng thái việc cha.
 
-## CI
-Cập nhật sau khi push (xem bên dưới).
+## CI (PR #15)
+| Lần chạy | Commit | Backend (build → lint → test + integration testcontainers, `-race`) | Frontend (build → lint → test) | gitleaks | Docker build |
+|---|---|---|---|---|---|
+| [45991893281](https://github.com/BaoCool-dev/WorkTrack/actions/runs/45991893281) | 6a750d5 | ✅ 1m46s | ✅ 1m5s | ✅ 7s | ✅ 2m14s |
