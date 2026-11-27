@@ -21,6 +21,7 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 - Domain: `internal/domain/timelog.go` + `timelog_test.go` viết trước (RED → GREEN): chuẩn hóa phút/mô tả, cửa sổ 24 giờ sau Done, ngày làm việc theo giờ Việt Nam, quyền ghi/xóa; lỗi CF-08 trong `errors.go`; `Task` thêm giờ thực tế và số việc con.
 - Application: gói `timelog` (port + service + `service_test.go` viết trước với fake store): ghi/xem/xóa log; quyền theo người nhận của việc gốc, kiểm lại trong giao dịch đã khóa dự án → công việc; luật 24 giờ áp cho cả việc cha khi ghi vào con; phát `task.updated` cho thẻ việc gốc sau commit.
 - Hạ tầng: `postgres/timelog_repo.go` (TimeLogRepo nhúng TaskRepo, TimeLogTx; ánh xạ CHECK/FK sang lỗi domain) + `timelog_integration_test.go` (giờ con cộng lên cha, lịch sử cha gồm log con, CHECK phút, luật 24 giờ cho cha và con).
+- HTTP: `httpapi/timelog_handler.go` (`GET/POST /tasks/{taskID}/time-logs`, `DELETE /time-logs/{logID}`), ánh xạ 6 lỗi CF-08 trong `errors.go`, `taskResponse` thêm `loggedMinutes`, `actualMinutes`, `subtaskCount`, `subtaskDoneCount`; wiring `main.go`; `timelog_api_test.go` viết trước với service giả (201/200/204, 400, 401, 403, 404, 409).
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -30,7 +31,9 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 ## Lỗi / ảo giác của AI
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
+| Test API cho rằng `?page=0` bị từ chối 400 | Đoán hành vi `pageFrom` thay vì đọc code (thực tế chuẩn hóa về trang 1) | Test `TestTimeLogAPI_BadInput_CF08/page` đỏ (200) | Đổi ca test sang `page=abc` (không phải số → 400) |
 
 ## Kiểm chứng
 - `go test ./internal/domain/ ./internal/application/timelog/` xanh.
+- `go test ./...` và `golangci-lint run` (backend): xanh, 0 issues.
 - Test tích hợp `go test -tags=integration ./internal/infrastructure/postgres/` trên PostgreSQL Homebrew (B12, DB `worktrack_it_logtime`, schema tạm): ok; CI chạy lại.

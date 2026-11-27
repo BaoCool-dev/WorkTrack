@@ -26,6 +26,7 @@ import (
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/setting"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/subtask"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/task"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/timelog"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/email"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/realtime"
@@ -143,9 +144,11 @@ func buildDeps(cfg config, pool *pgxpool.Pool) (httpapi.Deps, error) {
 		Comments:      comment.NewService(postgres.NewCommentRepo(pool), postgres.NewCommentTx(pool), projects),
 		Notifications: notification.NewService(postgres.NewNotificationRepo(pool)),
 		Hub:           hub,
-		Labels:        label.NewService(postgres.NewLabelRepo(pool)),
-		Settings:      settings,
-		Tokens:        jwt,
-		Now:           now,
+		// CF-08
+		TimeLogs: timelog.NewService(postgres.NewTimeLogRepo(pool), postgres.NewTimeLogTx(pool), projects, hub, time.Now),
+		Labels:   label.NewService(postgres.NewLabelRepo(pool)),
+		Settings: settings,
+		Tokens:   jwt,
+		Now:      now,
 	}, nil
 }

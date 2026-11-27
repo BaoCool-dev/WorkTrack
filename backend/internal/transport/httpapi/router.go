@@ -30,6 +30,8 @@ type Deps struct {
 	Notifications NotificationService
 	Hub           BoardHub
 	Tokens        TokenVerifier
+	// CF-08
+	TimeLogs TimeLogService
 
 	// Now mặc định time.Now; test truyền đồng hồ giả.
 	Now func() time.Time
@@ -88,6 +90,7 @@ func mountHTTP(r chi.Router, d Deps) {
 	th := &taskHandler{svc: d.Tasks, labels: d.Labels, settings: d.Settings, validate: v}
 	kh := &kanbanHandler{svc: d.Kanban, projects: d.Projects, validate: v}
 	ch := &collabHandler{subtasks: d.Subtasks, comments: d.Comments, notifications: d.Notifications, validate: v}
+	tlh := &timeLogHandler{svc: d.TimeLogs, validate: v}
 	loginRL := newRateLimiter(d.LoginLimit, d.Now)
 	refreshRL := newRateLimiter(d.RefreshLimit, d.Now)
 
@@ -169,7 +172,11 @@ func mountHTTP(r chi.Router, d Deps) {
 				r.Post("/subtasks", ch.createSubtask)
 				r.Get("/comments", ch.listComments)
 				r.Post("/comments", ch.createComment)
+				// CF-08: Log time (cha và con); GET của việc cha gồm cả log của việc con.
+				r.Get("/time-logs", tlh.list)
+				r.Post("/time-logs", tlh.create)
 			})
+			r.Delete("/time-logs/{logID}", tlh.delete)
 			r.Post("/subtasks/{subtaskID}/move", ch.moveSubtask)
 			r.Delete("/subtasks/{subtaskID}", ch.deleteSubtask)
 			// CF-07: chuông thông báo — luôn là thông báo của chính người gọi.
