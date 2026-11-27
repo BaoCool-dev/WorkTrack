@@ -32,6 +32,8 @@ type Store interface {
 	Move(ctx context.Context, id, columnID uuid.UUID) error
 	// Delete xóa con; trả ErrTaskNotFound.
 	Delete(ctx context.Context, id uuid.UUID) error
+	// RecordMove ghi một dòng task_move_history (cùng giao dịch với Move).
+	RecordMove(ctx context.Context, r MoveRecord) error
 }
 
 // Transactor chạy fn trong một transaction; fn lỗi → rollback toàn bộ.
@@ -43,3 +45,6 @@ type Transactor interface {
 type Projects interface {
 	Get(ctx context.Context, actor authz.Principal, id uuid.UUID) (domain.Project, error)
 }
+
+// MoveRecord là một dòng task_move_history khi con đổi cột — để báo cáo luồng việc đọc được cả việc con.
+type MoveRecord struct{ TaskID, ProjectID, FromColumnID, ToColumnID, MovedBy uuid.UUID }

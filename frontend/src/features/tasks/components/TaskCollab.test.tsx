@@ -164,6 +164,15 @@ describe('Công việc con trong chi tiết công việc (CF-07)', () => {
     expect(within(dialog).getByText(ts.readOnly)).toBeInTheDocument()
   })
 
+  it('quyền chuyển việc con theo người nhận việc cha, không theo người nhận ghi trên con', async () => {
+    const other = { id: 'u-other', name: 'Lê Minh Khoa' }
+    // Việc cha vừa được giao lại cho tôi; con vẫn còn người nhận cũ.
+    mockAll({ subtasks: [makeSubtask({ assignee: other })] })
+    const { dialog } = await openDetail()
+    await within(dialog).findByRole('list', { name: ts.listLabel })
+    expect(within(dialog).getByLabelText(ts.column('Viết handler đăng nhập'))).toBeInTheDocument()
+  })
+
   it('chi tiết của một việc con không có khối việc con (chỉ 1 cấp)', async () => {
     const sub = makeSubtask({ assignee: ME })
     mockAll({ task: sub })

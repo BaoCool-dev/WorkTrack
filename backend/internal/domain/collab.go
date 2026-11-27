@@ -17,7 +17,7 @@ const (
 
 // CheckSubtaskActor: ai được tạo / chuyển / xóa công việc con.
 //   - Manager phụ trách dự án luôn được.
-//   - Người nhận của việc (cha khi tạo, con khi chuyển/xóa) được — "Member tự tạo, tự chuyển" (§5.4).
+//   - Người nhận của VIỆC CHA được (cả khi tạo lẫn chuyển/xóa con: quyền đi theo cha, nên cha giao lại thì người mới quản luôn các con) — "Member tự tạo, tự chuyển" (§5.4).
 //   - Member khác không đụng việc của người khác (§5.3). CEO chỉ xem (§5.2), Admin không tham gia dự án.
 //
 // Kiểm "có xem được dự án không" làm trước ở application (trả 404 chống dò ID).

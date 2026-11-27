@@ -255,3 +255,14 @@ func (r *NotificationRepo) MarkAllRead(ctx context.Context, userID uuid.UUID) (i
 	}
 	return int(n), nil
 }
+
+// RecordMove ghi lịch sử chuyển cột của việc con (cùng bảng với Kanban).
+func (r SubtaskRepo) RecordMove(ctx context.Context, m subtask.MoveRecord) error {
+	err := r.q.InsertTaskMoveHistory(ctx, sqlcgen.InsertTaskMoveHistoryParams{
+		TaskID: m.TaskID, ProjectID: m.ProjectID, FromColumnID: m.FromColumnID, ToColumnID: m.ToColumnID, MovedBy: m.MovedBy,
+	})
+	if err != nil {
+		return fmt.Errorf("postgres.SubtaskRepo move history: %w", err)
+	}
+	return nil
+}

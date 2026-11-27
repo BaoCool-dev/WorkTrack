@@ -119,30 +119,32 @@ func (s *Service) Create(ctx context.Context, actor authz.Principal, parentID uu
 	return s.reload(ctx, id)
 }
 
-// Move: người nhận của con (hoặc Manager phụ trách) đổi cột con, sang bất kỳ cột nào của dự án.
-// Vì sao không kiểm luật workflow_transition / WIP: con là việc nhỏ do Member tự quản (§5.4),
-// WIP và nghiệm thu chỉ tính trên việc cha (§5.5, §5.6).
+// Move chuyển con sang cột bất kỳ của dự án — KHÔNG qua luật workflow_transition (R: con tự do).
+// Quyền đi theo người nhận của VIỆC CHA (người được giao phần việc) hoặc Manager của dự án;
+// đọc cha trong giao dịch đã khóa dự án nên không lệch khi cha vừa được giao lại.
+// Chuyển vào chính cột hiện tại là no-op, không ghi lịch sử.
 func (s *Service) Move(ctx context.Context, actor authz.Principal, id, columnID uuid.UUID) (domain.Task, error) {
 	cur, p, err := s.viewChild(ctx, actor, id)
 	if err != nil {
 		return domain.Task{}, err
 	}
-	if err := domain.CheckSubtaskActor(actor.UserID, actor.Role, p.ManagerID, cur.AssigneeID); err != nil {
-		return domain.Task{}, err
-	}
 	err = s.tx.InTx(ctx, func(st Store) error {
-		locked, err := lockTask(ctx, st, cur.ProjectID, id)
+		locked, err := lockChildAndCheck(ctx, st, actor, p.ManagerID, cur.ProjectID, id)
 		if err != nil {
-			return err
-		}
-		if err := domain.CheckSubtaskActor(actor.UserID, actor.Role, p.ManagerID, locked.AssigneeID); err != nil {
 			return err
 		}
 		if _, err := st.ColumnGroup(ctx, locked.ProjectID, columnID); err != nil {
 			return fmt.Errorf("column group: %w", err)
 		}
+		if locked.ColumnID == columnID {
+			return nil
+		}
 		if err := st.Move(ctx, id, columnID); err != nil {
 			return fmt.Errorf("move subtask: %w", err)
+		}
+		rec := MoveRecord{TaskID: id, ProjectID: locked.ProjectID, FromColumnID: locked.ColumnID, ToColumnID: columnID, MovedBy: actor.UserID}
+		if err := st.RecordMove(ctx, rec); err != nil {
+			return fmt.Errorf("record move: %w", err)
 		}
 		return nil
 	})
@@ -158,15 +160,8 @@ func (s *Service) Delete(ctx context.Context, actor authz.Principal, id uuid.UUI
 	if err != nil {
 		return err
 	}
-	if err := domain.CheckSubtaskActor(actor.UserID, actor.Role, p.ManagerID, cur.AssigneeID); err != nil {
-		return err
-	}
 	return s.tx.InTx(ctx, func(st Store) error {
-		locked, err := lockTask(ctx, st, cur.ProjectID, id)
-		if err != nil {
-			return err
-		}
-		if err := domain.CheckSubtaskActor(actor.UserID, actor.Role, p.ManagerID, locked.AssigneeID); err != nil {
+		if _, err := lockChildAndCheck(ctx, st, actor, p.ManagerID, cur.ProjectID, id); err != nil {
 			return err
 		}
 		if err := st.Delete(ctx, id); err != nil {
@@ -174,6 +169,25 @@ func (s *Service) Delete(ctx context.Context, actor authz.Principal, id uuid.UUI
 		}
 		return nil
 	})
+}
+
+// lockChildAndCheck khóa dự án → con, đọc việc cha rồi kiểm tra quyền theo người nhận của cha.
+func lockChildAndCheck(ctx context.Context, st Store, actor authz.Principal, managerID, projectID, id uuid.UUID) (domain.Task, error) {
+	locked, err := lockTask(ctx, st, projectID, id)
+	if err != nil {
+		return domain.Task{}, err
+	}
+	if locked.ParentID == nil {
+		return domain.Task{}, domain.ErrTaskNotFound
+	}
+	parent, err := st.Get(ctx, *locked.ParentID)
+	if err != nil {
+		return domain.Task{}, fmt.Errorf("get parent: %w", err)
+	}
+	if err := domain.CheckSubtaskActor(actor.UserID, actor.Role, managerID, parent.AssigneeID); err != nil {
+		return domain.Task{}, err
+	}
+	return locked, nil
 }
 
 // lockTask khóa dự án rồi công việc (thứ tự cố định như kanban.Service.Move) và đọc bản đã khóa.

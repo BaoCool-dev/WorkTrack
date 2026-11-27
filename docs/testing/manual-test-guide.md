@@ -879,6 +879,8 @@ GROUP BY p.name, p.wip_limit, v.assignee_name ORDER BY p.name;
 8. Ở cửa sổ Manager, chuông báo "… đã bình luận trong …" kèm trích đoạn. Người viết bình luận không tự nhận thông báo.
 9. Member mở một công việc **không giao cho mình** trong dự án: thấy danh sách việc con chỉ ở dạng đọc (không có nút thêm,
    không có ô chọn cột), vẫn bình luận được. CEO mở chi tiết: chỉ xem, không có ô bình luận.
+10. Manager giao lại việc cha (đã có con) cho Member khác → Member mới chuyển/xóa được các con; Member cũ chỉ còn xem
+   (quyền trên con đi theo người nhận việc cha).
 
 **Bằng curl** (cần `H`, `$API` ở §2.2; `SEED_PID`, `MEMBER_ID` ở §4.3 bước 1; hàm `col` ở §4.4 bước 1):
 1. Manager tạo việc cha giao cho Member, Member tạo việc con:
@@ -896,7 +898,7 @@ GROUP BY p.name, p.wip_limit, v.assignee_name ORDER BY p.name;
    jq -n --arg c "$DONE" '{columnId:$c}' | curl -s -X POST $API/subtasks/$S1/move -H "$(H member)" \
      -H 'Content-Type: application/json' -d @- | jq -c '{column: .column.name}'
    ```
-   Mong đợi: `{"column":"Done"}`.
+   Mong đợi: `{"column":"Done"}`. Gửi lại cùng cột → vẫn 200, không ghi thêm dòng lịch sử (xem SQL `task_move_history` bên dưới).
 3. Các ca bị chặn:
    ```bash
    # Con của con → 422 SUBTASK_PARENT_NOT_ROOT
@@ -940,6 +942,13 @@ GROUP BY p.name, p.wip_limit, v.assignee_name ORDER BY p.name;
 SELECT c.title AS viec_con, p.title AS viec_cha, c.story_point, bc.name AS cot
 FROM task c JOIN task p ON p.id = c.parent_task_id JOIN board_column bc ON bc.id = c.column_id
 ORDER BY c.created_at DESC LIMIT 10;
+```
+```sql
+-- Lịch sử chuyển cột của việc con (mỗi lần đổi cột thật một dòng; cùng cột không ghi)
+SELECT t.title, f.name AS tu_cot, c.name AS sang_cot, h.moved_at
+FROM task_move_history h JOIN task t ON t.id = h.task_id
+JOIN board_column f ON f.id = h.from_column_id JOIN board_column c ON c.id = h.to_column_id
+WHERE t.parent_task_id IS NOT NULL ORDER BY h.moved_at DESC LIMIT 10;
 ```
 ```sql
 -- Ràng buộc ở CSDL: con có Story Point và con của con đều bị chặn (chạy trong giao dịch rồi ROLLBACK)

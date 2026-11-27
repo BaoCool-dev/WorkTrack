@@ -31,6 +31,12 @@ type fakeStore struct {
 	todo      uuid.UUID
 	projLocks int
 	locks     int
+	moves     []subtask.MoveRecord
+}
+
+func (f *fakeStore) RecordMove(_ context.Context, r subtask.MoveRecord) error {
+	f.moves = append(f.moves, r)
+	return nil
 }
 
 func (f *fakeStore) InTx(_ context.Context, fn func(subtask.Store) error) error {
@@ -301,5 +307,110 @@ func TestDelete_CF07(t *testing.T) {
 	}
 	if _, ok := f.st.tasks[c.ID]; ok {
 		t.Fatal("con phải bị xóa")
+	}
+}
+
+// Quyền trên con đi theo người nhận của VIỆC CHA (người được giao phần việc), không theo bản sao trên con.
+func TestSubtaskPermissionFollowsParent_CF07(t *testing.T) {
+	ctx := context.Background()
+	reassign := func(f fixture, to *uuid.UUID) {
+		p := f.st.tasks[f.parent.ID]
+		p.AssigneeID = to
+		f.st.tasks[f.parent.ID] = p
+	}
+	t.Run("cha được giao lại: người nhận mới chuyển/xóa được, người cũ bị chặn", func(t *testing.T) {
+		f := setup(t)
+		c, err := f.svc.Create(ctx, f.member, f.parent.ID, subtask.Input{Title: "A"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		oid := f.other.UserID
+		reassign(f, &oid)
+		if _, err := f.svc.Move(ctx, f.member, c.ID, f.prog); !errors.Is(err, domain.ErrSubtaskNotAllowed) {
+			t.Fatalf("người nhận cũ: %v", err)
+		}
+		if err := f.svc.Delete(ctx, f.member, c.ID); !errors.Is(err, domain.ErrSubtaskNotAllowed) {
+			t.Fatalf("người nhận cũ xóa: %v", err)
+		}
+		if _, err := f.svc.Move(ctx, f.other, c.ID, f.prog); err != nil {
+			t.Fatalf("người nhận mới: %v", err)
+		}
+		if err := f.svc.Delete(ctx, f.other, c.ID); err != nil {
+			t.Fatalf("người nhận mới xóa: %v", err)
+		}
+	})
+	t.Run("cha chưa có người nhận: chỉ Manager phụ trách", func(t *testing.T) {
+		f := setup(t)
+		c, err := f.svc.Create(ctx, f.member, f.parent.ID, subtask.Input{Title: "A"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		reassign(f, nil)
+		if _, err := f.svc.Move(ctx, f.member, c.ID, f.prog); !errors.Is(err, domain.ErrSubtaskNotAllowed) {
+			t.Fatalf("member: %v", err)
+		}
+		if _, err := f.svc.Move(ctx, f.pm, c.ID, f.prog); err != nil {
+			t.Fatalf("pm: %v", err)
+		}
+		if err := f.svc.Delete(ctx, f.pm, c.ID); err != nil {
+			t.Fatalf("pm xóa: %v", err)
+		}
+	})
+	t.Run("CEO chỉ xem: Move/Delete bị cấm", func(t *testing.T) {
+		f := setup(t)
+		c, err := f.svc.Create(ctx, f.member, f.parent.ID, subtask.Input{Title: "A"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.svc.Move(ctx, f.ceo, c.ID, f.prog); !errors.Is(err, domain.ErrForbidden) {
+			t.Fatalf("CEO move: %v", err)
+		}
+		if err := f.svc.Delete(ctx, f.ceo, c.ID); !errors.Is(err, domain.ErrForbidden) {
+			t.Fatalf("CEO delete: %v", err)
+		}
+		if _, ok := f.st.tasks[c.ID]; !ok {
+			t.Fatal("con không được bị xóa")
+		}
+	})
+	t.Run("Manager ngoài dự án → 404", func(t *testing.T) {
+		f := setup(t)
+		c, err := f.svc.Create(ctx, f.member, f.parent.ID, subtask.Input{Title: "A"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		mgr := authz.Principal{UserID: uuid.New(), Role: domain.RoleManager}
+		if _, err := f.svc.Move(ctx, mgr, c.ID, f.prog); !errors.Is(err, domain.ErrTaskNotFound) {
+			t.Fatalf("move: %v", err)
+		}
+		if err := f.svc.Delete(ctx, mgr, c.ID); !errors.Is(err, domain.ErrTaskNotFound) {
+			t.Fatalf("delete: %v", err)
+		}
+	})
+}
+
+func TestMoveHistory_CF07(t *testing.T) {
+	ctx := context.Background()
+	f := setup(t)
+	c, err := f.svc.Create(ctx, f.member, f.parent.ID, subtask.Input{Title: "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Move(ctx, f.member, c.ID, f.prog); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.st.moves) != 1 {
+		t.Fatalf("phải ghi 1 dòng lịch sử, có %d", len(f.st.moves))
+	}
+	m := f.st.moves[0]
+	if m.TaskID != c.ID || m.ProjectID != c.ProjectID || m.FromColumnID != f.todo || m.ToColumnID != f.prog || m.MovedBy != f.member.UserID {
+		t.Fatalf("lịch sử sai: %+v", m)
+	}
+	// Chuyển vào chính cột hiện tại: không đổi gì, không ghi lịch sử.
+	got, err := f.svc.Move(ctx, f.member, c.ID, f.prog)
+	if err != nil || got.ColumnID != f.prog {
+		t.Fatalf("cùng cột: %+v %v", got, err)
+	}
+	if len(f.st.moves) != 1 {
+		t.Fatalf("cùng cột không ghi lịch sử, có %d", len(f.st.moves))
 	}
 }

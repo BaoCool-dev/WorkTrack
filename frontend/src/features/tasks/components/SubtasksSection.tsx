@@ -31,7 +31,8 @@ function errorText(err: unknown): string {
  * Công việc con của một việc cha (CF-07). Con chỉ 1 cấp, không Story Point.
  * Quyền ở đây chỉ để ẩn nút — server (CheckSubtaskActor) mới là nơi chặn thật:
  * - thêm con: Manager phụ trách dự án hoặc người nhận việc cha;
- * - chuyển/xóa con: Manager hoặc người nhận chính việc con đó.
+ * - chuyển/xóa con: Manager hoặc người nhận việc cha — quyền đi theo cha, nên khi cha được
+ *   giao lại thì người nhận mới quản luôn các con (bản sao người nhận trên con có thể cũ).
  */
 export function SubtasksSection({ task, canEdit }: { task: Task; canEdit: boolean }) {
   const { user } = useAuth()
@@ -63,13 +64,7 @@ export function SubtasksSection({ task, canEdit }: { task: Task; canEdit: boolea
         className="flex flex-col divide-y divide-line rounded-md border border-line"
       >
         {subs.map((s) => (
-          <SubtaskRow
-            key={s.id}
-            parentId={task.id}
-            sub={s}
-            columns={columns}
-            canChange={canEdit || (user !== null && s.assignee?.id === user.id)}
-          />
+          <SubtaskRow key={s.id} parentId={task.id} sub={s} columns={columns} canChange={canAdd} />
         ))}
       </ul>
     )

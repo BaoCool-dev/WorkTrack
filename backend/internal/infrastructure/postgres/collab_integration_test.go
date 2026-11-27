@@ -100,6 +100,11 @@ func TestCollab_ServiceFlow_CF07(t *testing.T) {
 	if err != nil || moved.StatusGroup != domain.GroupInProgress {
 		t.Fatalf("chuyển con: %+v %v", moved, err)
 	}
+	// Chuyển cột của con được ghi vào task_move_history (cùng giao dịch).
+	var hist int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM task_move_history WHERE task_id = $1 AND to_column_id = $2`, child.ID, inProgress).Scan(&hist); err != nil || hist != 1 {
+		t.Fatalf("lịch sử chuyển con: %d %v", hist, err)
+	}
 	otherBoard, err := projects.GetBoard(ctx, mgr, other.ID)
 	if err != nil {
 		t.Fatal(err)
