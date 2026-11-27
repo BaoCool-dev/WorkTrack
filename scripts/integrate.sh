@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Gộp LẦN LƯỢT các nhánh vào một nhánh tích hợp mới (mặc định release/v1, KHÔNG đụng main).
 # Sau MỖI lần gộp: chạy lại toàn bộ test, rà cấu hình, tìm và dọn code rác, chạy lại test, viết báo cáo,
-# gắn tag cục bộ integ/NN-<nhánh> để người dùng tự kiểm từng bước:  git diff integ/03-auth integ/04-org
+# gắn tag integ/NN-<nhánh> và đẩy nhánh sao lưu integration/NN-<nhánh> lên GitHub: git diff integ/03-auth integ/04-org
 #
 #   ./scripts/integrate.sh                    # chạy hết các bước còn lại
 #   ./scripts/integrate.sh --step             # chỉ làm 1 bước tiếp theo rồi dừng (để bạn kiểm xong mới chạy tiếp)
@@ -23,6 +23,10 @@ while [ $# -gt 0 ]; do case "$1" in
 [ "$TARGET" = "main" ] && { echo "✗ Không tích hợp thẳng vào main."; exit 2; }
 
 PLAN=(chore/ai-workflow chore/scaffold feature/auth feature/org feature/projects feature/tasks docs/manual-testing feature/kanban test/test-cases)
+# Các chức năng làm sau (giai đoạn 2) — chỉ đưa vào kế hoạch khi nhánh đã tồn tại
+for b in feature/subtasks feature/logtime feature/review feature/reports feature/ai; do
+  git show-ref -q "refs/heads/$b" && PLAN+=("$b")
+done
 FINAL="${PLAN[${#PLAN[@]}-1]}"
 
 if [ -z "${USE_API_KEY:-}" ]; then unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN; fi
@@ -106,7 +110,11 @@ t=t if t>now else t+datetime.timedelta(days=1); print(int((t-now).total_seconds(
     notify "Dừng ở bước $NN ($BR) — xem $RUN/ và docs/integration/"; exit 1
   fi
   git tag -f "$TAG" >/dev/null
-  [ "$PUSH" = 1 ] && git push -q -u origin "$TARGET"
+  SNAP="integration/$NN-$SLUG"; git branch -f "$SNAP" HEAD >/dev/null
+  if [ "$PUSH" = 1 ]; then
+    git push -q -u origin "$TARGET"
+    git push -q origin "$SNAP" "refs/tags/$TAG" 2>/dev/null || echo "⚠ Không đẩy được $SNAP hoặc tag $TAG (đã có trên GitHub?)"
+  fi
   notify "Xong bước $NN: $BR — báo cáo docs/integration/$NN-$SLUG.md"
   PREV_TAG="$TAG"
   [ "$ONE" = 1 ] && { echo "Dừng theo --step. Kiểm tra xong thì chạy lại lệnh để làm bước tiếp theo."; exit 0; }

@@ -59,7 +59,7 @@ gate_file() { echo "docs/gates/$(echo "$1" | tr '/' '-').md"; }
 notify() { command -v osascript >/dev/null && osascript -e "display notification \"$1\" with title \"WorkTrack auto-run\"" >/dev/null 2>&1; echo "$1"; }
 
 echo "== Kế hoạch (giai đoạn $PHASE), nhánh gốc: $START_BASE"
-for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$ONLY" ] && [ "$b" != "$ONLY" ] && continue; echo "   - $b"; done
+_skip="$FROM"; for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$_skip" ] && [ "$b" != "$_skip" ] && continue; _skip=""; [ -n "$ONLY" ] && [ "$b" != "$ONLY" ] && continue; echo "   - $b"; done
 [ "$DRY" = 1 ] && exit 0
 
 # ---- Kiểm tra trước khi chạy ----------------------------------------------------
@@ -89,7 +89,7 @@ command -v caffeinate >/dev/null && { caffeinate -dims -w $$ & }
 BASE="$START_BASE"
 for item in "${PLAN[@]}"; do
   BR="${item%%|*}"; SCOPE="${item#*|}"
-  if [ -n "$FROM" ]; then if [ "$BR" = "$FROM" ]; then FROM=""; else BASE="$BR"; continue; fi; fi
+  if [ -n "$FROM" ]; then if [ "$BR" = "$FROM" ]; then FROM=""; [ -n "$BASE_ARG" ] && BASE="$BASE_ARG"; else BASE="$BR"; continue; fi; fi
   if [ -n "$ONLY" ] && [ "$BR" != "$ONLY" ]; then BASE="$BR"; continue; fi
   echo; echo "================ $BR  (từ $BASE) ================"
 
