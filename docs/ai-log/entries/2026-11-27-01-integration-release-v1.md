@@ -123,3 +123,8 @@ Gộp lần lượt các nhánh tính năng vào `release/v1` (không phải `ma
 ### Bước 08
 - Test sau gộp và sau dọn: 974 test, pass 974 (API 363, Unit 391, FE 220); coverage 90.2%.
 - `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (5 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found. JSON `.claude/settings.json`, `.mcp.json`: hợp lệ.
+
+### Bước 09
+- Gộp `test/test-cases` (không xung đột). Test sau gộp và sau dọn: 1150 test, pass 1150 (API 363, Integration 7, Unit 557, FE 223); coverage 90.4%.
+- `go mod tidy`, lockfile, `sqlc generate`: không khác biệt. `goose validate` (5 migration): OK. `golangci-lint run`: 0 issues. `gitleaks detect`: no leaks found. JSON `.claude/settings.json`, `.mcp.json`: hợp lệ.
+- Không có commit `fix(integration)`/`fix(config)`/`chore(cleanup)`. Ghi chú: `deny` `.env*` trong settings bị thu hẹp — để người dùng quyết (báo cáo §f).
