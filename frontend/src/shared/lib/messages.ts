@@ -603,6 +603,7 @@ export const messages = {
     dragHandle: (title: string) => `Kéo thẻ ${title}`,
     sp: (n: number) => `${String(n)} SP`,
     hours: (actual: string, est: string) => `${actual}/${est}h`,
+    subtasks: (done: number, total: number) => `${String(done)}/${String(total)} con`,
     unassigned: 'Chưa giao',
     hoursLevel: {
       legend: 'Mức giờ',

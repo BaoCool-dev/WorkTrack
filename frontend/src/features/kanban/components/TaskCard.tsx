@@ -2,7 +2,7 @@ import { useDraggable, useDroppable } from '@dnd-kit/core'
 
 import type { Task } from '@/features/tasks'
 import { cn } from '@/shared/lib/cn'
-import { formatHoursValue } from '@/shared/lib/format'
+import { formatHours, formatHoursValue } from '@/shared/lib/format'
 import { getHoursLevel } from '@/shared/lib/hoursLevel'
 import { messages } from '@/shared/lib/messages'
 import { Avatar, LabelChip } from '@/shared/ui'
@@ -74,8 +74,9 @@ export function DraggableTaskCard({ task, draggable, onOpen }: CardDnd) {
 
 /** Phần hiển thị thuần của thẻ — dùng lại cho bản nổi (DragOverlay) khi đang kéo. */
 export function TaskCardView({ task, lifted = false }: { task: Task; lifted?: boolean }) {
-  // Chưa có Log time (CF-08) nên giờ thực tế tạm là 0 — thanh giờ luôn ở mức "trong định mức".
-  const actualHours = 0
+  // Giờ thực tế = giờ log trên chính việc + giờ log trên các việc con (server tính sẵn, R07).
+  const actualHours = task.actualMinutes / 60
+  const hasEstimate = task.estimatedMinutes !== null
   const estHours = (task.estimatedMinutes ?? 0) / 60
   const level = getHoursLevel(actualHours, estHours)
   const fill = estHours > 0 ? Math.min(100, (actualHours / estHours) * 100) : 0
@@ -102,13 +103,26 @@ export function TaskCardView({ task, lifted = false }: { task: Task; lifted?: bo
         )}
       </div>
       <div className="h-1 overflow-hidden rounded-full bg-line" aria-hidden>
-        <div className={cn('h-full', barClass[level])} style={{ width: `${String(fill)}%` }} />
+        <div
+          data-testid="hours-fill"
+          className={cn('h-full', barClass[level])}
+          style={{ width: `${String(fill)}%` }}
+        />
       </div>
       <div className="flex min-w-0 items-center gap-1.5 text-sm text-ink-muted">
-        {task.estimatedMinutes !== null && (
+        {hasEstimate ? (
           <span className="num inline-flex shrink-0 items-center gap-1">
             <HoursLevelMark level={level} labelled />
             {t.hours(formatHoursValue(actualHours), formatHoursValue(estHours))}
+          </span>
+        ) : (
+          // Việc con (và việc cha chưa ước lượng) không có định mức → chỉ hiện giờ đã log, không xếp mức.
+          actualHours > 0 && <span className="num shrink-0">{formatHours(actualHours)}</span>
+        )}
+        {task.subtaskCount > 0 && (
+          <span className="num inline-flex shrink-0 gap-1.5">
+            <span aria-hidden>·</span>
+            <span>{t.subtasks(task.subtaskDoneCount, task.subtaskCount)}</span>
           </span>
         )}
         <span className="flex min-w-0 flex-1 gap-1 overflow-hidden">
