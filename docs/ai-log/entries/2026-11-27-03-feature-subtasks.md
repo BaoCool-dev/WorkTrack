@@ -27,6 +27,7 @@ Làm CF-07: công việc con 1 cấp (Member tự tạo, tự chuyển, không S
 - Hạ tầng: `postgres/collab_repo.go` (SubtaskRepo, CommentRepo, NotificationRepo, ghi thông báo theo lô), `checkViolation` (23514) trong `convert.go`, test tích hợp `collab_integration_test.go` (chạy trong CI).
 - HTTP: `httpapi/collab_handler.go` (route việc con, bình luận, `/me/notifications`), ánh xạ 4 lỗi CF-07 trong `errors.go`, `parentId` trong `taskResponse`, wiring `main.go`; `collab_api_test.go` viết trước với service giả.
 - Sửa sau review: quyền chuyển/xóa con đi theo người nhận **việc cha** (đọc cha trong giao dịch đã khóa); chuyển con ghi `task_move_history`, cùng cột là no-op; migration `20261127065443_add_notification_fk_indexes.sql` (index `task_id`, `project_id` của `notification` cho ON DELETE CASCADE); FE `SubtasksSection` dùng cùng điều kiện quyền.
+- Sửa sau gate review: bình luận ở việc con báo người nhận **hiện tại của việc cha** (`comment.Service.currentAssignee`, test `TestCommentOnSubtaskNotifiesParentAssignee_CF07`); Esc ở bước xác nhận xóa việc con chỉ hủy xác nhận (không đóng hộp thoại), focus vào nút Hủy, nhóm có `aria-labelledby`. qa-tester thêm test API: 401 trên 10 endpoint, UUID/JSON/query sai → 400, biên tên việc con, ánh xạ lỗi bình luận, HTML trong bình luận; test FE hiển thị HTML dạng chữ.
 - Frontend: `features/tasks` (type, API, hook TanStack Query cho việc con và bình luận; `SubtasksSection`, `CommentsSection` trong `TaskDetailDialog`; `TaskCollab.test.tsx` viết trước); feature mới `features/notifications` (API, hook đếm chưa đọc 30 giây/lần, `NotificationBell` ở `Topbar`, `NotificationBell.test.tsx` viết trước); chữ hiển thị trong `messages.ts`; handler MSW mặc định cho `unread-count` trong `test/server.ts`.
 
 ## Phần tôi đã sửa / hoàn thiện
@@ -46,6 +47,6 @@ Làm CF-07: công việc con 1 cấp (Member tự tạo, tự chuyển, không S
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
 - `make lint`: xanh (golangci-lint, eslint, tsc, prettier).
-- `make test`: xanh — Go unit + API; Vitest 244/244 (gồm `TaskCollab.test.tsx` 12, `NotificationBell.test.tsx` 8).
+- `make test`: xanh — Go unit + API; Vitest 247/247 sau gate review.
 - Test tích hợp PostgreSQL (`collab_integration_test.go`, thêm ca ghi thẳng `story_point` vào việc con bị CHECK `ck_task_story_point_parent_only` chặn): chạy cục bộ trên PostgreSQL Homebrew (B12: không Docker), DB `worktrack_gate_subtasks` — `go test -tags=integration ./internal/infrastructure/postgres/` ok; CI chạy lại.
-- Tài liệu: hướng dẫn kiểm thử tay §4.5 CF-07 (`docs/testing/manual-test-guide.md`), mục CF-07 trong `traceability-matrix.md`, 2 dòng giả định mục C trong `docs/decisions.md`.
+- Tài liệu: hướng dẫn kiểm thử tay §4.5 CF-07 (`docs/testing/manual-test-guide.md`), mục CF-07 trong `traceability-matrix.md`, các dòng giả định mục C trong `docs/decisions.md`.

@@ -135,6 +135,21 @@ describe('Công việc con trong chi tiết công việc (CF-07)', () => {
     expect(deleted).toBe(true)
   })
 
+  it('Esc ở bước xác nhận xóa chỉ hủy xác nhận, không đóng hộp thoại công việc', async () => {
+    mockAll({ subtasks: [makeSubtask({ assignee: ME })] })
+    const { user, dialog } = await openDetail()
+    await user.click(
+      await within(dialog).findByRole('button', { name: ts.remove('Viết handler đăng nhập') }),
+    )
+    const group = within(dialog).getByRole('group', {
+      name: ts.removeTitle('Viết handler đăng nhập'),
+    })
+    expect(within(group).getByRole('button', { name: ts.cancel })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(within(dialog).queryByText(ts.removeTitle('Viết handler đăng nhập'))).toBeNull()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
   it('lỗi server khi thêm việc con hiện ngay trong khối', async () => {
     mockAll()
     server.use(
@@ -229,6 +244,15 @@ describe('Bình luận trong chi tiết công việc (CF-07)', () => {
     await waitFor(() => {
       expect(box).toHaveValue('')
     })
+  })
+
+  it('bình luận chứa HTML hiển thị nguyên văn, không thành thẻ (đoán lỗi XSS)', async () => {
+    const xss = '<img src=x onerror="alert(1)"><script>alert("xss")</script>'
+    mockAll({ comments: [makeComment({ body: xss })] })
+    const { dialog } = await openDetail()
+    const list = await within(dialog).findByRole('list', { name: tc.listLabel })
+    expect(within(list).getByRole('listitem')).toHaveTextContent(xss)
+    expect(list.querySelector('img, script')).toBeNull()
   })
 
   it('lỗi tải bình luận hiện ErrorState', async () => {

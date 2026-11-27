@@ -27,6 +27,7 @@ func (f *fakeProjects) Get(_ context.Context, actor authz.Principal, id uuid.UUI
 
 type fakeStore struct {
 	task      domain.Task
+	parents   map[uuid.UUID]domain.Task
 	comments  []domain.Comment
 	notes     []domain.NewNotification
 	failNotes bool
@@ -42,6 +43,9 @@ func (f *fakeStore) InTx(_ context.Context, fn func(comment.Store) error) error 
 }
 
 func (f *fakeStore) GetTask(_ context.Context, id uuid.UUID) (domain.Task, error) {
+	if p, ok := f.parents[id]; ok {
+		return p, nil
+	}
 	if id != f.task.ID {
 		return domain.Task{}, domain.ErrTaskNotFound
 	}
@@ -162,5 +166,24 @@ func TestListComments_CF07(t *testing.T) {
 	}
 	if _, err := f.svc.List(ctx, f.outsider, f.st.task.ID, domain.NewPageRequest(1, 20)); !errors.Is(err, domain.ErrTaskNotFound) {
 		t.Fatalf("got %v", err)
+	}
+}
+
+// Bình luận ở việc con báo người nhận HIỆN TẠI của cha (quyền việc con đi theo cha, mục C),
+// không báo người nhận cũ đã chép vào con lúc tạo.
+func TestCommentOnSubtaskNotifiesParentAssignee_CF07(t *testing.T) {
+	f := setup()
+	oldAssignee := f.st.task.AssigneeID
+	newAssignee := f.other.UserID
+	parent := domain.Task{ID: uuid.New(), ProjectID: f.st.task.ProjectID, AssigneeID: &newAssignee, CreatedBy: f.pm.UserID}
+	f.st.parents = map[uuid.UUID]domain.Task{parent.ID: parent}
+	f.st.task.ParentID = &parent.ID
+
+	if _, err := f.svc.Create(context.Background(), f.pm, f.st.task.ID, "Cập nhật"); err != nil {
+		t.Fatal(err)
+	}
+	got := f.st.notes[0].UserIDs
+	if len(got) != 1 || got[0] != newAssignee {
+		t.Fatalf("người nhận thông báo = %v; muốn chỉ %v (không gồm người cũ %v)", got, newAssignee, *oldAssignee)
 	}
 }

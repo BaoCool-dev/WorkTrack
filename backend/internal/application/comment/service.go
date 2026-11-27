@@ -75,8 +75,12 @@ func (s *Service) Create(ctx context.Context, actor authz.Principal, taskID uuid
 		}
 		out = c
 		createdBy := t.CreatedBy
+		assignee, err := s.currentAssignee(ctx, st, t)
+		if err != nil {
+			return err
+		}
 		n := domain.NewNotification{
-			UserIDs: domain.NotificationRecipients(actor.UserID, t.AssigneeID, &createdBy),
+			UserIDs: domain.NotificationRecipients(actor.UserID, assignee, &createdBy),
 			Type:    domain.NotificationTaskCommented, TaskID: t.ID, ProjectID: t.ProjectID,
 			ActorID: actor.UserID, Message: domain.NotificationExcerpt(b),
 		}
@@ -89,4 +93,18 @@ func (s *Service) Create(ctx context.Context, actor authz.Principal, taskID uuid
 		return domain.Comment{}, err
 	}
 	return out, nil
+}
+
+// currentAssignee trả người đang chịu trách nhiệm công việc. Với việc con, quyền đi theo
+// người nhận của cha (decisions.md mục C) — người nhận chép vào con lúc tạo có thể đã cũ
+// nếu cha được giao lại, nên báo cho người nhận hiện tại của cha.
+func (s *Service) currentAssignee(ctx context.Context, st Store, t domain.Task) (*uuid.UUID, error) {
+	if t.ParentID == nil {
+		return t.AssigneeID, nil
+	}
+	parent, err := st.GetTask(ctx, *t.ParentID)
+	if err != nil {
+		return nil, fmt.Errorf("get parent task: %w", err)
+	}
+	return parent.AssigneeID, nil
 }

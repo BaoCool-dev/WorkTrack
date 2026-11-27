@@ -119,6 +119,25 @@ describe('Chuông thông báo (CF-07)', () => {
     expect(called).toBe(true)
   })
 
+  it('trích đoạn và tên chứa HTML hiển thị nguyên văn, không thành thẻ (đoán lỗi XSS)', async () => {
+    const xss = '<img src=x onerror="alert(1)">'
+    mockBell(1, [
+      makeNotification({
+        type: 'task_commented',
+        actor: { id: 'u-x', name: '<b>Bình</b>' },
+        task: { id: 't-1', name: '<script>alert(1)</script>' },
+        message: xss,
+      }),
+    ])
+    const { panel } = await openBell(n.bellUnread('1'))
+    const [item] = await within(panel).findAllByRole('listitem')
+    expect(item).toHaveTextContent(
+      n.text.task_commented('<b>Bình</b>', '<script>alert(1)</script>'),
+    )
+    expect(item).toHaveTextContent(xss)
+    expect(panel.querySelector('img, script, b')).toBeNull()
+  })
+
   it('trạng thái rỗng', async () => {
     mockBell(0, [])
     const { panel } = await openBell(n.bell)

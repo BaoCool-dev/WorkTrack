@@ -1,5 +1,5 @@
 import { ListChecks, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useAuth } from '@/features/auth'
 import { statusGroupTone, useBoard } from '@/features/projects'
 import { ApiError } from '@/shared/api/http'
@@ -176,6 +176,7 @@ function SubtaskRow({ parentId, sub, columns, canChange }: RowProps) {
   const remove = useDeleteSubtask(parentId)
   const toast = useToast()
   const [confirming, setConfirming] = useState(false)
+  const confirmTitleId = useId()
   const [error, setError] = useState<string | null>(null)
 
   // Con đi thẳng tới cột bất kỳ, không qua luật workflow_transition (R của CF-07).
@@ -235,14 +236,25 @@ function SubtaskRow({ parentId, sub, columns, canChange }: RowProps) {
       {confirming && (
         <div
           role="group"
+          aria-labelledby={confirmTitleId}
           className="flex items-center gap-2 rounded-md border border-bad-border bg-bad-bg p-2"
+          onKeyDown={(e) => {
+            // Esc chỉ hủy xác nhận; chặn lan lên document để không đóng luôn hộp thoại công việc.
+            if (e.key === 'Escape') {
+              e.stopPropagation()
+              setConfirming(false)
+            }
+          }}
         >
           <div className="flex-1">
-            <p className="text-sm font-semibold text-ink">{t.removeTitle(sub.title)}</p>
+            <p id={confirmTitleId} className="text-sm font-semibold text-ink">
+              {t.removeTitle(sub.title)}
+            </p>
             <p className="text-sm text-ink-muted">{t.removeHint}</p>
           </div>
           <Button
             variant="secondary"
+            autoFocus
             onClick={() => {
               setConfirming(false)
             }}

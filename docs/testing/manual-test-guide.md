@@ -1246,9 +1246,10 @@ Không dùng `DROP DATABASE`, không xóa thư mục dữ liệu của PostgreSQ
 - [ ] Người nhận việc cha thêm việc con, không có Story Point; tên rỗng bị chặn (§4.5 UI bước 3, curl bước 1)
 - [ ] Member tự chuyển việc con kể cả sang Done; tiến độ "x/y việc con đã xong" (§4.5 UI bước 4, curl bước 2)
 - [ ] Con của con → 422 `SUBTASK_PARENT_NOT_ROOT`; việc không phải của mình → 403 `SUBTASK_NOT_ALLOWED`; CEO → 403; Admin → 404 (§4.5 curl bước 3)
-- [ ] Xóa việc con có bước xác nhận (§4.5 UI bước 5)
+- [ ] Xóa việc con có bước xác nhận (§4.5 UI bước 5); Esc ở bước xác nhận chỉ hủy xác nhận, hộp thoại công việc vẫn mở
 - [ ] Bình luận: rỗng/khoảng trắng hoặc > 2000 ký tự → 422 `COMMENT_INVALID`; cũ nhất ở trên (§4.5 curl bước 4)
 - [ ] Có bình luận → người nhận việc và người tạo việc được báo, người viết không tự nhận (§4.5 UI bước 8)
+- [ ] Bình luận ở việc con → người nhận **hiện tại của việc cha** được báo (giao lại cha rồi bình luận ở con để thử)
 - [ ] Đánh dấu đọc thông báo của người khác → 404 `NOTIFICATION_NOT_FOUND` (§4.5 curl bước 5)
 - [ ] CSDL chặn Story Point ở việc con (SQL §4.5)
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -233,5 +234,139 @@ func TestCollabAPI_Notifications_CF07(t *testing.T) {
 	rec = a.do(t, http.MethodGet, "/api/v1/me/notifications", "")
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("không token: %d", rec.Code)
+	}
+}
+
+// untouched: service giả chưa hề được gọi (tầng HTTP chặn trước khi tới use case).
+func (f *fakeCollab) untouched() bool {
+	return f.gotID == uuid.Nil && f.gotCol == uuid.Nil && f.gotBody == "" &&
+		!f.deleted && !f.markedAll && f.markedRead == uuid.Nil && !f.gotUnread
+}
+
+// Đoán lỗi / EP lớp "chưa đăng nhập": mọi endpoint CF-07 trả 401 và không chạm service.
+func TestCollabAPI_AllEndpointsRequireLogin_CF07(t *testing.T) {
+	tid, sid, nid := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	for name, req := range map[string][3]string{
+		"list subtasks":  {http.MethodGet, "/api/v1/tasks/" + tid + "/subtasks", ""},
+		"create subtask": {http.MethodPost, "/api/v1/tasks/" + tid + "/subtasks", `{"title":"A"}`},
+		"move subtask":   {http.MethodPost, "/api/v1/subtasks/" + sid + "/move", `{"columnId":"` + uuid.NewString() + `"}`},
+		"delete subtask": {http.MethodDelete, "/api/v1/subtasks/" + sid, ""},
+		"list comments":  {http.MethodGet, "/api/v1/tasks/" + tid + "/comments", ""},
+		"create comment": {http.MethodPost, "/api/v1/tasks/" + tid + "/comments", `{"body":"Xin chào"}`},
+		"list notifs":    {http.MethodGet, "/api/v1/me/notifications", ""},
+		"unread-count":   {http.MethodGet, "/api/v1/me/notifications/unread-count", ""},
+		"mark read":      {http.MethodPost, "/api/v1/me/notifications/" + nid + "/read", ""},
+		"mark all read":  {http.MethodPost, "/api/v1/me/notifications/read-all", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := &fakeCollab{}
+			rec := newCollabAPI(t, f).do(t, req[0], req[1], req[2])
+			if rec.Code != http.StatusUnauthorized || !f.untouched() {
+				t.Errorf("status = %d untouched=%v body=%s", rec.Code, f.untouched(), rec.Body)
+			}
+		})
+	}
+}
+
+// EP lớp không hợp lệ cho tham số đường dẫn, thân JSON và query: 400, không chạm service.
+func TestCollabAPI_BadPathBodyQuery_CF07(t *testing.T) {
+	col := uuid.NewString()
+	cases := map[string]struct {
+		method, path, body, code string
+	}{
+		"list subtasks id sai":  {http.MethodGet, "/api/v1/tasks/khong-phai-uuid/subtasks", "", "TASK_ID_INVALID"},
+		"create subtask id sai": {http.MethodPost, "/api/v1/tasks/123/subtasks", `{"title":"A"}`, "TASK_ID_INVALID"},
+		"move id sai":           {http.MethodPost, "/api/v1/subtasks/abc/move", `{"columnId":"` + col + `"}`, "SUBTASK_ID_INVALID"},
+		"move cột sai UUID":     {http.MethodPost, "/api/v1/subtasks/" + uuid.NewString() + "/move", `{"columnId":"abc"}`, ""},
+		"list comments id sai":  {http.MethodGet, "/api/v1/tasks/xyz/comments", "", "TASK_ID_INVALID"},
+		"create comment id sai": {http.MethodPost, "/api/v1/tasks/xyz/comments", `{"body":"A"}`, "TASK_ID_INVALID"},
+		"comment JSON hỏng":     {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/comments", `{"body":`, ""},
+		"comment trường lạ":     {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/comments", `{"body":"A","authorId":"x"}`, ""},
+		"comment sai kiểu":      {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/comments", `{"body":123}`, ""},
+		"mark read id sai":      {http.MethodPost, "/api/v1/me/notifications/khong-phai-uuid/read", "", "NOTIFICATION_ID_INVALID"},
+		"unread ngoài tập":      {http.MethodGet, "/api/v1/me/notifications?unread=yes", "", "QUERY_INVALID"},
+		"subtask tiêu đề rỗng":  {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/subtasks", `{"title":""}`, ""},
+		"subtask tiêu đề 201":   {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/subtasks", `{"title":"` + strings.Repeat("a", 201) + `"}`, ""},
+		"subtask mô tả 5001":    {http.MethodPost, "/api/v1/tasks/" + uuid.NewString() + "/subtasks", `{"title":"A","description":"` + strings.Repeat("a", 5001) + `"}`, ""},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			f := &fakeCollab{}
+			rec := newCollabAPI(t, f).do(t, c.method, c.path, c.body, withToken("valid-member"))
+			if rec.Code != http.StatusBadRequest || !f.untouched() {
+				t.Fatalf("status = %d untouched=%v body=%s", rec.Code, f.untouched(), rec.Body)
+			}
+			if c.code != "" && errCode(t, rec) != c.code {
+				t.Errorf("code = %q, muốn %q", errCode(t, rec), c.code)
+			}
+		})
+	}
+}
+
+// BVA tiêu đề việc con: 200 ký tự (biên trên, kể cả tiếng Việt có dấu) vẫn hợp lệ.
+func TestCollabAPI_SubtaskTitleBoundary_CF07(t *testing.T) {
+	for name, title := range map[string]string{
+		"1 ký tự":          "A",
+		"200 ASCII":        strings.Repeat("a", 200),
+		"200 ký tự có dấu": strings.Repeat("ệ", 200),
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := &fakeCollab{}
+			rec := newCollabAPI(t, f).do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/subtasks",
+				`{"title":"`+title+`"}`, withToken("valid-member"))
+			if rec.Code != http.StatusCreated || f.gotIn.Title != title {
+				t.Errorf("status = %d body=%s", rec.Code, rec.Body)
+			}
+		})
+	}
+}
+
+// Bảng quyết định vai trò × bình luận: service trả ErrForbidden (CEO/Admin chỉ đọc) → 403,
+// người ngoài dự án → 404 (không lộ công việc tồn tại).
+func TestCollabAPI_CommentErrorMapping_CF07(t *testing.T) {
+	for name, tt := range map[string]struct {
+		err    error
+		status int
+		code   string
+	}{
+		"CEO/Admin viết": {domain.ErrForbidden, http.StatusForbidden, "FORBIDDEN"},
+		"ngoài dự án":    {domain.ErrTaskNotFound, http.StatusNotFound, "TASK_NOT_FOUND"},
+		"quá 2000 ký tự": {domain.ErrInvalidComment, http.StatusUnprocessableEntity, "COMMENT_INVALID"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rec := newCollabAPI(t, &fakeCollab{err: tt.err}).do(t, http.MethodPost,
+				"/api/v1/tasks/"+uuid.NewString()+"/comments", `{"body":"Xin chào"}`, withToken("valid-ceo"))
+			if rec.Code != tt.status || errCode(t, rec) != tt.code {
+				t.Errorf("status = %d body=%s", rec.Code, rec.Body)
+			}
+		})
+	}
+	rec := newCollabAPI(t, &fakeCollab{err: domain.ErrTaskNotFound}).do(t, http.MethodGet,
+		"/api/v1/tasks/"+uuid.NewString()+"/comments", "", withToken("valid-member"))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("đọc bình luận ngoài dự án: %d", rec.Code)
+	}
+}
+
+// Đoán lỗi XSS: API lưu và trả nguyên văn bình luận chứa HTML (không tự chèn/biến đổi),
+// JSON mã hóa "<" ">" thành < > nên không thể bị trình duyệt hiểu là thẻ nếu
+// phản hồi bị mở nhầm như HTML. Việc hiển thị an toàn do FE (React escape) — xem collab.
+func TestCollabAPI_CommentWithHTMLRoundTrip_CF07(t *testing.T) {
+	f := &fakeCollab{}
+	payload := `<img src=x onerror=alert(1)><script>alert("xss")</script>`
+	reqBody, _ := json.Marshal(map[string]string{"body": payload})
+	rec := newCollabAPI(t, f).do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/comments", string(reqBody), withToken("valid-member"))
+	if rec.Code != http.StatusCreated || f.gotBody != payload {
+		t.Fatalf("status = %d got=%q", rec.Code, f.gotBody)
+	}
+	if strings.Contains(rec.Body.String(), "<script>") {
+		t.Errorf("phản hồi chứa thẻ thô: %s", rec.Body)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("Content-Type = %q", ct)
+	}
+	var out commentResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out.Body != payload {
+		t.Errorf("body = %q err=%v", out.Body, err)
 	}
 }
