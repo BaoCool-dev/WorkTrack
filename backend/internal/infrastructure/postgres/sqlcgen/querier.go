@@ -18,12 +18,15 @@ type Querier interface {
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) (int64, error)
 	AddTaskLabels(ctx context.Context, arg AddTaskLabelsParams) error
 	CountMyTasks(ctx context.Context, arg CountMyTasksParams) (int64, error)
+	CountNotifications(ctx context.Context, arg CountNotificationsParams) (int64, error)
 	CountProjectTasks(ctx context.Context, arg CountProjectTasksParams) (int64, error)
 	// CF-04, CF-05 — Kanban.
 	// WIP của một người trong MỘT dự án: chỉ đếm công việc cha (parent_task_id IS NULL, CLAUDE.md §5.6)
 	// đang ở cột nhóm in_progress. Gọi sau khi đã khóa dòng dự án để hai lần kéo song song không cùng lọt.
 	CountProjectWIP(ctx context.Context, arg CountProjectWIPParams) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
+	CountTaskComments(ctx context.Context, taskID uuid.UUID) (int64, error)
+	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	// WIP: số công việc cha nhóm in_progress của một người trên mọi dự án (CLAUDE.md §5.6). Chỉ để hiển thị;
 	// việc chặn dùng CountProjectWIP (giới hạn tính theo từng dự án).
@@ -34,7 +37,10 @@ type Querier interface {
 	CreateLabel(ctx context.Context, name string) (uuid.UUID, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (uuid.UUID, error)
 	CreateSkill(ctx context.Context, name string) (uuid.UUID, error)
+	// Con kế thừa dự án và người nhận của cha; story_point luôn NULL (ck_task_story_point_parent_only).
+	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) (uuid.UUID, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (uuid.UUID, error)
+	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (CreateTaskCommentRow, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UUID, error)
 	CreateWorkflowTransition(ctx context.Context, arg CreateWorkflowTransitionParams) error
 	DeleteBoardColumn(ctx context.Context, arg DeleteBoardColumnParams) (int64, error)
@@ -42,6 +48,7 @@ type Querier interface {
 	DeleteJobTitle(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteLabel(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSkill(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteSubtask(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTaskLabels(ctx context.Context, taskID uuid.UUID) error
 	DeleteWorkflowTransitions(ctx context.Context, projectID uuid.UUID) error
 	// Công việc mới nằm ở cột đầu tiên thuộc nhóm todo.
@@ -66,6 +73,9 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
 	// CF-02: một tài khoản kèm phòng ban/chức danh (cùng tập cột với ListUsers).
 	GetUserDetail(ctx context.Context, id uuid.UUID) (GetUserDetailRow, error)
+	// CF-07 — thông báo trong hệ thống (chuông).
+	// Một thông báo cho mỗi người trong @user_ids (đã bỏ trùng, bỏ người gây ra ở tầng domain).
+	InsertNotifications(ctx context.Context, arg InsertNotificationsParams) error
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	InsertTaskMoveHistory(ctx context.Context, arg InsertTaskMoveHistoryParams) error
 	IsProjectMember(ctx context.Context, arg IsProjectMemberParams) (bool, error)
@@ -85,6 +95,8 @@ type Querier interface {
 	// "Công việc của tôi": việc cha giao cho @user_id ở các dự án người đó còn là thành viên.
 	// Việc chưa xong trước, hạn gần trước, không có hạn xếp cuối.
 	ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]TaskView, error)
+	// Thông báo của chính @user_id, mới nhất trước; @unread_only chỉ lấy chưa đọc.
+	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
 	ListProjectMembers(ctx context.Context, projectID uuid.UUID) ([]ListProjectMembersRow, error)
 	// CF-06, B9: công việc cha của một dự án, sắp theo thứ tự cột rồi vị trí trong cột.
 	// @search là mẫu ILIKE đã thoát ký tự ở Go; @unassigned = true chỉ lấy việc chưa có người nhận.
@@ -93,6 +105,12 @@ type Querier interface {
 	// có giá trị = chỉ dự án người đó là thành viên. @search là mẫu ILIKE đã thoát ký tự ở Go.
 	ListProjects(ctx context.Context, arg ListProjectsParams) ([]ListProjectsRow, error)
 	ListSkills(ctx context.Context) ([]ListSkillsRow, error)
+	// CF-07 — công việc con 1 cấp (không Story Point, không qua workflow_transition).
+	// Con của một công việc cha, theo thứ tự tạo. Mỗi cha có ít việc con nên không phân trang.
+	ListSubtasks(ctx context.Context, parentTaskID uuid.NullUUID) ([]TaskView, error)
+	// CF-07 — bình luận gắn công việc.
+	// Bình luận cũ trước, mới sau (đọc như hội thoại).
+	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
 	ListTaskLabels(ctx context.Context, taskIds []uuid.UUID) ([]ListTaskLabelsRow, error)
 	// Một truy vấn cho cả trang danh sách (tránh N+1).
 	ListUserSkillsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]ListUserSkillsByUserIDsRow, error)
@@ -107,6 +125,11 @@ type Querier interface {
 	LockProjectBoard(ctx context.Context, id uuid.UUID) (LockProjectBoardRow, error)
 	// Khóa dòng công việc tới hết transaction (nhận việc / sửa chạy tuần tự).
 	LockTask(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) (int64, error)
+	// Điều kiện user_id chống IDOR: thông báo của người khác → 0 dòng → 404.
+	MarkNotificationRead(ctx context.Context, arg MarkNotificationReadParams) (int64, error)
+	// Đổi cột của con. Cột khác dự án → vi phạm fk_task_column.
+	MoveSubtask(ctx context.Context, arg MoveSubtaskParams) (int64, error)
 	// Đổi cột và tăng version. Điều kiện version = @version là chốt chặn cuối chống ghi đè.
 	MoveTaskColumn(ctx context.Context, arg MoveTaskColumnParams) (int64, error)
 	// Không ghi nếu một request song song vừa khóa tài khoản (0 dòng → coi như đang khóa).
