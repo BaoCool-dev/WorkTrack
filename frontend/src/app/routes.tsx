@@ -5,6 +5,7 @@ import { ActivatePage } from '@/pages/ActivatePage'
 import { AdminUsersPage } from '@/pages/AdminUsersPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { MyTasksPage } from '@/pages/MyTasksPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { ProjectDetailPage } from '@/pages/ProjectDetailPage'
@@ -16,6 +17,7 @@ import { MENU } from './layout/menu'
 const PAGES: Record<string, ReactNode> = {
   '/admin/users': <AdminUsersPage />,
   '/projects': <ProjectsPage />,
+  '/my-tasks': <MyTasksPage />,
 }
 
 // Trang con dùng chung guard với mục menu cha.

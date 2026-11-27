@@ -22,6 +22,8 @@ import (
 
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/authz"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/project"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/setting"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/task"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/domain"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres/sqlcgen"
@@ -136,6 +138,11 @@ func run() error {
 		return err
 	}
 	fmt.Printf("Dự án mẫu: %d dự án (mới tạo %d).\n", len(seedProjects), n)
+	nt, err := seedTaskData(ctx, pool, q, ids[domain.RoleManager], ids[domain.RoleMember])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Công việc mẫu: %d nhãn, %d công việc (mới tạo %d).\n", len(seedLabels), len(seedTasks), nt)
 	return nil
 }
 
@@ -160,6 +167,75 @@ func seedProjectData(ctx context.Context, pool *pgxpool.Pool, q *sqlcgen.Queries
 		if err := svc.AddMember(ctx, mgr, id, memberID); err != nil {
 			return created, fmt.Errorf("project member %s: %w", in.Name, err)
 		}
+	}
+	return created, nil
+}
+
+// seedLabels: danh mục nhãn mẫu (CF-06).
+var seedLabels = []string{"Backend", "Frontend", "Thiết kế", "Kiểm thử"}
+
+type seedTask struct {
+	Project    string
+	Title      string
+	StoryPoint int
+	Labels     []string
+	ToMember   bool // giao sẵn cho Member; false = để ở Backlog cho Member tự nhận
+	DueInDays  int  // 0 = không có hạn chót
+}
+
+// seedTasks: công việc cha mẫu, tạo qua task.Service nên nằm ở cột todo đầu tiên của dự án.
+var seedTasks = []seedTask{
+	{"Cổng thông tin nội bộ", "Thiết kế trang chủ cổng thông tin", 3, []string{"Thiết kế", "Frontend"}, true, 7},
+	{"Cổng thông tin nội bộ", "API đăng tin thông báo nội bộ", 5, []string{"Backend"}, true, 14},
+	{"Cổng thông tin nội bộ", "Tìm kiếm bài viết theo từ khóa", 8, []string{"Backend", "Frontend"}, false, 21},
+	{"Cổng thông tin nội bộ", "Viết kịch bản kiểm thử đăng nhập", 2, []string{"Kiểm thử"}, false, 0},
+	{"Ứng dụng đặt lịch họp", "Mô hình dữ liệu phòng họp", 3, []string{"Backend"}, false, 10},
+	{"Ứng dụng đặt lịch họp", "Màn hình lịch tuần", 5, []string{"Frontend", "Thiết kế"}, false, 0},
+}
+
+// seedTaskData tạo nhãn mẫu và công việc mẫu còn thiếu (idempotent theo tiêu đề trong dự án).
+func seedTaskData(ctx context.Context, pool *pgxpool.Pool, q *sqlcgen.Queries, managerID, memberID uuid.UUID) (int, error) {
+	labels := map[string]uuid.UUID{}
+	for _, n := range seedLabels {
+		id, err := q.UpsertSeedLabel(ctx, n)
+		if err != nil {
+			return 0, fmt.Errorf("label %s: %w", n, err)
+		}
+		labels[n] = id
+	}
+	projects := project.NewService(postgres.NewProjectRepo(pool), postgres.NewProjectTx(pool))
+	settings := setting.NewService(postgres.NewSettingRepo(pool))
+	svc := task.NewService(postgres.NewTaskRepo(pool), postgres.NewTaskTx(pool), projects, settings)
+	mgr := authz.Principal{UserID: managerID, Role: domain.RoleManager}
+	today := time.Now().UTC().Truncate(24 * time.Hour)
+	created := 0
+	for _, st := range seedTasks {
+		pid, err := q.GetSeedProjectIDByName(ctx, st.Project)
+		if err != nil {
+			return created, fmt.Errorf("task %s: project %s: %w", st.Title, st.Project, err)
+		}
+		_, err = q.GetSeedTaskIDByTitle(ctx, sqlcgen.GetSeedTaskIDByTitleParams{ProjectID: pid, Title: st.Title})
+		if err == nil {
+			continue
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return created, fmt.Errorf("task %s: %w", st.Title, err)
+		}
+		in := task.Input{Title: st.Title, StoryPoint: &st.StoryPoint}
+		for _, l := range st.Labels {
+			in.LabelIDs = append(in.LabelIDs, labels[l])
+		}
+		if st.ToMember {
+			in.AssigneeID = &memberID
+		}
+		if st.DueInDays > 0 {
+			d := today.AddDate(0, 0, st.DueInDays)
+			in.DueDate = &d
+		}
+		if _, err := svc.Create(ctx, mgr, pid, in); err != nil {
+			return created, fmt.Errorf("task %s: %w", st.Title, err)
+		}
+		created++
 	}
 	return created, nil
 }

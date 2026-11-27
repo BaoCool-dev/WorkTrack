@@ -30,3 +30,15 @@ const localDateFormat = new Intl.DateTimeFormat('vi-VN', {
 export function formatTimestampDate(iso: string): string {
   return localDateFormat.format(new Date(iso))
 }
+
+const hoursFormat = new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 })
+
+/** Số giờ → "16h", "14,5h" (tối đa 1 chữ số thập phân). */
+export function formatHours(h: number): string {
+  return `${hoursFormat.format(h)}h`
+}
+
+/** Phút → giờ hiển thị: 960 → "16h", 870 → "14,5h". */
+export function formatMinutesAsHours(minutes: number): string {
+  return formatHours(minutes / 60)
+}

@@ -30,9 +30,14 @@ const (
 	ViewTeamDashboard    Permission = "dashboard.team.view"
 	// AssignCEORole: chỉ CEO được tạo tài khoản vai trò CEO (Admin không tự nâng quyền lên CEO).
 	AssignCEORole Permission = "users.assign_ceo"
+	// ManageSettings: sửa tham số hệ thống, vd. hệ số quy đổi Story Point → giờ (B1). CF-06.
+	ManageSettings Permission = "settings.manage"
+	// ClaimTask: tự nhận công việc chưa có người nhận ở nhóm todo (CF-06). Chỉ Member;
+	// Manager giao việc (kể cả cho chính mình) qua chức năng sửa công việc.
+	ClaimTask Permission = "tasks.claim"
 )
 
-var adminPerms = []Permission{ManageUsers, ManageOrg}
+var adminPerms = []Permission{ManageUsers, ManageOrg, ManageSettings}
 
 // B2: CEO có toàn bộ quyền Admin + xem mọi dự án + Dashboard toàn công ty (chỉ xem).
 // Admin không tạo dự án; chỉ Manager tạo dự án (CLAUDE.md §5.3).
@@ -40,7 +45,7 @@ var matrix = map[domain.Role][]Permission{
 	domain.RoleAdmin:   adminPerms,
 	domain.RoleCEO:     append(slices.Clone(adminPerms), AssignCEORole, ViewAllProjects, ViewCompanyDashboard),
 	domain.RoleManager: {CreateProject, ViewOwnProjects, ViewTeamDashboard},
-	domain.RoleMember:  {ViewOwnProjects},
+	domain.RoleMember:  {ViewOwnProjects, ClaimTask},
 }
 
 // Can trả true nếu vai trò có quyền p. Vai trò/quyền lạ luôn bị từ chối.

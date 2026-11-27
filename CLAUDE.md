@@ -110,11 +110,10 @@ Dùng `git add <đường dẫn cụ thể>`; xem `git status` trước khi add.
 - **Chưa qua skill `feature-gate` thì không mở PR và không bắt đầu tính năng tiếp theo.** Người dùng tự merge PR.
 - Hỏi trước khi `git push` và `gh pr create`.
 
-**Nhánh `feature/kanban*` do người dùng TỰ CODE** (để thuyết trình với giảng viên). Trên các nhánh này Claude:
-- **KHÔNG** viết, sửa hay sinh code sản phẩm (Go trong `backend/internal/`, TS/TSX trong `frontend/src/`), kể cả khi được nhờ "viết giúp một đoạn nhỏ". Nhắc lại quy tắc này và đề xuất cách hướng dẫn thay thế.
-- **ĐƯỢC:** giải thích khái niệm và tài liệu thư viện, gợi ý hướng làm bằng lời hoặc mã giả, review code người dùng viết (chỉ ra lỗi + lý do), viết và chạy test, chạy `feature-gate`, trả lời câu hỏi chuẩn bị vấn đáp.
-- Mọi hỗ trợ trên nhánh này vẫn ghi vào nhật ký AI với `type: review` hoặc `type: test`, để minh bạch phần nào người dùng tự làm.
-- Kiểm tra nhánh hiện tại bằng `git branch --show-current` trước khi sửa file.
+**Nhánh `feature/kanban` (CF-04, CF-05):** quyết định ngày 21/11 — Claude viết bản đầu, người dùng sẽ đọc, chỉnh sửa và tự hoàn thiện để thuyết trình.
+- Claude viết code như các nhánh khác, nhưng **code phải dễ đọc để người dùng học và sửa**: hàm ngắn, comment giải thích "vì sao" ở chỗ quan trọng (luật chuyển cột, WIP, xung đột, WebSocket).
+- Nhật ký AI chế độ **tối giản** cho nhánh này: một entry, prompt chính, tóm tắt phần AI viết; vẫn bắt buộc trailer `AI-Assisted` + `AI-Log` trên mỗi commit.
+- Phần người dùng chỉnh sửa về sau đi qua commit `Human-Edit: yes` (mẫu hai commit, skill `ai-usage-log` §6) — đây là bằng chứng phần tự làm khi vấn đáp.
 
 ## 7c. Chế độ tự chạy (người dùng không ngồi trước máy)
 
@@ -127,11 +126,10 @@ Dùng `git add <đường dẫn cụ thể>`; xem `git status` trước khi add.
 
 **Được làm không cần hỏi:** sửa file trong repo; chạy build/test/lint; `docker compose up` cho môi trường dev; `make migrate-up` trên CSDL dev; tạo nhánh; commit (kèm nhật ký AI); `git push` **nhánh tính năng của chính phiên đó**; `gh pr create`.
 
-**Tuyệt đối không:** push hoặc merge vào `main`; force-push; `gh pr merge`; xóa dữ liệu hay volume; sửa migration đã commit ở nhánh trước; đổi quyết định mục A; viết code sản phẩm trên nhánh `feature/kanban*`.
+**Tuyệt đối không:** push hoặc merge vào `main`; force-push; `gh pr merge`; xóa dữ liệu hay volume; sửa migration đã commit ở nhánh trước; đổi quyết định mục A.
 
 **Dừng hẳn và ghi báo cáo** (`docs/gates/<nhanh>.md`, kết luận CHƯA ĐẠT, nêu rõ cần người dùng làm gì) khi:
 - `feature-gate` vẫn đỏ sau 3 lần sửa;
-- việc tiếp theo là `feature/kanban` (người dùng tự code);
 - thiếu thứ chỉ người dùng cấp được (API key Gemini, quyền GitHub…) — trừ khi làm tiếp được bằng giả lập.
 
 **Mỗi nhánh kết thúc bằng:** `feature-gate` ĐẠT → commit báo cáo gate + nhật ký AI → `git push -u origin <nhanh>` → `gh pr create --base <nhánh trước> --draft` với mô tả gồm: mục tiêu, mã CF/UC, tóm tắt gate, các giả định mục C. PR để **draft**; người dùng review, chuyển sang Ready và merge theo thứ tự.

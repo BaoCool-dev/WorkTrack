@@ -1,2 +1,6 @@
 export { ProjectList } from './components/ProjectList'
 export { ProjectDetail } from './components/ProjectDetail'
+export { projectKeys, useProjectMembers } from './api/queries'
+export { statusGroupTone } from './model/status'
+export { STATUS_GROUPS, PAGE_SIZE } from './model/types'
+export type { Page, Project, ProjectMember, StatusGroup } from './model/types'
