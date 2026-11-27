@@ -1,6 +1,7 @@
 // Command seed tạo dữ liệu mẫu cho môi trường dev (B11):
 // mỗi vai trò một tài khoản đã kích hoạt, mật khẩu ngẫu nhiên in ra màn hình;
-// cây phòng ban, chức danh, danh mục kỹ năng và hồ sơ kỹ năng mẫu (CF-02).
+// cây phòng ban, chức danh, danh mục kỹ năng và hồ sơ kỹ năng mẫu (CF-02);
+// 2 dự án mẫu do Manager phụ trách, Member là thành viên (CF-03).
 // Chạy lại sẽ đặt lại mật khẩu mới. Từ chối chạy khi APP_ENV=production.
 package main
 
@@ -14,9 +15,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/authz"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/project"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/domain"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres/sqlcgen"
@@ -60,6 +65,12 @@ var seedSkills = []string{
 	"Go", "PostgreSQL", "React", "TypeScript", "Docker", "Kiểm thử tự động", "Scrum", "UI/UX",
 }
 
+// seedProjects: dự án mẫu (B11), tạo qua project.Service để có sẵn 5 cột + luật chuyển mặc định.
+var seedProjects = []project.Input{
+	{Name: "Cổng thông tin nội bộ", Description: "Xây dựng cổng thông tin nội bộ cho nhân viên.", Status: string(domain.ProjectInProgress)},
+	{Name: "Ứng dụng đặt lịch họp", Description: "Ứng dụng web đặt phòng và lịch họp.", Status: string(domain.ProjectNew)},
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "seed:", err)
@@ -93,6 +104,7 @@ func run() error {
 	hasher := security.NewBcryptHasher(bcrypt.DefaultCost)
 
 	fmt.Println("Tài khoản mẫu (chỉ dùng cho môi trường dev):")
+	ids := map[domain.Role]uuid.UUID{}
 	for _, u := range seedUsers {
 		pw, err := newPassword()
 		if err != nil {
@@ -114,12 +126,42 @@ func run() error {
 		if err := org.assign(ctx, q, id, u); err != nil {
 			return fmt.Errorf("org %s: %w", u.Email, err)
 		}
+		ids[u.Role] = id
 		fmt.Printf("  %-8s %-26s %s\n", u.Role, u.Email, pw)
 	}
 	fmt.Printf("Cơ cấu tổ chức: %d phòng ban, %d chức danh, %d kỹ năng.\n",
 		len(org.departments), len(org.jobTitles), len(org.skills))
-	fmt.Println("Dự án mẫu sẽ được thêm ở nhánh feature/projects.")
+	n, err := seedProjectData(ctx, pool, q, ids[domain.RoleManager], ids[domain.RoleMember])
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Dự án mẫu: %d dự án (mới tạo %d).\n", len(seedProjects), n)
 	return nil
+}
+
+// seedProjectData tạo dự án mẫu còn thiếu (idempotent theo tên) và thêm Member vào mọi dự án mẫu.
+func seedProjectData(ctx context.Context, pool *pgxpool.Pool, q *sqlcgen.Queries, managerID, memberID uuid.UUID) (int, error) {
+	svc := project.NewService(postgres.NewProjectRepo(pool), postgres.NewProjectTx(pool))
+	mgr := authz.Principal{UserID: managerID, Role: domain.RoleManager}
+	created := 0
+	for _, in := range seedProjects {
+		id, err := q.GetSeedProjectIDByName(ctx, in.Name)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			p, err := svc.Create(ctx, mgr, in)
+			if err != nil {
+				return created, fmt.Errorf("project %s: %w", in.Name, err)
+			}
+			id = p.ID
+			created++
+		case err != nil:
+			return created, fmt.Errorf("project %s: %w", in.Name, err)
+		}
+		if err := svc.AddMember(ctx, mgr, id, memberID); err != nil {
+			return created, fmt.Errorf("project member %s: %w", in.Name, err)
+		}
+	}
+	return created, nil
 }
 
 type seededOrg struct {

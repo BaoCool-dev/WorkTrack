@@ -10,7 +10,7 @@ import { departmentOptions, descendantsOf, flattenDepartments } from '../model/d
 import type { Department } from '../model/types'
 import { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
 import { NameDialog } from './NameDialog'
-import { cellClass, OrgTable, TableSkeleton } from './OrgTable'
+import { cellClass, DataTable, TableSkeleton } from '@/shared/ui'
 
 const t = messages.admin
 
@@ -54,7 +54,7 @@ export function DepartmentsPanel() {
     content = <EmptyState title={t.departments.emptyTitle} description={t.departments.emptyHint} />
   else
     content = (
-      <OrgTable
+      <DataTable
         label={t.departments.tableLabel}
         head={[
           { label: t.org.name },
@@ -100,7 +100,7 @@ export function DepartmentsPanel() {
             )}
           </tr>
         ))}
-      </OrgTable>
+      </DataTable>
     )
 
   return (

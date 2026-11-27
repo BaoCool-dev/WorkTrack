@@ -34,3 +34,17 @@ func TestSeedUsers_OnePerRole_B11(t *testing.T) {
 		}
 	}
 }
+
+func TestSeedProjects_TwoValidProjects_B11(t *testing.T) {
+	if len(seedProjects) != 2 {
+		t.Fatalf("B11 cần 2 dự án mẫu, có %d", len(seedProjects))
+	}
+	for _, p := range seedProjects {
+		if _, err := domain.NormalizeProjectName(p.Name); err != nil {
+			t.Errorf("tên %q: %v", p.Name, err)
+		}
+		if _, err := domain.ParseProjectStatus(p.Status); err != nil {
+			t.Errorf("trạng thái %q: %v", p.Status, err)
+		}
+	}
+}
