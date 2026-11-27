@@ -30,3 +30,6 @@ frontend/playwright-report/
 
 # File xuất nhật ký AI để nộp
 dist/
+
+# Playwright MCP (ảnh/log tạm của phiên AI)
+.playwright-mcp/
