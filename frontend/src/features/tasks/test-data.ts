@@ -1,10 +1,11 @@
-import type { Label, Task } from './model/types'
+import type { Comment, Label, Task } from './model/types'
 
 export function makeTask(over: Partial<Task> = {}): Task {
   return {
     id: 't-1',
     projectId: 'p-1',
     projectName: 'Cổng thông tin khách hàng',
+    parentId: null,
     title: 'Thiết kế API đăng nhập',
     description: 'Endpoint đăng nhập + refresh token.',
     storyPoint: 5,
@@ -29,4 +30,29 @@ export const LABELS: Label[] = [
 
 export function page<T>(items: T[], total = items.length) {
   return { items, page: 1, pageSize: 20, total }
+}
+
+export function makeSubtask(over: Partial<Task> = {}): Task {
+  return makeTask({
+    id: 's-1',
+    parentId: 't-1',
+    title: 'Viết handler đăng nhập',
+    description: '',
+    storyPoint: null,
+    estimatedMinutes: null,
+    labels: [],
+    dueDate: null,
+    ...over,
+  })
+}
+
+export function makeComment(over: Partial<Comment> = {}): Comment {
+  return {
+    id: 'cm-1',
+    taskId: 't-1',
+    author: { id: 'u-manager', name: 'Nguyễn Văn An' },
+    body: 'Nhớ thêm rate limit.',
+    createdAt: '2026-11-27T03:00:00Z',
+    ...over,
+  }
 }

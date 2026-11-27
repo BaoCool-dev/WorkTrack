@@ -26,6 +26,7 @@ Làm CF-07: công việc con 1 cấp (Member tự tạo, tự chuyển, không S
 - Application: gói `subtask`, `comment`, `notification` (port + service + test với fake store); `task.Service` gửi thông báo `task_assigned` khi tạo/đổi người nhận (cùng giao dịch); query `GetTaskComment`.
 - Hạ tầng: `postgres/collab_repo.go` (SubtaskRepo, CommentRepo, NotificationRepo, ghi thông báo theo lô), `checkViolation` (23514) trong `convert.go`, test tích hợp `collab_integration_test.go` (chạy trong CI).
 - HTTP: `httpapi/collab_handler.go` (route việc con, bình luận, `/me/notifications`), ánh xạ 4 lỗi CF-07 trong `errors.go`, `parentId` trong `taskResponse`, wiring `main.go`; `collab_api_test.go` viết trước với service giả.
+- Frontend: `features/tasks` (type, API, hook TanStack Query cho việc con và bình luận; `SubtasksSection`, `CommentsSection` trong `TaskDetailDialog`; `TaskCollab.test.tsx` viết trước); feature mới `features/notifications` (API, hook đếm chưa đọc 30 giây/lần, `NotificationBell` ở `Topbar`, `NotificationBell.test.tsx` viết trước); chữ hiển thị trong `messages.ts`; handler MSW mặc định cho `unread-count` trong `test/server.ts`.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -35,6 +36,12 @@ Làm CF-07: công việc con 1 cấp (Member tự tạo, tự chuyển, không S
 ## Lỗi / ảo giác của AI
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
+| Test Go dùng `Task.Title`, struct thật là `Name` | Đoán tên trường theo FE thay vì đọc struct | Lỗi biên dịch khi chạy `go test` | Đổi test sang `Name` |
+| Đặt handler mặc định `unread-count` trong `renderApp` → đè handler riêng của test chuông (luôn trả 0) | `server.use()` gọi sau được ưu tiên; quên thứ tự gọi trong test | 4 test `NotificationBell` đỏ: không thấy nhãn "2 chưa đọc" | Chuyển sang handler khởi tạo của `setupServer` trong `test/server.ts` |
+| Dùng `FormEvent` (đã deprecated ở React 19 types), `[...s].length`, `return setState()` | Viết theo thói quen cũ | `make lint` báo 9 lỗi typescript-eslint | Theo mẫu `WipLimitControl` (preventDefault ngay tại `onSubmit`), đếm bằng `Array.from` |
 
 ## Kiểm chứng
 <!-- Lệnh đã chạy và kết quả thật: make lint, make test, test nào, kiểm thử tay luồng nào. -->
+- `make lint`: xanh (golangci-lint, eslint, tsc, prettier).
+- `make test`: xanh — Go unit + API; Vitest 243/243 (gồm `TaskCollab.test.tsx` 12, `NotificationBell.test.tsx` 8).
+- Test tích hợp PostgreSQL (`collab_integration_test.go`) chạy trong CI (B12: máy dev không có Docker).
