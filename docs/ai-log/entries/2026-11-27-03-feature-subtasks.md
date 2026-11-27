@@ -25,6 +25,7 @@ Làm CF-07: công việc con 1 cấp (Member tự tạo, tự chuyển, không S
 - Domain: `internal/domain/collab.go` (quyền thao tác việc con, cha phải là việc gốc, chuẩn hóa bình luận, chọn người nhận thông báo, trích đoạn) + `collab_test.go` viết trước (RED → GREEN); lỗi CF-07 trong `errors.go`.
 - Application: gói `subtask`, `comment`, `notification` (port + service + test với fake store); `task.Service` gửi thông báo `task_assigned` khi tạo/đổi người nhận (cùng giao dịch); query `GetTaskComment`.
 - Hạ tầng: `postgres/collab_repo.go` (SubtaskRepo, CommentRepo, NotificationRepo, ghi thông báo theo lô), `checkViolation` (23514) trong `convert.go`, test tích hợp `collab_integration_test.go` (chạy trong CI).
+- HTTP: `httpapi/collab_handler.go` (route việc con, bình luận, `/me/notifications`), ánh xạ 4 lỗi CF-07 trong `errors.go`, `parentId` trong `taskResponse`, wiring `main.go`; `collab_api_test.go` viết trước với service giả.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]

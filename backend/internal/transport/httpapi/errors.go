@@ -121,6 +121,11 @@ var domainErrors = []struct {
 	{domain.ErrTaskVersionConflict, httpError{http.StatusConflict, "TASK_VERSION_CONFLICT", "Công việc vừa được người khác thay đổi, bảng đã tải lại bản mới nhất"}},
 	{domain.ErrWIPLimitReached, httpError{http.StatusConflict, "TASK_WIP_LIMIT", "Người nhận việc đã đủ số việc đang làm theo giới hạn WIP của dự án"}},
 	{domain.ErrInvalidWIPLimit, httpError{http.StatusUnprocessableEntity, "WIP_LIMIT_INVALID", "Giới hạn WIP phải từ 1 đến 20"}},
+	// CF-07 — việc con, bình luận, thông báo.
+	{domain.ErrSubtaskNotAllowed, httpError{http.StatusForbidden, "SUBTASK_NOT_ALLOWED", "Chỉ người nhận công việc cha hoặc Manager của dự án được thao tác việc con"}},
+	{domain.ErrSubtaskParentNotRoot, httpError{http.StatusUnprocessableEntity, "SUBTASK_PARENT_NOT_ROOT", "Việc con chỉ có 1 cấp, không tạo việc con cho một việc con"}},
+	{domain.ErrInvalidComment, httpError{http.StatusUnprocessableEntity, "COMMENT_INVALID", "Bình luận không được để trống và tối đa 2000 ký tự"}},
+	{domain.ErrNotificationNotFound, httpError{http.StatusNotFound, "NOTIFICATION_NOT_FOUND", "Không tìm thấy thông báo"}},
 	{domain.ErrCannotChangeOwnRole, httpError{http.StatusUnprocessableEntity, "USER_CANNOT_CHANGE_OWN_ROLE", "Bạn không thể tự đổi vai trò của chính mình"}},
 }
 

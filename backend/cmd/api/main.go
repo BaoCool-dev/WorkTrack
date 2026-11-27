@@ -17,11 +17,14 @@ import (
 
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/account"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/auth"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/comment"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/kanban"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/label"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/notification"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/org"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/project"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/setting"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/subtask"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/task"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/email"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/postgres"
@@ -135,10 +138,14 @@ func buildDeps(cfg config, pool *pgxpool.Pool) (httpapi.Deps, error) {
 		Projects:   projects,
 		Tasks:      task.NewService(postgres.NewTaskRepo(pool), postgres.NewTaskTx(pool), projects, settings, hub),
 		Kanban:     kanban.NewService(postgres.NewTaskRepo(pool), postgres.NewKanbanTx(pool), projects, hub),
-		Hub:        hub,
-		Labels:     label.NewService(postgres.NewLabelRepo(pool)),
-		Settings:   settings,
-		Tokens:     jwt,
-		Now:        now,
+		// CF-07
+		Subtasks:      subtask.NewService(postgres.NewSubtaskRepo(pool), postgres.NewSubtaskTx(pool), projects),
+		Comments:      comment.NewService(postgres.NewCommentRepo(pool), postgres.NewCommentTx(pool), projects),
+		Notifications: notification.NewService(postgres.NewNotificationRepo(pool)),
+		Hub:           hub,
+		Labels:        label.NewService(postgres.NewLabelRepo(pool)),
+		Settings:      settings,
+		Tokens:        jwt,
+		Now:           now,
 	}, nil
 }
