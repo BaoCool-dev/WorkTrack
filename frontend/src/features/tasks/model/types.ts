@@ -28,6 +28,10 @@ export interface Task {
   dueDate: string | null
   labels: Ref[]
   createdBy: Ref
+  /** Thứ tự trong cột (0 = đầu cột). */
+  position: number
+  /** Tăng sau mỗi lần ghi — gửi kèm khi kéo thả để server phát hiện xung đột (409). */
+  version: number
   createdAt: string
   updatedAt: string
 }

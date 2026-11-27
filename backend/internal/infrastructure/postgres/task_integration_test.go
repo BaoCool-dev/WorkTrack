@@ -16,6 +16,7 @@ import (
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/setting"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/application/task"
 	"github.com/BaoCool-dev/WorkTrack/backend/internal/domain"
+	"github.com/BaoCool-dev/WorkTrack/backend/internal/infrastructure/realtime"
 )
 
 // Chạy Service thật trên Postgres: cột todo đầu tiên, nhãn, quy đổi B1, nhận việc, lọc, IDOR, WIP.
@@ -30,7 +31,7 @@ func TestTaskRepo_ServiceFlow_CF06(t *testing.T) {
 
 	projects := project.NewService(NewProjectRepo(pool), NewProjectTx(pool))
 	settings := setting.NewService(NewSettingRepo(pool))
-	tasks := task.NewService(NewTaskRepo(pool), NewTaskTx(pool), projects, settings)
+	tasks := task.NewService(NewTaskRepo(pool), NewTaskTx(pool), projects, settings, realtime.NewHub())
 	labels := label.NewService(NewLabelRepo(pool))
 	mgr := authz.Principal{UserID: mgrID, Role: domain.RoleManager}
 	mem := authz.Principal{UserID: memID, Role: domain.RoleMember}

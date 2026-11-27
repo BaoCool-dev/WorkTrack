@@ -109,7 +109,7 @@ func (f *fakeStore) Create(_ context.Context, in project.NewProject) (uuid.UUID,
 	}
 	id := uuid.New()
 	f.projects[id] = domain.Project{ID: id, Name: in.Name, Description: in.Description, Status: in.Status,
-		StartDate: in.StartDate, EndDate: in.EndDate, ManagerID: in.ManagerID}
+		StartDate: in.StartDate, EndDate: in.EndDate, ManagerID: in.ManagerID, WIPLimit: domain.WIPLimitDefault}
 	return id, nil
 }
 
@@ -119,6 +119,16 @@ func (f *fakeStore) Update(_ context.Context, id uuid.UUID, in project.Fields) e
 		return domain.ErrProjectNotFound
 	}
 	p.Name, p.Description, p.Status, p.StartDate, p.EndDate = in.Name, in.Description, in.Status, in.StartDate, in.EndDate
+	f.projects[id] = p
+	return nil
+}
+
+func (f *fakeStore) UpdateWIPLimit(_ context.Context, id uuid.UUID, limit int) error {
+	p, ok := f.projects[id]
+	if !ok {
+		return domain.ErrProjectNotFound
+	}
+	p.WIPLimit = limit
 	f.projects[id] = p
 	return nil
 }
@@ -700,6 +710,8 @@ func TestWriteOps_ForbiddenForNonManager_CF03(t *testing.T) {
 			_, err := svc.ReplaceTransitions(ctx, a, p.ID, nil)
 			return err
 		},
+		// CF-05: giới hạn WIP cũng chỉ Manager phụ trách được đổi.
+		"SetWIPLimit": func(a authz.Principal) error { _, err := svc.SetWIPLimit(ctx, a, p.ID, 7); return err },
 	}
 	actors := []struct {
 		name  string
@@ -746,5 +758,40 @@ func TestColumnOps_CrossProjectColumn_CF03(t *testing.T) {
 
 	if len(st.columns[pB.ID]) != 5 || st.col(pB.ID, colB).Name != "To Do" {
 		t.Fatal("cột của dự án B bị thay đổi")
+	}
+}
+
+// ---- giới hạn WIP (CF-05) ----
+
+func TestSetWIPLimit_ManagerOnly_CF05(t *testing.T) {
+	svc, st, p := setup(t)
+	ctx := context.Background()
+	if p.WIPLimit != domain.WIPLimitDefault {
+		t.Fatalf("default wip = %d, want %d", p.WIPLimit, domain.WIPLimitDefault)
+	}
+	got, err := svc.SetWIPLimit(ctx, mgrA, p.ID, 3)
+	if err != nil || got.WIPLimit != 3 {
+		t.Fatalf("set wip: %v, %+v", err, got)
+	}
+	// Manager khác không phải thành viên → không thấy dự án; CEO/Admin xem được hoặc không, đều không sửa được.
+	_, err = svc.SetWIPLimit(ctx, mgrB, p.ID, 4)
+	expectErr(t, err, domain.ErrProjectNotFound)
+	_, err = svc.SetWIPLimit(ctx, ceo, p.ID, 4)
+	expectErr(t, err, domain.ErrForbidden)
+	if st.projects[p.ID].WIPLimit != 3 {
+		t.Fatalf("wip changed by non-manager")
+	}
+}
+
+func TestSetWIPLimit_Range_CF05(t *testing.T) {
+	svc, _, p := setup(t)
+	for _, n := range []int{0, -1, 21} {
+		_, err := svc.SetWIPLimit(context.Background(), mgrA, p.ID, n)
+		expectErr(t, err, domain.ErrInvalidWIPLimit)
+	}
+	for _, n := range []int{1, 20} {
+		if _, err := svc.SetWIPLimit(context.Background(), mgrA, p.ID, n); err != nil {
+			t.Fatalf("wip %d: %v", n, err)
+		}
 	}
 }

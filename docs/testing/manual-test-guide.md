@@ -2,7 +2,7 @@
 
 > Dành cho người **chưa biết gì** về dự án, muốn tự kiểm thử bằng tay các chức năng đã có:
 > scaffold, đăng nhập (CF-01), cơ cấu tổ chức và tài khoản (CF-02), dự án và bảng Kanban (CF-03),
-> công việc cha (CF-06).
+> công việc cha (CF-06), Kanban kéo thả và WIP (CF-04, CF-05).
 >
 > Mọi lệnh, đoạn curl và câu SQL dưới đây đã được chạy thử trên máy dev macOS (không Docker, theo
 > `docs/decisions.md` B12) ngày 2026-11-21. Ngoại lệ được ghi rõ ở §7.4.
@@ -624,7 +624,7 @@ ORDER BY w.role, f.position, t.position;
    nhóm Đang làm). Admin/CEO mở trang này → không có quyền.
 6. Admin → Quản trị → tab **Nhãn**: thêm, đổi tên, xóa (nhãn đang gắn vào công việc → nút Xóa bị khóa kèm lý do).
    Tab **Cấu hình**: số giờ cho 1 Story Point (1–40, mặc định 4).
-7. Bảng Kanban, kéo thả, chuyển cột **chưa có** (thuộc nhánh `feature/kanban`).
+7. Bảng Kanban, kéo thả, chuyển cột: xem §4.4.
 
 **Bằng curl** (dùng dự án mẫu):
 1. Lấy ID dự án mẫu, nhãn, Member:
@@ -746,6 +746,116 @@ WHERE t.story_point IS NOT NULL;
 SELECT l.name, count(tl.task_id) AS so_cong_viec
 FROM label l LEFT JOIN task_label tl ON tl.label_id = l.id
 GROUP BY l.id, l.name ORDER BY l.name;
+```
+
+### 4.4. CF-04, CF-05 — Kanban kéo thả, luật chuyển cột, WIP, realtime
+
+**Trên giao diện** (mở 2 cửa sổ trình duyệt: cửa sổ thường đăng nhập Manager, cửa sổ ẩn danh đăng nhập Member):
+1. Manager → dự án **Cổng thông tin nội bộ** → tab **Kanban** (ngay sau tab Thông tin). Bảng có 5 cột: Backlog,
+   To Do, In Progress, Chờ nghiệm thu, Done. Đầu cột hiển thị số việc ("3 việc"); trên bảng có chip `WIP x/5`, chỉ báo "Đang cập nhật tức thời"
+   và số người đang xem bảng.
+2. Kéo một thẻ từ Backlog sang To Do. Trong lúc kéo, cột thả được viền xanh, cột bị chặn mờ đi kèm lý do.
+   Thả xong thẻ đổi cột ngay (cập nhật lạc quan), toast "Đã chuyển thẻ sang “To Do”" kèm nút **Hoàn tác**
+   (nút chỉ hiện khi đường quay lại hợp lệ theo luật).
+3. Ở cửa sổ Member, thẻ đổi cột **không cần tải lại trang**, chậm nhất 2 giây (KPI 1).
+4. Member thấy gợi ý "Bạn kéo được thẻ đang giao cho mình." Thẻ của người khác hoặc thẻ chưa giao không kéo được.
+   Kéo thẻ của mình về phía **Done** → cột Done bị chặn kèm lý do chỉ Quản lý dự án được chuyển vào nhóm "Hoàn thành".
+5. Đổi thứ tự thẻ trong cùng một cột: kéo xuống một bậc thì thẻ nằm sau thẻ đích. Tải lại trang, thứ tự vẫn giữ.
+6. **WIP đầy:** Manager phụ trách đặt ô **Giới hạn WIP** trên bảng (1–20, nhập 0 hoặc 21 → báo lỗi ngay dưới ô)
+   bằng số việc Member đang làm → **Lưu**. Member kéo thêm một việc vào In Progress → hộp thoại
+   "Không thể nhận thêm việc" và thẻ quay về chỗ cũ. Member không thấy ô Giới hạn WIP.
+   Đặt lại giới hạn 5 khi thử xong.
+7. **Xung đột:** cả hai cửa sổ cùng mở bảng, tắt mạng một cửa sổ (DevTools → Network → Offline), kéo thẻ ở cửa sổ
+   còn lại, rồi bật mạng và kéo cùng thẻ đó ngay → dải lỗi báo xung đột kèm "Thẻ đã trở về cột cũ.", bảng tải lại vị trí mới nhất.
+8. **Mất kết nối:** dừng API (`Ctrl+C` ở `make dev-local`) → bảng hiện dải "Mất kết nối cập nhật tức thời… đang
+   kết nối lại…". Chạy lại API → dải biến mất, bảng tự tải lại.
+9. CEO mở bảng: dòng "Bạn chỉ xem bảng này…", không kéo được thẻ nào. Admin không xem được dự án (404).
+
+**Bằng curl** (cần biến, hàm `H` ở §2.2 và `SEED_PID` ở §4.3 bước 1):
+1. Lấy ID các cột và tạo hàm tiện ích (`ver` đọc version hiện tại của thẻ; `move` thả thẻ vào đầu cột):
+   ```bash
+   col() { curl -s $API/projects/$SEED_PID/board -H "$(H manager)" | jq -r --arg n "$1" '.columns[] | select(.name==$n) | .id'; }
+   TODO=$(col "To Do"); DOING=$(col "In Progress"); REVIEW=$(col "Chờ nghiệm thu"); DONE=$(col Done)
+   ver()  { curl -s $API/tasks/$1 -H "$(H manager)" | jq .version; }
+   move() { jq -n --arg c "$3" --argjson v "${4:-$(ver $2)}" '{columnId:$c, position:0, version:$v}' |
+            curl -s -X POST $API/tasks/$2/move -H "$(H $1)" -H 'Content-Type: application/json' -d @-; }
+   curl -s $API/projects/$SEED_PID/board/tasks -H "$(H member)" | jq -c '[.items[] | {title, column: .column.name, version}] | .[:5]'
+   ```
+2. Manager tạo việc, Member nhận và kéo sang In Progress:
+   ```bash
+   K1=$(curl -s -X POST $API/projects/$SEED_PID/tasks -H "$(H manager)" -H 'Content-Type: application/json' \
+        -d '{"title":"Kanban thử","storyPoint":3}' | jq -r .id)
+   curl -s -X POST $API/tasks/$K1/claim -H "$(H member)" | jq -c '{version}'
+   move member $K1 $DOING | jq -c '{column: .column.name, version}'
+   ```
+   Mong đợi: nhận việc trả `{"version":2}` (mọi thay đổi thẻ đều tăng version); kéo xong `column` = `In Progress`, `version` = `3`.
+3. Các ca bị chặn:
+   ```bash
+   move member  $K1 $DONE   | jq -c .error.code   # Member kéo vào Done
+   move member  $K1 $REVIEW 1 | jq -c .error.code # version cũ
+   move ceo     $K1 $TODO   | jq -c .error.code   # CEO chỉ xem
+   move admin   $K1 $TODO   | jq -c .error.code   # Admin không thấy công việc
+   K2=$(curl -s -X POST $API/projects/$SEED_PID/tasks -H "$(H manager)" -H 'Content-Type: application/json' -d '{"title":"Chưa giao"}' | jq -r .id)
+   move member  $K2 $TODO   | jq -c .error.code   # Member kéo thẻ không phải của mình
+   ```
+   Mong đợi theo thứ tự: `TRANSITION_MEMBER_TO_DONE` (422), `TASK_VERSION_CONFLICT` (409), `FORBIDDEN` (403),
+   `TASK_NOT_FOUND` (404), `TASK_NOT_ASSIGNEE` (403).
+4. Member kéo sang Chờ nghiệm thu, Manager kéo sang Done:
+   ```bash
+   move member  $K1 $REVIEW | jq -c '{column: .column.name}'
+   move manager $K1 $DONE   | jq -c '{column: .column.name, version}'
+   ```
+5. Giới hạn WIP (chỉ Manager phụ trách đổi, khoảng 1–20):
+   ```bash
+   curl -s -X PUT $API/projects/$SEED_PID/wip-limit -H "$(H manager)" -H 'Content-Type: application/json' -d '{"wipLimit":0}' | jq -c .error.code
+   curl -s -X PUT $API/projects/$SEED_PID/wip-limit -H "$(H member)"  -H 'Content-Type: application/json' -d '{"wipLimit":3}' | jq -c .error.code
+   curl -s -X POST $API/tasks/$K2/claim -H "$(H member)" > /dev/null
+   W=$(curl -s $API/me/wip -H "$(H member)" | jq '[.count, 1] | max')
+   curl -s -X PUT $API/projects/$SEED_PID/wip-limit -H "$(H manager)" -H 'Content-Type: application/json' -d "{\"wipLimit\":$W}" | jq -c '{wipLimit}'
+   move member $K2 $DOING | jq -c .error.code
+   curl -s -X PUT $API/projects/$SEED_PID/wip-limit -H "$(H manager)" -H 'Content-Type: application/json' -d '{"wipLimit":5}' | jq -c '{wipLimit}'
+   ```
+   Mong đợi: `WIP_LIMIT_INVALID`, `FORBIDDEN`, giới hạn bằng số việc đang làm, `TASK_WIP_LIMIT` (409), rồi trả về `5`.
+   Nếu Member đang có 0 việc đang làm, giới hạn đặt là 1 và lần kéo này **được** (chưa vượt): kéo thêm một việc
+   nữa để thấy 409.
+6. WebSocket: không token → `401`; Admin (không xem được dự án) → `404`. Kết nối thật kiểm bằng giao diện (bước UI 3)
+   hoặc script KPI ở bước 7.
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' "$API/projects/$SEED_PID/ws"
+   curl -s -o /dev/null -w '%{http_code}\n' "$API/projects/$SEED_PID/ws?access_token=$(cat /tmp/tok-admin)"
+   ```
+7. Đo KPI 1 (2 client WebSocket, ≥ 30 lượt, p95 ≤ 2 giây). Mật khẩu lấy từ output `make seed`, **không** ghi vào file:
+   <!-- verify:skip (cần mật khẩu) -->
+   ```bash
+   KPI_MANAGER_PASSWORD='…' KPI_MEMBER_PASSWORD='…' KPI_RUNS=30 node scripts/kpi/kanban-sync-latency.mjs
+   ```
+   Mong đợi: dòng cuối `KPI 1 ĐẠT: p95 = … ms ≤ 2000 ms`. Kết quả đã đo: `docs/testing/evidence/kpi1-kanban-sync-latency.md`.
+
+**SQL xem dữ liệu CF-04, CF-05:**
+```sql
+-- Thứ tự thẻ trên bảng và version (version tăng mỗi lần thẻ thay đổi)
+SELECT column_position, column_name, position, title, assignee_name, version
+FROM task_view
+WHERE project_name = 'Cổng thông tin nội bộ' AND parent_task_id IS NULL
+ORDER BY column_position, position;
+```
+```sql
+-- Lịch sử chuyển cột (chỉ ghi khi đổi cột, không ghi khi đổi thứ tự trong cột)
+SELECT h.moved_at, t.title, fc.name AS tu_cot, tc.name AS sang_cot, u.full_name AS nguoi_keo
+FROM task_move_history h
+JOIN task t ON t.id = h.task_id
+LEFT JOIN board_column fc ON fc.id = h.from_column_id
+LEFT JOIN board_column tc ON tc.id = h.to_column_id
+JOIN app_user u ON u.id = h.moved_by
+ORDER BY h.moved_at DESC LIMIT 20;
+```
+```sql
+-- Giới hạn WIP từng dự án và số việc đang làm của từng người trong dự án đó
+SELECT p.name, p.wip_limit, v.assignee_name, count(v.id) AS dang_lam
+FROM project p
+LEFT JOIN task_view v ON v.project_id = p.id AND v.parent_task_id IS NULL
+  AND v.status_group = 'in_progress' AND v.assignee_id IS NOT NULL
+GROUP BY p.name, p.wip_limit, v.assignee_name ORDER BY p.name;
 ```
 
 ---
@@ -1008,7 +1118,19 @@ Không dùng `DROP DATABASE`, không xóa thư mục dữ liệu của PostgreSQ
 - [ ] Công việc của tôi, WIP; CEO/Admin bị 403 (§4.3 bước 8)
 - [ ] Nhãn: chỉ Admin/CEO ghi; trùng tên, đang dùng bị chặn (§4.3 bước 9)
 - [ ] Cấu hình giờ/SP: 1–40; Manager không sửa được (§4.3 bước 10)
-- [ ] Chưa có Kanban kéo thả, chuyển cột (thuộc `feature/kanban`) (§4.3 UI bước 7)
+
+### CF-04, CF-05 — Kanban và WIP
+- [ ] Bảng 5 cột, số việc mỗi cột, chip WIP, chỉ báo cập nhật tức thời (§4.4 UI bước 1)
+- [ ] Kéo thả: vùng thả hợp lệ/bị chặn có lý do, toast + Hoàn tác (§4.4 UI bước 2)
+- [ ] Cửa sổ thứ hai thấy thẻ đổi cột ≤ 2 giây, không tải lại trang (§4.4 UI bước 3)
+- [ ] Member chỉ kéo thẻ của mình; vào Done → 422 `TRANSITION_MEMBER_TO_DONE` (§4.4 curl bước 3)
+- [ ] Version cũ → 409 `TASK_VERSION_CONFLICT`; CEO kéo → 403; Admin → 404 (§4.4 curl bước 3)
+- [ ] Đổi thứ tự trong cột được giữ sau khi tải lại (§4.4 UI bước 5)
+- [ ] Giới hạn WIP 1–20, chỉ Manager phụ trách đổi; vượt WIP → 409 `TASK_WIP_LIMIT` + hộp thoại (§4.4 curl bước 5, UI bước 6)
+- [ ] Mất kết nối → dải cảnh báo, tự kết nối lại (§4.4 UI bước 8)
+- [ ] WebSocket không token → 401, người ngoài dự án → 404 (§4.4 curl bước 6)
+- [ ] KPI 1: p95 ≤ 2 giây trên ≥ 30 lượt (§4.4 curl bước 7)
+- [ ] `task_move_history` có dòng cho mỗi lần đổi cột (SQL §4.4)
 
 ### Dọn dẹp
 - [ ] Chạy SQL §7.3 với `ROLLBACK` trước, rồi `COMMIT`

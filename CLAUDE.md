@@ -149,4 +149,5 @@ Dùng `git add <đường dẫn cụ thể>`; xem `git status` trước khi add.
 | Xong một tính năng, trước PR / trước tính năng tiếp theo | skill `feature-gate` |
 | Review code Go trước PR | agent `go-reviewer` |
 | Viết/chạy test, đối chiếu AC | agent `qa-tester` |
+| Thiết kế test case, bug report, báo cáo kiểm thử | skill `test-case-design` + `docs/testing/test-design-standard.md` |
 | Soát giao diện theo docs/design/design-system.md | agent `ui-reviewer` |

@@ -107,6 +107,7 @@ func (r *ProjectRepo) List(ctx context.Context, f project.Filter, p domain.PageR
 			ID: x.ID, Name: x.Name, Description: x.Description, Status: domain.ProjectStatus(x.Status),
 			StartDate: datePtr(x.StartDate), EndDate: datePtr(x.EndDate),
 			ManagerID: x.ManagerID, ManagerName: x.ManagerName, MemberCount: int(x.MemberCount),
+			WIPLimit:  int(x.WipLimit),
 			CreatedAt: x.CreatedAt.Time, UpdatedAt: x.UpdatedAt.Time,
 		})
 	}
@@ -123,6 +124,7 @@ func (r *ProjectRepo) Get(ctx context.Context, id uuid.UUID) (domain.Project, er
 		ID: x.ID, Name: x.Name, Description: x.Description, Status: domain.ProjectStatus(x.Status),
 		StartDate: datePtr(x.StartDate), EndDate: datePtr(x.EndDate),
 		ManagerID: x.ManagerID, ManagerName: x.ManagerName, MemberCount: int(x.MemberCount),
+		WIPLimit:  int(x.WipLimit),
 		CreatedAt: x.CreatedAt.Time, UpdatedAt: x.UpdatedAt.Time,
 	}, nil
 }
@@ -153,6 +155,17 @@ func (r *ProjectRepo) Update(ctx context.Context, id uuid.UUID, f project.Fields
 	n, err := r.q.UpdateProject(ctx, sqlcgen.UpdateProjectParams{
 		Name: f.Name, Description: f.Description, Status: string(f.Status),
 		StartDate: date(f.StartDate), EndDate: date(f.EndDate), ID: id,
+	})
+	if err != nil {
+		return projectErr(err)
+	}
+	return affected(n, domain.ErrProjectNotFound)
+}
+
+// UpdateWIPLimit đặt giới hạn WIP của dự án (CF-05).
+func (r *ProjectRepo) UpdateWIPLimit(ctx context.Context, id uuid.UUID, limit int) error {
+	n, err := r.q.UpdateProjectWIPLimit(ctx, sqlcgen.UpdateProjectWIPLimitParams{
+		WipLimit: int16(limit), ID: id, //nolint:gosec // domain.ValidateWIPLimit giới hạn 1–20
 	})
 	if err != nil {
 		return projectErr(err)

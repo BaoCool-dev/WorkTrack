@@ -80,4 +80,11 @@ var (
 	ErrTaskNotClaimable       = errors.New("only unassigned tasks in a todo column can be claimed")
 	ErrBoardNeedsTodoColumn   = errors.New("board needs a todo column to create tasks")
 	ErrInvalidSetting         = errors.New("invalid setting value")
+
+	// CF-04, CF-05 — kéo thả Kanban, giới hạn WIP.
+	ErrTransitionNotAllowed = errors.New("transition not allowed for this role")
+	ErrTaskNotAssignee      = errors.New("only the assignee or project manager can move this task")
+	ErrTaskVersionConflict  = errors.New("task was changed by someone else")
+	ErrWIPLimitReached      = errors.New("assignee reached the project WIP limit")
+	ErrInvalidWIPLimit      = errors.New("WIP limit must be between 1 and 20")
 )

@@ -19,6 +19,7 @@ const t = messages.projects
 
 const TABS = [
   { value: 'info', label: t.detail.tabs.info },
+  { value: 'board', label: messages.kanban.tab },
   { value: 'tasks', label: t.detail.tabs.tasks },
   { value: 'members', label: t.detail.tabs.members },
   { value: 'columns', label: t.detail.tabs.columns },
@@ -26,9 +27,11 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number]['value']
 
-function parseTab(v: string | null, hasTasks: boolean): Tab {
+/** Tab do trang ghép vào (board, tasks) chỉ hợp lệ khi trang có truyền nội dung. */
+function parseTab(v: string | null, slots: Partial<Record<Tab, unknown>>): Tab {
   const found = TABS.find((x) => x.value === v)?.value ?? 'info'
-  return found === 'tasks' && !hasTasks ? 'info' : found
+  const injected = found === 'tasks' || found === 'board'
+  return injected && !slots[found] ? 'info' : found
 }
 
 /** Chỉ Manager phụ trách được sửa — chỉ để ẩn nút; server kiểm lại (R: server là nguồn sự thật). */
@@ -42,14 +45,17 @@ export interface ProjectDetailProps {
   projectId: string
   /** Tab Công việc do trang ghép vào (features/tasks) — tránh phụ thuộc vòng projects ↔ tasks. */
   renderTasks?: (project: Project, canManage: boolean) => ReactNode
+  /** Tab Kanban do trang ghép vào (features/kanban) — cùng lý do như renderTasks. */
+  renderBoard?: (project: Project, canManage: boolean) => ReactNode
 }
 
-export function ProjectDetail({ projectId, renderTasks }: ProjectDetailProps) {
+export function ProjectDetail({ projectId, renderTasks, renderBoard }: ProjectDetailProps) {
   const project = useProject(projectId)
   const update = useUpdateProject(projectId)
   const canManage = useCanManage(project.data)
   const [params, setParams] = useSearchParams()
-  const tab = parseTab(params.get('tab'), renderTasks !== undefined)
+  const slots = { tasks: renderTasks, board: renderBoard }
+  const tab = parseTab(params.get('tab'), slots)
   const baseId = useId()
   const [editing, setEditing] = useState(false)
 
@@ -134,33 +140,36 @@ export function ProjectDetail({ projectId, renderTasks }: ProjectDetailProps) {
         aria-label={t.detail.tabsLabel}
         className="flex gap-1 border-b border-line"
       >
-        {TABS.filter((x) => x.value !== 'tasks' || renderTasks).map((x) => {
-          const selected = x.value === tab
-          return (
-            <button
-              key={x.value}
-              type="button"
-              role="tab"
-              id={`${baseId}-${x.value}-tab`}
-              aria-selected={selected}
-              aria-controls={`${baseId}-panel`}
-              onClick={() => {
-                select(x.value)
-              }}
-              className={cn(
-                '-mb-px border-b-2 px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-accent',
-                selected
-                  ? 'border-accent font-semibold text-accent'
-                  : 'border-transparent text-ink-muted hover:text-ink',
-              )}
-            >
-              {x.label}
-            </button>
-          )
-        })}
+        {TABS.filter((x) => (x.value !== 'tasks' && x.value !== 'board') || slots[x.value]).map(
+          (x) => {
+            const selected = x.value === tab
+            return (
+              <button
+                key={x.value}
+                type="button"
+                role="tab"
+                id={`${baseId}-${x.value}-tab`}
+                aria-selected={selected}
+                aria-controls={`${baseId}-panel`}
+                onClick={() => {
+                  select(x.value)
+                }}
+                className={cn(
+                  '-mb-px border-b-2 px-3 py-2 text-base focus-visible:outline-2 focus-visible:outline-accent',
+                  selected
+                    ? 'border-accent font-semibold text-accent'
+                    : 'border-transparent text-ink-muted hover:text-ink',
+                )}
+              >
+                {x.label}
+              </button>
+            )
+          },
+        )}
       </div>
       <div role="tabpanel" id={`${baseId}-panel`} aria-labelledby={`${baseId}-${tab}-tab`}>
         {tab === 'info' && <InfoPanel project={p} />}
+        {tab === 'board' && renderBoard?.(p, canManage)}
         {tab === 'tasks' && renderTasks?.(p, canManage)}
         {tab === 'members' && <MembersPanel project={p} canManage={canManage} />}
         {tab === 'columns' && <ColumnsPanel projectId={p.id} canManage={canManage} />}

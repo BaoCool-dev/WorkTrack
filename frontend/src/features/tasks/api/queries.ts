@@ -13,6 +13,8 @@ export const taskKeys = {
   all: ['tasks'] as const,
   project: (projectId: string) => [...taskKeys.all, 'project', projectId] as const,
   list: (projectId: string, p: TaskListParams) => [...taskKeys.project(projectId), p] as const,
+  /** Thẻ trên bảng Kanban — nằm dưới project(...) để mọi lần ghi công việc cũng làm mới bảng. */
+  board: (projectId: string) => [...taskKeys.project(projectId), 'board'] as const,
   detail: (id: string) => [...taskKeys.all, 'detail', id] as const,
   mine: () => [...taskKeys.all, 'mine'] as const,
   mineList: (p: MyTaskListParams) => [...taskKeys.mine(), 'list', p] as const,
@@ -22,7 +24,7 @@ export const taskKeys = {
 }
 
 /** Sau khi ghi một công việc: cập nhật chi tiết, làm mới danh sách liên quan và số việc trên cột. */
-function afterTaskWrite(qc: QueryClient, task: Task) {
+export function afterTaskWrite(qc: QueryClient, task: Task) {
   qc.setQueryData(taskKeys.detail(task.id), task)
   void qc.invalidateQueries({ queryKey: taskKeys.project(task.projectId) })
   void qc.invalidateQueries({ queryKey: taskKeys.mine() })
