@@ -14,10 +14,8 @@ if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && command -v security >/dev/null; then
   _t="$(security find-generic-password -s worktrack-claude-token -w 2>/dev/null || true)"
   [ -n "$_t" ] && export CLAUDE_CODE_OAUTH_TOKEN="$_t"
 fi
-if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ]; then
-  echo "✗ Chưa có token dài hạn. Chạy: claude setup-token, rồi lưu vào Keychain (xem hướng dẫn) — đăng nhập thường sẽ hết hạn giữa chừng."; exit 1
-fi
-claude -p "tra loi dung mot chu: OK" 2>&1 | grep -q OK || { echo "✗ Token không dùng được — tạo lại bằng claude setup-token."; exit 1; }
+[ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && echo "⚠ Đang dùng đăng nhập thường (có thể hết hạn giữa chừng). Nên dùng claude setup-token — xem docs/setup.md."
+claude -p "tra loi dung mot chu: OK" 2>&1 | grep -q OK || { echo "✗ Claude chưa đăng nhập được — chạy: claude auth login (hoặc claude setup-token)."; exit 1; }
 LOGDIR=".ai-log/day-run"; mkdir -p "$LOGDIR"; LOG="$LOGDIR/$(date +%Y%m%d-%H%M).log"
 notify() { command -v osascript >/dev/null && osascript -e "display notification \"$1\" with title \"WorkTrack day-run\"" >/dev/null 2>&1; echo "$(date +%H:%M) $1" | tee -a "$LOG"; }
 command -v caffeinate >/dev/null && { caffeinate -dims -w $$ & }
