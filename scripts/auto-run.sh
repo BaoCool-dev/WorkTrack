@@ -5,10 +5,12 @@
 #   ./scripts/auto-run.sh                      # chạy giai đoạn 1: scaffold → auth → org → projects → tasks
 #   ./scripts/auto-run.sh --phase 2            # giai đoạn 2 (sau khi bạn code xong feature/kanban)
 #   ./scripts/auto-run.sh --only feature/org   # chạy lại đúng một nhánh
+#   Hết giới hạn sử dụng: script tự chờ tới giờ mở lại rồi làm tiếp nhánh dở (tối đa MAX_LIMIT_RETRIES=6 lần).
 #   ./scripts/auto-run.sh --dry-run            # chỉ in kế hoạch
 #   ./scripts/auto-run.sh --from feature/auth  # bỏ qua các nhánh trước (đã xong), chạy tiếp từ nhánh này
 #   ./scripts/auto-run.sh --base <nhánh>       # đổi nhánh gốc (mặc định: main ở giai đoạn 1, feature/kanban ở giai đoạn 2)
 #
+# Chế độ quyền mặc định: auto (đặt PERMISSION_MODE=acceptEdits để chặt hơn). Nếu bản Claude Code chưa hỗ trợ "auto" ở chế độ -p, đặt PERMISSION_MODE=acceptEdits.
 # Log từng nhánh: .ai-log/runs/<nhanh>.jsonl (không commit). Mac được giữ thức trong lúc chạy.
 set -uo pipefail
 
@@ -52,9 +54,21 @@ for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$ONLY" ] && [ "$b" != "$ONLY
 [ "$DRY" = 1 ] && exit 0
 
 # ---- Kiểm tra trước khi chạy ----------------------------------------------------
+# Dùng đăng nhập claude.ai (gói Pro/Max) thay vì API key: ở chế độ -p, ANTHROPIC_API_KEY được ưu tiên
+# nếu có trong môi trường. Đặt USE_API_KEY=1 nếu thật sự muốn tính phí theo API key.
+if [ -z "${USE_API_KEY:-}" ] && { [ -n "${ANTHROPIC_API_KEY:-}" ] || [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; }; then
+  echo "ℹ Bỏ qua ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN trong môi trường — dùng đăng nhập claude.ai."
+  unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+fi
 need() { command -v "$1" >/dev/null || { echo "✗ Thiếu lệnh: $1"; exit 1; }; }
-need claude; need git; need gh; need go; need node; need docker; need python3
-docker info >/dev/null 2>&1 || { echo "✗ Docker chưa chạy — mở Docker Desktop."; exit 1; }
+need claude; need git; need gh; need go; need node; need python3
+if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+  ENV_NOTE="Máy có Docker: chạy được make dev và make test-integration ở máy."
+else
+  echo "⚠ Không có Docker — dùng PostgreSQL/Mailpit cài bằng Homebrew (docs/decisions.md B12)."
+  ENV_NOTE="Máy KHÔNG có Docker (docs/decisions.md B12): dùng PostgreSQL và Mailpit cài bằng Homebrew theo .env; chạy app bằng make dev-local; test tích hợp và docker build chỉ chạy trong CI — sau khi push, kiểm tra CI bằng gh pr checks / gh run view và ghi kết quả vào báo cáo gate."
+  pg_isready -h localhost -p 5432 >/dev/null 2>&1 || echo "⚠ PostgreSQL ở localhost:5432 chưa sẵn sàng — brew services start postgresql@16"
+fi
 gh auth status >/dev/null 2>&1 || { echo "✗ Chưa đăng nhập gh — chạy: gh auth login"; exit 1; }
 [ -z "$(git status --porcelain)" ] || { echo "✗ Có thay đổi chưa commit. Commit hoặc stash trước."; git status --short; exit 1; }
 [ "$(git config core.hooksPath)" = ".githooks" ] || git config core.hooksPath .githooks
@@ -73,8 +87,18 @@ for item in "${PLAN[@]}"; do
   if git show-ref --verify --quiet "refs/heads/$BR"; then git switch -q "$BR"
   else git switch -q "$BASE" && git switch -q -c "$BR"; fi
 
-  PROMPT="Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng, người dùng không có mặt.
+  SLUG="$(echo "$BR" | tr '/' '-')"
+  ATTEMPT=1
+  while :; do
+    DONE_COMMITS="$(git rev-list --count "$BASE..HEAD" 2>/dev/null || echo 0)"
+    RESUME_NOTE=""
+    if [ "$DONE_COMMITS" -gt 0 ]; then
+      RESUME_NOTE="
+NHÁNH ĐÃ LÀM DỞ ($DONE_COMMITS commit so với $BASE, có thể có thay đổi chưa commit). Trước khi viết thêm: đọc git log $BASE..HEAD, git status, entry nhật ký AI của nhánh và báo cáo gate (nếu có); chạy lại toàn bộ test; rồi làm TIẾP phần còn thiếu — không làm lại việc đã xong, không tạo entry nhật ký mới (bổ sung vào entry cũ)."
+    fi
+    PROMPT="Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng, người dùng không có mặt.
 Nhánh hiện tại: $BR (mọc từ $BASE). PR sẽ tạo với --base $BASE --draft.
+Môi trường: $ENV_NOTE$RESUME_NOTE
 
 Phạm vi nhánh này: $SCOPE
 
@@ -82,21 +106,22 @@ Quy trình bắt buộc:
 1. Đọc CLAUDE.md, docs/decisions.md, CONTRIBUTING.md, skill worktrack-domain; nếu là phần giao diện: docs/design/design-system.md và artboard liên quan trong docs/design/artboards/ (nếu có).
 2. Làm theo skill implement-ticket theo lát dọc: migration → sqlc → domain → application → httpapi → frontend; test viết trước cho logic nghiệp vụ.
 3. Tra cú pháp thư viện bằng Context7, không đoán. Lựa chọn chưa có trong docs/decisions.md: tự chọn theo §7c và ghi vào mục C.
-4. Commit thành nhiều commit nhỏ hợp lý, mỗi commit qua skill ai-usage-log (một entry cho cả nhánh, slug theo tên nhánh, model đúng model id đang chạy). Tác giả commit theo git config sẵn có.
+4. Commit thành nhiều commit nhỏ hợp lý, mỗi commit qua skill ai-usage-log (một entry cho cả nhánh, slug theo tên nhánh, model đúng model id đang chạy). Tác giả commit theo git config sẵn có. Commit sau mỗi phần làm xong để không mất việc nếu phiên bị dừng giữa chừng.
 5. Khi xong: chạy skill feature-gate đầy đủ; sửa tới khi ĐẠT (tối đa 3 vòng). Báo cáo ở $(gate_file "$BR").
 6. ĐẠT → git push -u origin $BR → gh pr create --base $BASE --draft (mô tả: mục tiêu, mã CF, tóm tắt gate, giả định mục C).
    CHƯA ĐẠT → vẫn commit báo cáo gate, push nhánh, KHÔNG tạo PR, kết thúc và nêu rõ cần người dùng làm gì.
 Cuối cùng in đúng một dòng: GATE=ĐẠT hoặc GATE=CHƯA_ĐẠT."
 
-  claude -p "$PROMPT" \
-    --permission-mode acceptEdits \
-    --disallowedTools "AskUserQuestion" \
-    --max-turns "$MAX_TURNS" \
-    --output-format stream-json --verbose \
-    > ".ai-log/runs/$(echo "$BR" | tr '/' '-').jsonl" 2> ".ai-log/runs/$(echo "$BR" | tr '/' '-').err"
-  CODE=$?
+    LOG=".ai-log/runs/$SLUG$([ "$ATTEMPT" -gt 1 ] && echo "-$ATTEMPT").jsonl"
+    claude -p "$PROMPT" \
+      --permission-mode "${PERMISSION_MODE:-auto}" \
+      --disallowedTools "AskUserQuestion" \
+      --max-turns "$MAX_TURNS" \
+      --output-format stream-json --verbose \
+      > "$LOG" 2> "${LOG%.jsonl}.err"
+    CODE=$?
 
-  RESULT="$(python3 - ".ai-log/runs/$(echo "$BR" | tr '/' '-').jsonl" <<'PY'
+    RESULT="$(python3 - "$LOG" <<'PY2'
 import json,sys
 last=""
 for line in open(sys.argv[1],encoding="utf-8"):
@@ -104,9 +129,31 @@ for line in open(sys.argv[1],encoding="utf-8"):
     except Exception: continue
     if d.get("type")=="result": last=d.get("result") or ""
 print(last)
-PY
+PY2
 )"
-  echo "$RESULT" | tail -15
+    echo "$RESULT" | tail -15
+
+    # Hết giới hạn sử dụng → chờ tới giờ mở lại rồi làm tiếp đúng nhánh này
+    if printf '%s\n%s' "$RESULT" "$(tail -c 3000 "${LOG%.jsonl}.err" 2>/dev/null)" | grep -qiE "hit your .*limit|usage limit|limit reached|rate.?limit"; then
+      if [ "$ATTEMPT" -ge "${MAX_LIMIT_RETRIES:-6}" ]; then notify "Dừng ở $BR — hết giới hạn quá ${MAX_LIMIT_RETRIES:-6} lần"; exit 1; fi
+      WAIT="$(printf '%s' "$RESULT" | python3 -c '
+import re,sys,datetime
+s=sys.stdin.read()
+m=re.search(r"resets\s+(\d{1,2})(?::(\d{2}))?\s*([ap]m)",s,re.I)
+now=datetime.datetime.now()
+if not m: print(3600); sys.exit()
+h=int(m.group(1))%12+(12 if m.group(3).lower()=="pm" else 0); mi=int(m.group(2) or 0)
+t=now.replace(hour=h,minute=mi,second=0,microsecond=0)
+if t<=now: t+=datetime.timedelta(days=1)
+print(int((t-now).total_seconds())+180)')"
+      notify "Hết giới hạn ở $BR — tự chạy tiếp lúc $(date -v+"${WAIT}"S +%H:%M 2>/dev/null || echo "sau $((WAIT/60)) phút")"
+      sleep "$WAIT"
+      ATTEMPT=$((ATTEMPT+1))
+      continue
+    fi
+    break
+  done
+
   GATE="$(gate_file "$BR")"
   if [ $CODE -ne 0 ] || ! echo "$RESULT" | grep -q "GATE=ĐẠT" || [ ! -f "$GATE" ]; then
     notify "Dừng ở $BR — xem $GATE và .ai-log/runs/"; exit 1

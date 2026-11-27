@@ -1,0 +1,79 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Be Vietnam Pro', ui-sans-serif, system-ui, sans-serif;
+
+  /* Cỡ chữ: CHỈ 3 cỡ */
+  --text-sm: 12px; /* phụ chú, nhãn, tiêu đề cột, badge */
+  --text-base: 14px; /* nội dung, ô bảng, nút, tên công việc */
+  --text-lg: 20px; /* tiêu đề trang, số liệu lớn */
+
+  /* Màu nhấn */
+  --color-accent: #1d4ed8;
+  --color-accent-hover: #1e40af; /* cũng là màu chữ của mục đang chọn */
+  --color-accent-subtle: #eff6ff; /* nền mục đang chọn, vùng thả hợp lệ */
+  --color-accent-border: #bfdbfe;
+  --color-accent-soft: #5b82e8; /* chỉ dùng cho chuỗi "Dự kiến" trong biểu đồ */
+
+  /* Trung tính */
+  --color-page: #f8fafc; /* nền trang */
+  --color-surface: #ffffff; /* thẻ, bảng, sidebar, topbar */
+  --color-subtle: #f1f5f9; /* nền cột Kanban, header bảng, chip trung tính, skeleton nhạt */
+  --color-line: #e2e8f0; /* mọi viền 1px, skeleton đậm */
+  --color-line-strong: #cbd5e1; /* viền ô nhập, nút phụ, viền nét đứt */
+  --color-ink: #0f172a; /* chữ chính, nền toast */
+  --color-ink-2: #334155; /* chữ trên chip nhãn xám */
+  --color-ink-muted: #475569; /* chữ phụ */
+  --color-ink-faint: #64748b; /* nhạt nhất được phép cho chữ */
+  --color-disabled: #94a3b8; /* chữ/icon bị vô hiệu hóa — không dùng cho chữ thường */
+
+  /* Trạng thái: màu chữ / nền badge / viền badge */
+  --color-ok: #15803d;
+  --color-ok-bg: #e8f6ec;
+  --color-ok-border: #bbe7c8;
+  --color-warn: #b45309;
+  --color-warn-bg: #fef3c7;
+  --color-warn-border: #fde68a;
+  --color-bad: #b91c1c;
+  --color-bad-bg: #fee2e2;
+  --color-bad-border: #fecaca;
+  --color-draft: #64748b;
+  --color-draft-bg: #f1f5f9;
+  --color-draft-border: #e2e8f0; /* chữ badge dùng #475569 */
+  --color-active: #0f766e;
+  --color-active-bg: #e0f7f4;
+  --color-active-border: #a7e0d7;
+
+  /* Nhãn (label) — bảng riêng, KHÔNG mượn màu trạng thái */
+  --color-label-a-bg: #f1f5f9;
+  --color-label-a-fg: #334155;
+  --color-label-b-bg: #fce7f3;
+  --color-label-b-fg: #9d174d;
+  --color-label-c-bg: #f4f1ea;
+  --color-label-c-fg: #57534e;
+
+  /* Khối AI "Gợi ý" */
+  --color-ai-bg: #fbf8f2;
+  --color-ai-border: #e7dfd0;
+  --color-ai-chip-bg: #f4f1ea;
+  --color-ai-fg: #57534e;
+
+  --radius-sm: 4px; /* badge, chip, nút nhỏ trong khối AI, kbd */
+  --radius-md: 6px; /* thẻ, nút, ô nhập, panel, modal — TỐI ĐA */
+
+  --shadow-overlay: 0 8px 24px rgba(15, 23, 42, 0.12); /* CHỈ modal, dropdown, toast */
+}
+
+/* §2: mọi số liệu dùng chữ số đều độ rộng */
+@utility num {
+  font-variant-numeric: tabular-nums;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    color: var(--color-ink);
+    background-color: var(--color-page);
+  }
+}
