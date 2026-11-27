@@ -59,7 +59,7 @@ gate_file() { echo "docs/gates/$(echo "$1" | tr '/' '-').md"; }
 notify() { command -v osascript >/dev/null && osascript -e "display notification \"$1\" with title \"WorkTrack auto-run\"" >/dev/null 2>&1; echo "$1"; }
 
 echo "== Kế hoạch (giai đoạn $PHASE), nhánh gốc: $START_BASE"
-for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$ONLY" ] && [ "$b" != "$ONLY" ] && continue; echo "   - $b"; done
+_skip="$FROM"; for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$_skip" ] && [ "$b" != "$_skip" ] && continue; _skip=""; [ -n "$ONLY" ] && [ "$b" != "$ONLY" ] && continue; echo "   - $b"; done
 [ "$DRY" = 1 ] && exit 0
 
 # ---- Kiểm tra trước khi chạy ----------------------------------------------------
@@ -68,6 +68,11 @@ for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$ONLY" ] && [ "$b" != "$ONLY
 if [ -z "${USE_API_KEY:-}" ] && { [ -n "${ANTHROPIC_API_KEY:-}" ] || [ -n "${ANTHROPIC_AUTH_TOKEN:-}" ]; }; then
   echo "ℹ Bỏ qua ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN trong môi trường — dùng đăng nhập claude.ai."
   unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
+fi
+# Token dài hạn cho chạy không người trông (tạo bằng: claude setup-token; lưu vào Keychain, xem docs/setup.md)
+if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && command -v security >/dev/null; then
+  _t="$(security find-generic-password -s worktrack-claude-token -w 2>/dev/null || true)"
+  [ -n "$_t" ] && export CLAUDE_CODE_OAUTH_TOKEN="$_t"
 fi
 need() { command -v "$1" >/dev/null || { echo "✗ Thiếu lệnh: $1"; exit 1; }; }
 need claude; need git; need gh; need go; need node; need python3
@@ -89,7 +94,7 @@ command -v caffeinate >/dev/null && { caffeinate -dims -w $$ & }
 BASE="$START_BASE"
 for item in "${PLAN[@]}"; do
   BR="${item%%|*}"; SCOPE="${item#*|}"
-  if [ -n "$FROM" ]; then if [ "$BR" = "$FROM" ]; then FROM=""; else BASE="$BR"; continue; fi; fi
+  if [ -n "$FROM" ]; then if [ "$BR" = "$FROM" ]; then FROM=""; [ -n "$BASE_ARG" ] && BASE="$BASE_ARG"; else BASE="$BR"; continue; fi; fi
   if [ -n "$ONLY" ] && [ "$BR" != "$ONLY" ]; then BASE="$BR"; continue; fi
   echo; echo "================ $BR  (từ $BASE) ================"
 

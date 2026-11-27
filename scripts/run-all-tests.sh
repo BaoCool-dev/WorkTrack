@@ -3,11 +3,14 @@
 # ghi kết quả máy đọc được vào <thư mục run> rồi in tóm tắt. Không gọi AI.
 #   ./scripts/run-all-tests.sh [thư mục run]   (mặc định .ai-log/test-runs/<thời gian>)
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="${REPO_ROOT:-$(cd "$HERE/.." && pwd)}"; cd "$ROOT"
 RUN="${1:-.ai-log/test-runs/$(date +%Y%m%d-%H%M)}"; mkdir -p "$RUN"; RUN="$(cd "$RUN" && pwd)"
 echo "== Chạy test trên $(git branch --show-current) @ $(git rev-parse --short HEAD) → $RUN"
 git rev-parse --short HEAD > "$RUN/commit.txt"
 
+if [ ! -f backend/go.mod ]; then echo "(chưa có backend ở bước này)"; : > "$RUN/go-unit.json"; : > "$RUN/go-integration.json"; SKIP_GO=1; else SKIP_GO=0; fi
+if [ "$SKIP_GO" = 0 ]; then
 echo "-- go test (unit, API)"
 ( cd backend && go test -json -count=1 ./... ) > "$RUN/go-unit.json" 2> "$RUN/go-unit.err"
 
@@ -27,8 +30,15 @@ else
   echo "⚠ Không kết nối được PostgreSQL ở localhost:5432 — bỏ qua test tích hợp (brew services start postgresql@16)."
   : > "$RUN/go-integration.json"
 fi
+fi
 
-echo "-- vitest"
-( cd frontend && npx vitest run --reporter=json --outputFile="$RUN/vitest.json" ) > "$RUN/vitest.log" 2>&1
+if [ -f frontend/package.json ]; then
+  echo "-- vitest"
+  LOCKHASH="$(shasum frontend/package-lock.json 2>/dev/null | cut -d' ' -f1)"
+  if [ ! -d frontend/node_modules ] || [ "$(cat frontend/node_modules/.lockhash 2>/dev/null)" != "$LOCKHASH" ]; then
+    echo "   npm ci (thư viện thay đổi)"; ( cd frontend && npm ci --silent ) > "$RUN/npm-ci.log" 2>&1 && echo "$LOCKHASH" > frontend/node_modules/.lockhash
+  fi
+  ( cd frontend && npx vitest run --reporter=json --outputFile="$RUN/vitest.json" ) > "$RUN/vitest.log" 2>&1
+else echo "(chưa có frontend ở bước này)"; fi
 
-python3 scripts/test-summary.py "$RUN"
+python3 "$HERE/test-summary.py" "$RUN"
