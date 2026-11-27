@@ -1,0 +1,37 @@
+{
+  "editor.formatOnSave": true,
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+
+  "[go]": {
+    "editor.defaultFormatter": "golang.go",
+    "editor.codeActionsOnSave": { "source.organizeImports": "explicit" }
+  },
+  "go.useLanguageServer": true,
+  "go.lintTool": "golangci-lint",
+  "go.lintOnSave": "package",
+  "go.testFlags": ["-count=1"],
+  "gopls": {
+    "ui.semanticTokens": true,
+    "formatting.gofumpt": false
+  },
+
+  "[typescript]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[typescriptreact]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[json]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "[jsonc]": { "editor.defaultFormatter": "esbenp.prettier-vscode" },
+  "editor.codeActionsOnSave": { "source.fixAll.eslint": "explicit" },
+  "eslint.workingDirectories": ["./frontend"],
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "tailwindCSS.experimental.configFile": "frontend/src/app/styles/theme.css",
+
+  "files.associations": { "*.sql": "sql" },
+  "files.readonlyInclude": {
+    "backend/internal/infrastructure/postgres/sqlcgen/**": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "backend/internal/infrastructure/postgres/sqlcgen/**": true
+  }
+}

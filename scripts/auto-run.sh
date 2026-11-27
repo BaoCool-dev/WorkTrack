@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Chạy Claude Code ở "chế độ tự chạy" (CLAUDE.md §7c) qua nhiều nhánh nối tiếp.
+# Mỗi nhánh mọc từ nhánh trước, kết thúc bằng feature-gate ĐẠT + PR draft. Dừng khi một nhánh không đạt.
+#
+#   ./scripts/auto-run.sh                      # chạy giai đoạn 1: scaffold → auth → org → projects → tasks
+#   ./scripts/auto-run.sh --phase 2            # giai đoạn 2 (sau khi bạn code xong feature/kanban)
+#   ./scripts/auto-run.sh --only feature/org   # chạy lại đúng một nhánh
+#   ./scripts/auto-run.sh --dry-run            # chỉ in kế hoạch
+#   ./scripts/auto-run.sh --from feature/auth  # bỏ qua các nhánh trước (đã xong), chạy tiếp từ nhánh này
+#   ./scripts/auto-run.sh --base <nhánh>       # đổi nhánh gốc (mặc định: main ở giai đoạn 1, feature/kanban ở giai đoạn 2)
+#
+# Log từng nhánh: .ai-log/runs/<nhanh>.jsonl (không commit). Mac được giữ thức trong lúc chạy.
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
+PHASE=1; ONLY=""; DRY=0; BASE_ARG=""; FROM=""; MAX_TURNS="${MAX_TURNS:-300}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --phase) PHASE="$2"; shift 2 ;;
+    --only) ONLY="$2"; shift 2 ;;
+    --dry-run) DRY=1; shift ;;
+    --base) BASE_ARG="$2"; shift 2 ;;
+    --from) FROM="$2"; shift 2 ;;
+    *) echo "Tham số không hợp lệ: $1"; exit 2 ;;
+  esac
+done
+
+# ---- Kế hoạch: nhánh | phạm vi -------------------------------------------------
+PHASE1=(
+"chore/scaffold|Khung dự án, KHÔNG có tính năng nghiệp vụ. backend/: go mod init github.com/BaoCool-dev/WorkTrack/backend; cấu trúc Clean Architecture theo backend/CLAUDE.md; router chi với /healthz và /readyz (pgxpool; interface Pinger để unit test + 1 test tích hợp testcontainers-go có build tag integration); cấu hình từ biến môi trường theo .env.example; slog JSON + request ID; graceful shutdown; .golangci.yml; sqlc.yaml; thư mục db/migrations, db/queries. frontend/: Vite + React 19 + TS strict + Tailwind v4 (@tailwindcss/vite) + React Router + TanStack Query; theme.css đúng token docs/design/design-system.md §1; @fontsource/be-vietnam-pro 400/600; trang tạm gọi /healthz; ESLint + Prettier; Vitest + RTL + 1 test. docker-compose.yml: postgres:16, mailpit, api, web, healthcheck, volume. .github/workflows/ci.yml: build, lint, test Go + FE, test tích hợp, gitleaks, docker build. Makefile: dev, lint, test, test-integration, sqlc, migrate-up, migrate-new, cover, seed (seed để trống, các nhánh sau bổ sung) chạy được."
+"feature/auth|CF-01. Backend: bảng app_user, role (4 vai trò Admin/Manager/Member/CEO), refresh_token; Admin tạo tài khoản → email kích hoạt qua Mailpit (B7) → đặt mật khẩu (B8); đăng nhập; JWT access + refresh xoay vòng (B4); đăng xuất; GET /api/v1/auth/me; khóa đăng nhập (B8); module internal/application/authz là nơi duy nhất quyết định quyền, CEO theo B2; middleware RequireAuth; giới hạn tần suất đăng nhập/làm mới. Frontend: trang đăng nhập, trang kích hoạt/đặt mật khẩu, AuthProvider (access token trong bộ nhớ, tự làm mới), route guard theo vai trò, AppShell (sidebar 236px + topbar theo design-system §4, menu theo vai trò), shared/ui cơ bản (Button, Input, Badge, Toast, Dialog, EmptyState, ErrorState, Skeleton). make seed: 1 tài khoản mỗi vai trò (B11). Test đủ 401/403 cho mọi vai trò."
+"feature/org|CF-02. Phòng ban dạng cây, chức danh, danh mục kỹ năng, hồ sơ kỹ năng nhân sự (Beginner/Intermediate/Senior); màn Nhân sự & phòng ban cho Admin theo artboard 10 nếu có trong docs/design/artboards (danh sách có tìm kiếm, lọc, phân trang B9; form thêm/sửa với validate; lỗi 'Email đã tồn tại'). KHÔNG làm nhập/xuất Excel (Mở rộng). Mở rộng make seed với phòng ban, kỹ năng mẫu."
+"feature/projects|CF-03. Manager tạo dự án trống (mẫu dự án là Mở rộng — không làm), sửa thông tin, trạng thái dự án (Mới tạo/Đang tiến hành/Hoàn thành/Tạm dừng/Đã hủy với badge đúng màu), thêm/bớt thành viên; cấu hình 2–8 cột Kanban (thêm, đổi tên, xóa, sắp xếp; mỗi cột có status_group todo|in_progress|done; cảnh báo khi xóa cột có việc); bảng workflow_transition với luật mặc định theo worktrack-domain (CHỈ lưu dữ liệu + API đọc/sửa cấu hình — việc ÁP DỤNG luật khi kéo thẻ thuộc feature/kanban do người dùng tự code). Danh sách dự án theo vai trò (Member chỉ thấy dự án mình tham gia; CEO thấy tất cả). Màn cấu hình theo artboard 12 nếu có."
+"feature/tasks|CF-06. Công việc cha: Manager tạo, sửa, giao việc; Member tự nhận việc từ Backlog (giới hạn WIP là Mở rộng — không chặn, chỉ hiển thị số đếm); Story Point và giờ ước tính quy đổi theo B1 (tham số cấu hình); hạn chót; nhãn; API danh sách công việc theo dự án (có lọc, phân trang) và chi tiết; panel chi tiết công việc (không gồm công việc con, bình luận, Log time — các nhánh sau); trang 'Công việc của tôi' dạng bảng. KHÔNG làm bảng Kanban, kéo thả, chuyển cột hay realtime và KHÔNG tạo API chuyển cột — tất cả thuộc feature/kanban do người dùng tự code. Công việc mới tạo nằm ở cột đầu tiên có status_group=todo. Mở rộng make seed với công việc mẫu."
+)
+PHASE2=(
+"feature/subtasks|CF-07. Công việc con 1 cấp do Member tạo (không Story Point, CHECK ở CSDL), Member tự chuyển trạng thái con; bình luận gắn công việc; thông báo trong hệ thống (chuông, đã đọc/chưa đọc) cho: được giao việc, có bình luận, bị từ chối nghiệm thu."
+"feature/logtime|CF-08. Log time trên công việc cha và con (phút > 0, không log vào việc đã Done quá 24 giờ); tổng giờ thực tế = giờ cha + giờ con; thanh so giờ trên thẻ theo design-system §6 và ngưỡng B5; modal Log giờ; lịch sử log."
+"feature/review|CF-09. Luồng nghiệm thu: Member đưa công việc cha sang cột Chờ nghiệm thu (cảnh báo nếu còn con chưa xong, vẫn cho phép); Manager Duyệt (sang nhóm done) hoặc Từ chối bắt buộc lý do (về in_progress, tính tỷ lệ làm lại); dùng luật chuyển cột của feature/kanban, không viết lại."
+"feature/reports|CF-10, CF-11. Báo cáo tỷ lệ tuân thủ thời hạn và độ lệch giờ (chỉ công việc gốc; giờ con cộng lên cha) theo công thức worktrack-domain; Dashboard dự án cho Manager (artboard 07/08); Dashboard toàn công ty cho CEO CHỈ XEM (artboard 09, không endpoint ghi); test so khớp 100% với bảng tính tay trên bộ dữ liệu mẫu ≥ 30 công việc (KPI 3)."
+"feature/ai|CF-12. Trợ lý AI Gemini qua port AIAssistant: phân rã yêu cầu thành công việc cha có Story Point; gợi ý 3 nhân sự kèm lý do; kết quả luôn là bản xem trước (Chấp nhận/Sửa/Bỏ qua), timeout, bảng ai_usage_log ghi thời gian phản hồi; không gửi dữ liệu nhạy cảm vào prompt. Nếu chưa có GEMINI_API_KEY: cài adapter giả lập để test và chạy giao diện, ghi rõ trong PR."
+)
+
+if [ "$PHASE" = "2" ]; then PLAN=("${PHASE2[@]}"); START_BASE="feature/kanban"; else PLAN=("${PHASE1[@]}"); START_BASE="main"; fi
+[ -n "$BASE_ARG" ] && START_BASE="$BASE_ARG"
+
+gate_file() { echo "docs/gates/$(echo "$1" | tr '/' '-').md"; }
+notify() { command -v osascript >/dev/null && osascript -e "display notification \"$1\" with title \"WorkTrack auto-run\"" >/dev/null 2>&1; echo "$1"; }
+
+echo "== Kế hoạch (giai đoạn $PHASE), nhánh gốc: $START_BASE"
+for item in "${PLAN[@]}"; do b="${item%%|*}"; [ -n "$ONLY" ] && [ "$b" != "$ONLY" ] && continue; echo "   - $b"; done
+[ "$DRY" = 1 ] && exit 0
+
+# ---- Kiểm tra trước khi chạy ----------------------------------------------------
+need() { command -v "$1" >/dev/null || { echo "✗ Thiếu lệnh: $1"; exit 1; }; }
+need claude; need git; need gh; need go; need node; need docker; need python3
+docker info >/dev/null 2>&1 || { echo "✗ Docker chưa chạy — mở Docker Desktop."; exit 1; }
+gh auth status >/dev/null 2>&1 || { echo "✗ Chưa đăng nhập gh — chạy: gh auth login"; exit 1; }
+[ -z "$(git status --porcelain)" ] || { echo "✗ Có thay đổi chưa commit. Commit hoặc stash trước."; git status --short; exit 1; }
+[ "$(git config core.hooksPath)" = ".githooks" ] || git config core.hooksPath .githooks
+mkdir -p .ai-log/runs
+
+# Giữ Mac không ngủ trong lúc chạy
+command -v caffeinate >/dev/null && { caffeinate -dims -w $$ & }
+
+BASE="$START_BASE"
+for item in "${PLAN[@]}"; do
+  BR="${item%%|*}"; SCOPE="${item#*|}"
+  if [ -n "$FROM" ]; then if [ "$BR" = "$FROM" ]; then FROM=""; else BASE="$BR"; continue; fi; fi
+  if [ -n "$ONLY" ] && [ "$BR" != "$ONLY" ]; then BASE="$BR"; continue; fi
+  echo; echo "================ $BR  (từ $BASE) ================"
+
+  if git show-ref --verify --quiet "refs/heads/$BR"; then git switch -q "$BR"
+  else git switch -q "$BASE" && git switch -q -c "$BR"; fi
+
+  PROMPT="Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng, người dùng không có mặt.
+Nhánh hiện tại: $BR (mọc từ $BASE). PR sẽ tạo với --base $BASE --draft.
+
+Phạm vi nhánh này: $SCOPE
+
+Quy trình bắt buộc:
+1. Đọc CLAUDE.md, docs/decisions.md, CONTRIBUTING.md, skill worktrack-domain; nếu là phần giao diện: docs/design/design-system.md và artboard liên quan trong docs/design/artboards/ (nếu có).
+2. Làm theo skill implement-ticket theo lát dọc: migration → sqlc → domain → application → httpapi → frontend; test viết trước cho logic nghiệp vụ.
+3. Tra cú pháp thư viện bằng Context7, không đoán. Lựa chọn chưa có trong docs/decisions.md: tự chọn theo §7c và ghi vào mục C.
+4. Commit thành nhiều commit nhỏ hợp lý, mỗi commit qua skill ai-usage-log (một entry cho cả nhánh, slug theo tên nhánh, model đúng model id đang chạy). Tác giả commit theo git config sẵn có.
+5. Khi xong: chạy skill feature-gate đầy đủ; sửa tới khi ĐẠT (tối đa 3 vòng). Báo cáo ở $(gate_file "$BR").
+6. ĐẠT → git push -u origin $BR → gh pr create --base $BASE --draft (mô tả: mục tiêu, mã CF, tóm tắt gate, giả định mục C).
+   CHƯA ĐẠT → vẫn commit báo cáo gate, push nhánh, KHÔNG tạo PR, kết thúc và nêu rõ cần người dùng làm gì.
+Cuối cùng in đúng một dòng: GATE=ĐẠT hoặc GATE=CHƯA_ĐẠT."
+
+  claude -p "$PROMPT" \
+    --permission-mode acceptEdits \
+    --disallowedTools "AskUserQuestion" \
+    --max-turns "$MAX_TURNS" \
+    --output-format stream-json --verbose \
+    > ".ai-log/runs/$(echo "$BR" | tr '/' '-').jsonl" 2> ".ai-log/runs/$(echo "$BR" | tr '/' '-').err"
+  CODE=$?
+
+  RESULT="$(python3 - ".ai-log/runs/$(echo "$BR" | tr '/' '-').jsonl" <<'PY'
+import json,sys
+last=""
+for line in open(sys.argv[1],encoding="utf-8"):
+    try: d=json.loads(line)
+    except Exception: continue
+    if d.get("type")=="result": last=d.get("result") or ""
+print(last)
+PY
+)"
+  echo "$RESULT" | tail -15
+  GATE="$(gate_file "$BR")"
+  if [ $CODE -ne 0 ] || ! echo "$RESULT" | grep -q "GATE=ĐẠT" || [ ! -f "$GATE" ]; then
+    notify "Dừng ở $BR — xem $GATE và .ai-log/runs/"; exit 1
+  fi
+  if ! git ls-remote --exit-code --heads origin "$BR" >/dev/null 2>&1; then
+    notify "Dừng ở $BR — nhánh chưa được push"; exit 1
+  fi
+  notify "Xong $BR — PR draft đã tạo"
+  BASE="$BR"
+done
+
+if [ "$PHASE" = "1" ] && [ -z "$ONLY" ]; then
+  notify "Giai đoạn 1 xong. Tới lượt bạn: git switch feature/tasks && git switch -c feature/kanban"
+else
+  notify "Hoàn tất."
+fi

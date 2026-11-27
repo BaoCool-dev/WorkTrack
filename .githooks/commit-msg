@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Git commit-msg hook — bật bằng: git config core.hooksPath .githooks
+# Commit có dấu hiệu AI (AI-Assisted hoặc Co-Authored-By của công cụ AI) BẮT BUỘC có trailer
+# "AI-Log: docs/ai-log/entries/<file>.md" trỏ tới file có thật, đã commit hoặc đang được stage.
+# Bỏ qua tạm thời (không khuyến khích): git commit --no-verify
+
+msg_file="$1"
+msg="$(grep -v '^#' "$msg_file")"
+
+has_ai=0
+if printf '%s\n' "$msg" | grep -qiE '^AI-Assisted:'; then has_ai=1; fi
+if printf '%s\n' "$msg" | grep -qiE '^Co-Authored-By:.*(Claude|Copilot|Gemini|GPT|Cursor)'; then has_ai=1; fi
+[ "$has_ai" -eq 0 ] && exit 0
+
+log_path="$(printf '%s\n' "$msg" | sed -nE 's/^AI-Log:[[:space:]]*(.+)$/\1/p' | head -1 | tr -d '\r')"
+if [ -z "$log_path" ]; then
+  cat >&2 <<'EOF'
+✗ Commit có AI hỗ trợ nhưng thiếu trailer "AI-Log:".
+  Thêm dòng cuối commit message, ví dụ:
+    AI-Assisted: Claude Code (claude-opus-5-5)
+    AI-Log: docs/ai-log/entries/2026-11-20-01-log-time.md
+  Tạo entry: python3 scripts/ai-log/ai_log.py new --slug <ten> --type code
+  Hoặc nhờ Claude: "commit kèm nhật ký AI" (skill ai-usage-log).
+EOF
+  exit 1
+fi
+
+if [ ! -f "$log_path" ]; then
+  echo "✗ AI-Log trỏ tới '$log_path' nhưng file không tồn tại." >&2
+  echo "  Tạo entry: python3 scripts/ai-log/ai_log.py new --slug <ten> --type code" >&2
+  exit 1
+fi
+if ! git ls-files --error-unmatch "$log_path" >/dev/null 2>&1 && ! git diff --cached --name-only | grep -qxF "$log_path"; then
+  echo "✗ '$log_path' chưa được git add. Chạy: git add '$log_path'" >&2
+  exit 1
+fi
+exit 0

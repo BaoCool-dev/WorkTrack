@@ -25,6 +25,8 @@ frontend/playwright-report/
 .DS_Store
 .idea/
 
-# Nhật ký AI — prompt thô do hook ghi (chỉ ở máy cá nhân)
+# Nhật ký AI — prompt thô do hook ghi (riêng tư, chỉ ở máy)
 .ai-log/
+
+# File xuất nhật ký AI để nộp
 dist/
