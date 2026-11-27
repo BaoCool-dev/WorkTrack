@@ -12,6 +12,7 @@ import {
   type SubtaskInput,
   type Task,
   type TaskInput,
+  type TimeLog,
   type TimeLogInput,
 } from '../model/types'
 import { tasksApi, type MyTaskListParams, type TaskListParams } from './tasksApi'
@@ -223,11 +224,17 @@ export function useTimeLogs(taskId: string, page: number) {
   })
 }
 
+/**
+ * task là công việc đang mở trong hộp chi tiết; đích ghi có thể là chính nó hoặc một việc con
+ * (chọn trong hộp Log giờ) nên taskId đi kèm biến của mutation.
+ */
 export function useCreateTimeLog(task: Task) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: TimeLogInput) => tasksApi.createTimeLog(task.id, body),
-    onSuccess: () => {
+    mutationFn: ({ taskId, ...body }: TimeLogInput & { taskId: string }) =>
+      tasksApi.createTimeLog(taskId, body),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: taskKeys.detail(vars.taskId) })
       afterTimeLogWrite(qc, task)
     },
   })
@@ -236,8 +243,9 @@ export function useCreateTimeLog(task: Task) {
 export function useDeleteTimeLog(task: Task) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (logId: string) => tasksApi.deleteTimeLog(logId),
-    onSuccess: () => {
+    mutationFn: (log: TimeLog) => tasksApi.deleteTimeLog(log.id),
+    onSuccess: (_data, log) => {
+      void qc.invalidateQueries({ queryKey: taskKeys.detail(log.taskId) })
       afterTimeLogWrite(qc, task)
     },
   })

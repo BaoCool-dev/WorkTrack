@@ -5,11 +5,9 @@ import { cn } from '@/shared/lib/cn'
 import { formatHours, formatHoursValue } from '@/shared/lib/format'
 import { getHoursLevel } from '@/shared/lib/hoursLevel'
 import { messages } from '@/shared/lib/messages'
-import { Avatar, LabelChip } from '@/shared/ui'
+import { Avatar, barClass, HoursLevelMark, LabelChip } from '@/shared/ui'
 
 import { taskDndId } from '../model/dnd'
-import { barClass } from '../model/hoursTone'
-import { HoursLevelMark } from './HoursLevelMark'
 
 const t = messages.kanban
 

@@ -199,7 +199,7 @@ describe('Chi tiết công việc (CF-06)', () => {
     server.use(mock.get(`${API}/api/v1/tasks/${task.id}`, () => HttpResponse.json(task)))
   }
 
-  it('mở chi tiết từ bảng: hiện thông tin và ghi chú phần làm sau', async () => {
+  it('mở chi tiết từ bảng: hiện thông tin và mục giờ làm thực tế', async () => {
     const task = makeTask({ description: 'Đăng nhập bằng email + mật khẩu.' })
     mockProject([task])
     mockDetail(task)
@@ -211,7 +211,7 @@ describe('Chi tiết công việc (CF-06)', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Thiết kế API đăng nhập' })
     expect(await within(dialog).findByText('Đăng nhập bằng email + mật khẩu.')).toBeInTheDocument()
     expect(within(dialog).getByText('Trần Bình')).toBeInTheDocument()
-    expect(within(dialog).getByText(t.detail.later)).toBeInTheDocument()
+    expect(within(dialog).getByText(t.timeLog.title)).toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: t.detail.edit })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: t.detail.claim })).not.toBeInTheDocument()
   })
@@ -254,7 +254,7 @@ describe('Chi tiết công việc (CF-06)', () => {
       await screen.findByRole('button', { name: t.list.open('Thiết kế API đăng nhập') }),
     )
     const dialog = await screen.findByRole('dialog', { name: 'Thiết kế API đăng nhập' })
-    await within(dialog).findByText(t.detail.later)
+    await within(dialog).findByText(t.timeLog.title)
     expect(within(dialog).queryByRole('button', { name: t.detail.claim })).not.toBeInTheDocument()
   })
 
