@@ -30,6 +30,11 @@ done
 FINAL="${PLAN[${#PLAN[@]}-1]}"
 
 if [ -z "${USE_API_KEY:-}" ]; then unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN; fi
+# Token dài hạn cho chạy không người trông (tạo bằng: claude setup-token; lưu vào Keychain, xem docs/setup.md)
+if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && command -v security >/dev/null; then
+  _t="$(security find-generic-password -s worktrack-claude-token -w 2>/dev/null || true)"
+  [ -n "$_t" ] && export CLAUDE_CODE_OAUTH_TOKEN="$_t"
+fi
 need() { command -v "$1" >/dev/null || { echo "✗ Thiếu lệnh: $1"; exit 1; }; }
 need claude; need git; need gh; need go; need node; need python3
 [ -z "$(git status --porcelain)" ] || { echo "✗ Có thay đổi chưa commit."; git status --short; exit 1; }
