@@ -22,6 +22,7 @@ Làm CF-07: công việc con 1 cấp (Member tự tạo, tự chuyển, không S
 ## Nội dung AI tạo ra
 <!-- Liệt kê theo file/phần: AI viết gì. Có thể kèm git diff --stat của commit AI. -->
 - CSDL: migration `20261127014848_add_subtask_comment_notification.sql` (trigger con 1 cấp, bảng `task_comment`, `notification`); query `subtask.sql`, `comment.sql`, `notification.sql`; sinh lại sqlcgen.
+- Domain: `internal/domain/collab.go` (quyền thao tác việc con, cha phải là việc gốc, chuẩn hóa bình luận, chọn người nhận thông báo, trích đoạn) + `collab_test.go` viết trước (RED → GREEN); lỗi CF-07 trong `errors.go`.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
