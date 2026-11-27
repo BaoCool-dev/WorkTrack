@@ -9,7 +9,13 @@
 #
 # Báo cáo từng bước: docs/integration/NN-<nhánh>.md. Kết quả thô: .ai-log/integration/ (không commit).
 set -uo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"; cd "$ROOT"
+ROOT="${REPO_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"; cd "$ROOT"
+# Chạy từ bản sao ở thư mục tạm: khi chuyển/gộp nhánh, thư mục scripts/ trong repo thay đổi theo từng bước.
+if [ -z "${INTEGRATE_TOOLS:-}" ]; then
+  T="$(mktemp -d)"; cp scripts/integrate.sh scripts/run-all-tests.sh scripts/test-summary.py "$T/"
+  INTEGRATE_TOOLS="$T" REPO_ROOT="$ROOT" exec bash "$T/integrate.sh" "$@"
+fi
+RUNTESTS="$INTEGRATE_TOOLS/run-all-tests.sh"
 TARGET="release/v1"; ONE=0; PUSH=1
 while [ $# -gt 0 ]; do case "$1" in
   --target) TARGET="$2"; shift 2 ;; --step) ONE=1; shift ;; --no-push) PUSH=0; shift ;;
@@ -49,23 +55,23 @@ for i in "${!PLAN[@]}"; do
   else CONFLICT="Gộp không xung đột."; fi
 
   if [ -z "$(git status --porcelain)" ]; then
-    ./scripts/run-all-tests.sh "$RUN/after-merge" > "$RUN/after-merge.log" 2>&1
-    ( cd backend && deadcode -test ./... ) > "$RUN/deadcode.txt" 2>&1
-    ( cd frontend && npx -y knip --no-progress ) > "$RUN/knip.txt" 2>&1
+    REPO_ROOT="$ROOT" bash "$RUNTESTS" "$RUN/after-merge" > "$RUN/after-merge.log" 2>&1
+    [ -f backend/go.mod ] && ( cd backend && deadcode -test ./... ) > "$RUN/deadcode.txt" 2>&1
+    [ -f frontend/package.json ] && ( cd frontend && npx -y knip --no-progress ) > "$RUN/knip.txt" 2>&1
   fi
 
   PROMPT="Chế độ tự chạy (CLAUDE.md §7c) — không hỏi người dùng. Đang TÍCH HỢP từng bước vào nhánh $TARGET (KHÔNG phải main).
 Bước $NN/${#PLAN[@]}: vừa gộp nhánh $BR (trước gộp HEAD=$BEFORE${PREV_TAG:+, tag bước trước $PREV_TAG}). $CONFLICT
 Tuyệt đối: không push/merge main; không rebase, amend, force-push; không sửa các nhánh nguồn; không tạo/xóa tag (script làm).
 
-Đầu vào đã chạy sẵn: $RUN/after-merge/summary.md (test thật sau gộp), $RUN/deadcode.txt (hàm Go không tới được), $RUN/knip.txt (file/export/dependency FE không dùng). Thay đổi mà bước này mang vào: git diff --stat $BEFORE..HEAD.
+Đầu vào đã chạy sẵn (bước đầu chưa có backend/frontend thì các file này có thể trống — khi đó chỉ rà cấu hình và tài liệu): $RUN/after-merge/summary.md (test thật sau gộp), $RUN/deadcode.txt (hàm Go không tới được), $RUN/knip.txt (file/export/dependency FE không dùng). Thay đổi mà bước này mang vào: git diff --stat $BEFORE..HEAD.
 
 Việc phải làm:
 1. TEST: đọc summary sau gộp. Test lỗi → xác định do gộp (xung đột ngầm) hay lỗi có sẵn ở $BR. Do gộp → sửa tối thiểu, commit fix(integration): ...; có sẵn → tạo GitHub issue theo .github/ISSUE_TEMPLATE/bug_report.md (tìm trùng trước), KHÔNG sửa.
 2. CẤU HÌNH (phần bước này mang vào và tổng thể): biến môi trường code đọc so với .env.example (thiếu, thừa, mặc định sai — sửa .env.example, không bao giờ đọc/sửa .env); docker-compose.yml; .github/workflows (lệnh/script được gọi có tồn tại, phiên bản Go/Node khớp go.mod/package.json); Makefile (target trỏ tới script có thật); go mod tidy và npm (lockfile) không tạo khác biệt; sqlc generate không tạo khác biệt; migration goose: tên tăng dần không trùng, goose -dir backend/db/migrations validate; .gitignore phủ file sinh ra; .claude/settings.json, .mcp.json hợp lệ; gitleaks detect sạch. Mỗi nhóm sửa một commit fix(config): ...
 3. CODE RÁC: dựa trên deadcode, knip, golangci-lint (unused), cộng tự rà: TODO/FIXME, console.log hoặc fmt.Println gỡ lỗi, code bị comment-out, file không ai import, dependency không dùng, script/tài liệu trỏ tới thứ không còn, trang/route giữ chỗ không còn cần.
    QUY TẮC: chỉ xóa khi KHÔNG còn dùng ở bản cuối $FINAL — kiểm bằng git grep -n '<tên>' $FINAL -- backend frontend scripts và git show $FINAL:<file>. Bản cuối còn dùng → GIỮ, ghi 'dùng ở bước sau'. Không xóa test, migration, nhật ký AI, báo cáo gate, tài liệu kiểm thử. Mỗi loại dọn một commit chore(cleanup): ... để dễ xem.
-4. Chạy lại ./scripts/run-all-tests.sh $RUN/after-cleanup — số test Pass không được giảm so với sau gộp. Commit dọn nào làm đỏ → git revert commit đó, ghi lại.
+4. Chạy lại: REPO_ROOT=$ROOT bash $RUNTESTS $RUN/after-cleanup (dùng đúng lệnh này, không dùng scripts/run-all-tests.sh trong repo vì có thể chưa tồn tại ở bước này) — số test Pass không được giảm so với sau gộp. Commit dọn nào làm đỏ → git revert commit đó, ghi lại.
 5. BÁO CÁO docs/integration/$NN-$SLUG.md: (a) nhánh gộp: số commit, chức năng mang vào; (b) test sau gộp và sau dọn (bảng số liệu); (c) bảng cấu hình: vấn đề | mức | xử lý | commit; (d) bảng code rác: mục | bằng chứng | xử lý (đã xóa / giữ vì dùng ở bước sau / giữ vì lý do khác) | commit; (e) Việc người dùng tự kiểm: lệnh cụ thể (git diff ${PREV_TAG:-main}..HEAD -- <thư mục>, make dev-local, màn hình nên mở, vai trò nên thử); (f) Không chắc chắn: mọi quyết định AI không chắc, để người dùng quyết.
 6. Commit báo cáo qua skill ai-usage-log — nhật ký tối giản: MỘT entry chung cho cả quá trình tích hợp (docs/ai-log/entries/*-integration-*.md; chưa có thì tạo, có rồi thì thêm mục cho bước $NN).
 In dòng cuối: STEP=OK hoặc STEP=FAIL kèm lý do."

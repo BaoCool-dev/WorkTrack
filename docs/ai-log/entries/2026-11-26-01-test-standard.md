@@ -32,3 +32,15 @@ Một lệnh chạy kiểm thử toàn bộ chức năng và lập bảng test c
 ## Kiểm chứng
 - `bash -n` cho script; `py_compile` cho `test-summary.py`; chạy bộ tóm tắt với dữ liệu mẫu định dạng Go và Vitest: đếm đúng, gắn mã CF đúng, không trùng.
 - Chưa chạy thật trên máy người dùng.
+
+## Bổ sung 27/11 — script tích hợp từng bước
+**Prompt:**
+> Hiện tại sau khi kiểm thử tôi muốn claude code từng bước gộp các nhánh lại những là tạo thành một nhánh mới chứ chưa được push lên main. ... Mỗi lần gộp là phải test lại, xem có config gì không, coi thử có code rác nào mà vẫn còn mà không có tác dụng gì trong hệ thống. Cứ làm từng bước đó rồi tôi sẽ là người tự kiểm tra lại.
+
+**AI tạo ra:** `scripts/integrate.sh` (gộp 9 nhánh lần lượt vào `release/v1`, sau mỗi bước: test thật, deadcode, knip, Claude rà cấu hình và dọn code rác theo quy tắc "chỉ xóa khi bản cuối không dùng", chạy lại test, báo cáo `docs/integration/NN-*.md`, tag `integ/NN-*`); `run-all-tests.sh` chạy được ở bước chưa có backend/frontend và tự `npm ci` khi lockfile đổi; quyền `.env`: chỉ chặn file bí mật, cho phép đọc/sửa `.env.example`.
+
+**Lỗi của AI:**
+| Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
+|---|---|---|---|
+| Bản đầu của `integrate.sh` gọi `./scripts/run-all-tests.sh` trong repo, nhưng khi nhánh tích hợp còn ở bước đầu (tạo từ `main`) thì file này chưa tồn tại, và chính script đang chạy cũng bị thay khi đổi nhánh | Quên rằng chuyển nhánh làm thay đổi thư mục `scripts/` | AI tự rà luồng chạy trước khi giao | Script tự chép công cụ ra thư mục tạm rồi chạy từ đó |
+| Luật `deny` `.env*` chặn luôn `.env.example`, khiến Agent ở các nhánh trước không cập nhật được file mẫu cấu hình và phải nhờ người dùng | Mẫu glob quá rộng | Rà quyền khi thêm bước kiểm cấu hình | Chỉ chặn `.env`, `.env.local`, `.env.development`, `.env.production`, `.env.test` |
