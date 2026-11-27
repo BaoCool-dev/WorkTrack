@@ -271,7 +271,7 @@ func (s *Service) Create(ctx context.Context, actor authz.Principal, projectID u
 		if id, err = st.Create(ctx, projectID, col, actor.UserID, f); err != nil {
 			return fmt.Errorf("create task: %w", err)
 		}
-		return nil
+		return notifyAssigned(ctx, st, actor, projectID, id, nil, f.AssigneeID)
 	})
 	if err != nil {
 		return domain.Task{}, err
@@ -331,12 +331,27 @@ func (s *Service) Update(ctx context.Context, actor authz.Principal, id uuid.UUI
 		if err := st.Update(ctx, id, f); err != nil {
 			return fmt.Errorf("update task: %w", err)
 		}
-		return nil
+		return notifyAssigned(ctx, st, actor, locked.ProjectID, id, locked.AssigneeID, f.AssigneeID)
 	})
 	if err != nil {
 		return domain.Task{}, err
 	}
 	return s.reloadAndPublish(ctx, domain.EventTaskUpdated, actor, id)
+}
+
+// notifyAssigned báo "được giao việc" cho người nhận mới (CF-07). Ghi cùng transaction với thay đổi
+// để không có thông báo cho một lần giao bị rollback. Không có người nhận mới → không ghi gì.
+func notifyAssigned(ctx context.Context, st Store, actor authz.Principal, projectID, taskID uuid.UUID, old, cur *uuid.UUID) error {
+	to := domain.AssignmentRecipient(actor.UserID, old, cur)
+	if to == nil {
+		return nil
+	}
+	n := domain.NewNotification{UserIDs: []uuid.UUID{*to}, Type: domain.NotificationTaskAssigned,
+		TaskID: taskID, ProjectID: projectID, ActorID: actor.UserID}
+	if err := st.AddNotification(ctx, n); err != nil {
+		return fmt.Errorf("notify assigned: %w", err)
+	}
+	return nil
 }
 
 func sameUser(a, b *uuid.UUID) bool {

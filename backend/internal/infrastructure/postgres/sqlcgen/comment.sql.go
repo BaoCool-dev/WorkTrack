@@ -47,6 +47,36 @@ func (q *Queries) CreateTaskComment(ctx context.Context, arg CreateTaskCommentPa
 	return i, err
 }
 
+const getTaskComment = `-- name: GetTaskComment :one
+SELECT c.id, c.task_id, c.author_id, u.full_name AS author_name, c.body, c.created_at
+FROM task_comment c
+JOIN app_user u ON u.id = c.author_id
+WHERE c.id = $1
+`
+
+type GetTaskCommentRow struct {
+	ID         uuid.UUID          `json:"id"`
+	TaskID     uuid.UUID          `json:"taskId"`
+	AuthorID   uuid.UUID          `json:"authorId"`
+	AuthorName string             `json:"authorName"`
+	Body       string             `json:"body"`
+	CreatedAt  pgtype.Timestamptz `json:"createdAt"`
+}
+
+func (q *Queries) GetTaskComment(ctx context.Context, id uuid.UUID) (GetTaskCommentRow, error) {
+	row := q.db.QueryRow(ctx, getTaskComment, id)
+	var i GetTaskCommentRow
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.AuthorID,
+		&i.AuthorName,
+		&i.Body,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listTaskComments = `-- name: ListTaskComments :many
 
 SELECT c.id, c.task_id, c.author_id, u.full_name AS author_name, c.body, c.created_at

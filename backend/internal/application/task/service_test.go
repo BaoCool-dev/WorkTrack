@@ -52,6 +52,7 @@ type fakeStore struct {
 	projects   map[uuid.UUID]domain.Project // dùng chung map với fakeProjects
 	lastFilter task.Filter
 	lastMine   task.MyFilter
+	notes      []domain.NewNotification
 }
 
 func (f *fakeStore) InTx(_ context.Context, fn func(task.Store) error) error {
@@ -59,8 +60,9 @@ func (f *fakeStore) InTx(_ context.Context, fn func(task.Store) error) error {
 	for k, v := range f.tasks {
 		snap[k] = v
 	}
+	nn := len(f.notes)
 	if err := fn(f); err != nil {
-		f.tasks = snap
+		f.tasks, f.notes = snap, f.notes[:nn]
 		return err
 	}
 	return nil
@@ -188,6 +190,11 @@ func (f *fakeStore) CountProjectWIP(_ context.Context, pid, uid uuid.UUID) (int,
 		}
 	}
 	return n, nil
+}
+
+func (f *fakeStore) AddNotification(_ context.Context, n domain.NewNotification) error {
+	f.notes = append(f.notes, n)
+	return nil
 }
 
 type fakePublisher struct{ events []domain.BoardEvent }
@@ -663,5 +670,51 @@ func TestPublish_AfterCommit_CF04(t *testing.T) {
 	_, _ = e.svc.Claim(ctx, e.member, c.ID) // lỗi → không phát
 	if len(e.pub.events) != 2 {
 		t.Fatal("thao tác lỗi không được phát sự kiện")
+	}
+}
+
+func TestNotifyAssigned_CF07(t *testing.T) {
+	ctx := context.Background()
+	e := setup(t)
+	got := e.create(t, task.Input{Title: "Việc A", AssigneeID: &e.member.UserID})
+	if len(e.st.notes) != 1 {
+		t.Fatalf("giao khi tạo phải báo 1 lần, got %d", len(e.st.notes))
+	}
+	n := e.st.notes[0]
+	if n.Type != domain.NotificationTaskAssigned || n.TaskID != got.ID || n.ProjectID != e.project.ID ||
+		n.ActorID != e.mgr.UserID || len(n.UserIDs) != 1 || n.UserIDs[0] != e.member.UserID {
+		t.Fatalf("thông báo sai: %+v", n)
+	}
+
+	// Sửa tiêu đề, giữ người nhận → không báo lại.
+	if _, err := e.svc.Update(ctx, e.mgr, got.ID, task.Input{Title: "Việc A2", AssigneeID: &e.member.UserID}); err != nil {
+		t.Fatal(err)
+	}
+	// Manager tự giao cho mình → không tự báo.
+	if _, err := e.svc.Update(ctx, e.mgr, got.ID, task.Input{Title: "Việc A2", AssigneeID: &e.mgr.UserID}); err != nil {
+		t.Fatal(err)
+	}
+	// Bỏ giao → không báo.
+	if _, err := e.svc.Update(ctx, e.mgr, got.ID, task.Input{Title: "Việc A2"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.st.notes) != 1 {
+		t.Fatalf("không được báo thêm, got %d", len(e.st.notes))
+	}
+	// Giao lại cho member → báo.
+	if _, err := e.svc.Update(ctx, e.mgr, got.ID, task.Input{Title: "Việc A2", AssigneeID: &e.member.UserID}); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.st.notes) != 2 {
+		t.Fatalf("giao lại phải báo, got %d", len(e.st.notes))
+	}
+	// Tạo không người nhận → không báo.
+	e.create(t, task.Input{Title: "Việc B"})
+	// Giao cho người ngoài dự án → lỗi, thông báo không được ghi.
+	if _, err := e.svc.Create(ctx, e.mgr, e.project.ID, task.Input{Title: "C", AssigneeID: &e.other.UserID}); err == nil {
+		t.Fatal("phải lỗi")
+	}
+	if len(e.st.notes) != 2 {
+		t.Fatalf("got %d", len(e.st.notes))
 	}
 }

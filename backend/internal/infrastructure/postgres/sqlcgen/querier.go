@@ -68,6 +68,7 @@ type Querier interface {
 	// Chỉ dùng cho make seed (idempotent theo tên trong dự án).
 	GetSeedTaskIDByTitle(ctx context.Context, arg GetSeedTaskIDByTitleParams) (uuid.UUID, error)
 	GetTask(ctx context.Context, id uuid.UUID) (TaskView, error)
+	GetTaskComment(ctx context.Context, id uuid.UUID) (GetTaskCommentRow, error)
 	GetUserByActivationTokenHash(ctx context.Context, tokenHash []byte) (GetUserByActivationTokenHashRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)

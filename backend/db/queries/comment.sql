@@ -16,3 +16,9 @@ SELECT count(*) FROM task_comment WHERE task_id = @task_id;
 INSERT INTO task_comment (task_id, author_id, body)
 VALUES (@task_id, @author_id, @body)
 RETURNING id, created_at;
+
+-- name: GetTaskComment :one
+SELECT c.id, c.task_id, c.author_id, u.full_name AS author_name, c.body, c.created_at
+FROM task_comment c
+JOIN app_user u ON u.id = c.author_id
+WHERE c.id = @id;

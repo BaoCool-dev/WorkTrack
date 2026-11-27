@@ -62,3 +62,15 @@ func timePtr(v pgtype.Timestamptz) *time.Time {
 	t := v.Time
 	return &t
 }
+
+// pgCheckViolation là SQLSTATE của vi phạm CHECK (kể cả trigger RAISE với ERRCODE check_violation).
+const pgCheckViolation = "23514"
+
+// checkViolation trả tên ràng buộc CHECK bị vi phạm, hoặc "" nếu err không phải lỗi đó.
+func checkViolation(err error) string {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgCheckViolation {
+		return pgErr.ConstraintName
+	}
+	return ""
+}
