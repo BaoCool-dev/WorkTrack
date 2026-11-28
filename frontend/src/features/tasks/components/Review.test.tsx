@@ -78,6 +78,18 @@ describe('Nút nghiệm thu theo vai trò (CF-09)', () => {
     expect(within(dialog).queryByRole('button', { name: tr.reject })).not.toBeInTheDocument()
   })
 
+  it('lỗi tải bảng: báo lý do thay vì ẩn nút nghiệm thu im lặng', async () => {
+    mockAll()
+    server.use(
+      mock.get(`${API}/api/v1/projects/p-1/board`, () =>
+        HttpResponse.json({ error: { code: 'INTERNAL', message: 'lỗi' } }, { status: 500 }),
+      ),
+    )
+    const { dialog } = await openDetail('manager')
+    expect(await within(dialog).findByText(tr.boardError)).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: tr.approve })).not.toBeInTheDocument()
+  })
+
   it('việc chưa ở cột chờ nghiệm thu: không có nút', async () => {
     const doing = makeTask({ column: { id: 'c-2', name: 'Đang làm', statusGroup: 'in_progress' } })
     mockAll(doing)
@@ -189,5 +201,125 @@ describe('Lịch sử nghiệm thu (CF-09)', () => {
     mockAll()
     const { dialog } = await openDetail('member')
     expect(await within(dialog).findByText(tr.historyEmpty)).toBeInTheDocument()
+  })
+})
+
+describe('Nghiệm thu — QA bổ sung (CF-09)', () => {
+  it('Manager không phụ trách dự án không thấy nút nghiệm thu', async () => {
+    mockAll()
+    server.use(
+      mock.get(`${API}/api/v1/projects/p-1`, () =>
+        HttpResponse.json(makeProject({ manager: { id: 'u-khac', name: 'Lê Văn Khải' } })),
+      ),
+    )
+    const { dialog } = await openDetail('manager')
+    await within(dialog).findByText(tr.history)
+    expect(within(dialog).queryByRole('button', { name: tr.approve })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: tr.reject })).not.toBeInTheDocument()
+  })
+
+  async function openReject() {
+    const ctx = await openDetail()
+    await ctx.user.click(await within(ctx.dialog).findByRole('button', { name: tr.reject }))
+    const form = await screen.findByRole('dialog', { name: tr.dialogTitle })
+    return { ...ctx, form }
+  }
+
+  it('lý do chỉ có khoảng trắng: báo bắt buộc, không gửi', async () => {
+    mockAll()
+    let posted = false
+    server.use(
+      mock.post(`${API}/api/v1/tasks/t-1/review/reject`, () => {
+        posted = true
+        return HttpResponse.json(inReview)
+      }),
+    )
+    const { user, form } = await openReject()
+    await user.type(within(form).getByLabelText(tr.reason), '   ')
+    await user.click(within(form).getByRole('button', { name: tr.confirmReject }))
+    expect(await within(form).findByText(tr.reasonRequired)).toBeInTheDocument()
+    expect(posted).toBe(false)
+  })
+
+  it('lý do 501 ký tự có dấu: báo quá dài, không gửi (biên trên + 1)', async () => {
+    mockAll()
+    let posted = false
+    server.use(
+      mock.post(`${API}/api/v1/tasks/t-1/review/reject`, () => {
+        posted = true
+        return HttpResponse.json(inReview)
+      }),
+    )
+    const { user, form } = await openReject()
+    await user.click(within(form).getByLabelText(tr.reason))
+    await user.paste('ạ'.repeat(501))
+    await user.click(within(form).getByRole('button', { name: tr.confirmReject }))
+    expect(await within(form).findByText(tr.reasonTooLong)).toBeInTheDocument()
+    expect(posted).toBe(false)
+  })
+
+  it('lý do đúng 500 ký tự có dấu: gửi được (biên trên)', async () => {
+    mockAll()
+    let body: unknown
+    server.use(
+      mock.post(`${API}/api/v1/tasks/t-1/review/reject`, async ({ request }) => {
+        body = await request.json()
+        return HttpResponse.json(
+          makeTask({
+            ...inReview,
+            column: { id: 'c-2', name: 'Đang làm', statusGroup: 'in_progress' },
+          }),
+        )
+      }),
+    )
+    const { user, form } = await openReject()
+    await user.click(within(form).getByLabelText(tr.reason))
+    await user.paste('ạ'.repeat(500))
+    expect(within(form).getByText('500/500')).toBeInTheDocument()
+    await user.click(within(form).getByRole('button', { name: tr.confirmReject }))
+    expect(await screen.findByText(tr.rejected)).toBeInTheDocument()
+    expect(body).toEqual({ version: inReview.version, reason: 'ạ'.repeat(500) })
+  })
+
+  it('server từ chối (403): hiện lỗi trong hộp Từ chối, hộp không đóng', async () => {
+    mockAll()
+    server.use(
+      mock.post(`${API}/api/v1/tasks/t-1/review/reject`, () =>
+        HttpResponse.json(
+          { error: { code: 'FORBIDDEN', message: 'Bạn không có quyền thực hiện thao tác này' } },
+          { status: 403 },
+        ),
+      ),
+    )
+    const { user, form } = await openReject()
+    await user.type(within(form).getByLabelText(tr.reason), 'Thiếu test')
+    await user.click(within(form).getByRole('button', { name: tr.confirmReject }))
+    expect(
+      await within(form).findByText('Bạn không có quyền thực hiện thao tác này'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: tr.dialogTitle })).toBeInTheDocument()
+  })
+
+  it('lý do chứa HTML hiển thị nguyên văn trong lịch sử, không sinh thẻ', async () => {
+    const html = '<img src=x onerror=alert(1)><script>alert(2)</script>'
+    mockAll(inReview, [makeReview({ reason: html })])
+    const { dialog } = await openDetail('member')
+    expect(await within(dialog).findByText(html)).toBeInTheDocument()
+    expect(dialog.querySelector('img[src="x"]')).toBeNull()
+    expect(dialog.querySelector('script')).toBeNull()
+  })
+
+  it('lỗi tải lịch sử: hiện khối lỗi kèm mã', async () => {
+    mockAll()
+    server.use(
+      mock.get(`${API}/api/v1/tasks/${inReview.id}/reviews`, () =>
+        HttpResponse.json(
+          { error: { code: 'TASK_NOT_FOUND', message: 'Không tìm thấy công việc' } },
+          { status: 404 },
+        ),
+      ),
+    )
+    const { dialog } = await openDetail('member')
+    expect(await within(dialog).findByText(tr.historyError)).toBeInTheDocument()
   })
 })

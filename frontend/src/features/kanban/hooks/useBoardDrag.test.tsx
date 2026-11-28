@@ -316,4 +316,36 @@ describe('useBoardDrag — đưa vào cột chờ nghiệm thu (CF-09)', () => {
     dragTo(result, 't-3', 'c-r')
     expect(await screen.findByText(t.moved('Chờ nghiệm thu'))).toBeInTheDocument()
   })
+
+  it('hoàn tác đưa việc cha trở lại cột chờ nghiệm thu: vẫn hiện cảnh báo việc con', async () => {
+    const tasks = withSubtasks(1, 3).map((x) =>
+      x.id === 't-3' ? { ...x, column: review, position: 0 } : x,
+    )
+    const both: Transition[] = [
+      { fromColumnId: 'c-r', toColumnId: 'c-2', role: 'manager' },
+      { fromColumnId: 'c-2', toColumnId: 'c-r', role: 'manager' },
+    ]
+    server.use(
+      mock.post(`${API}/api/v1/tasks/t-3/move`, async ({ request }) => {
+        const body = (await request.json()) as { columnId: string; version: number }
+        const to = columns.find((c) => c.id === body.columnId)
+        const t3 = tasks.find((x) => x.id === 't-3')
+        return HttpResponse.json({
+          ...t3,
+          column: to && { id: to.id, name: to.name, statusGroup: to.statusGroup },
+          position: 0,
+          version: body.version + 1,
+        })
+      }),
+    )
+    const { result } = setup({ tasks, columns, transitions: both })
+    await waitFor(() => {
+      expect(result.current.tasks).toHaveLength(3)
+    })
+    dragTo(result, 't-3', 'c-2')
+    await userEvent.setup().click(await screen.findByRole('button', { name: t.undo }))
+    expect(
+      await screen.findByText(t.reviewSubtasksWarning(formatNumber(1), formatNumber(3))),
+    ).toBeInTheDocument()
+  })
 })

@@ -54,3 +54,25 @@ describe('hasPendingSubtasks', () => {
     expect(hasPendingSubtasks(task)).toBe(want)
   })
 })
+
+describe('reviewColumnId — biên (QA)', () => {
+  it('bảng rỗng → null', () => {
+    expect(reviewColumnId([])).toBeNull()
+  })
+
+  it('có 2 cột in_progress nhưng không có cột done → null; thêm cột done → cột in_progress cuối', () => {
+    const base = [col('a', 0, 'in_progress'), col('b', 1, 'in_progress')]
+    expect(reviewColumnId(base)).toBeNull()
+    expect(reviewColumnId([...base, col('d', 2, 'done')])).toBe('b')
+  })
+
+  it('ba cột in_progress: chọn cột có position lớn nhất', () => {
+    const cols = [
+      col('x', 1, 'in_progress'),
+      col('z', 3, 'in_progress'),
+      col('y', 2, 'in_progress'),
+      col('done', 4, 'done'),
+    ]
+    expect(reviewColumnId(cols)).toBe('z')
+  })
+})

@@ -604,6 +604,9 @@ export const messages = {
       by: (name: string, date: string) => `${name} · ${date}`,
       subtasksPending: (done: string, total: string) =>
         `Mới xong ${done}/${total} việc con. Vẫn có thể nghiệm thu nếu phần còn lại không cần thiết.`,
+      boardLoading: 'Đang tải cột của bảng để kiểm tra nghiệm thu…',
+      boardError:
+        'Không tải được bảng Kanban nên chưa hiện được nút Nghiệm thu. Đóng và mở lại để thử lại.',
     },
     settings: {
       title: 'Quy đổi Story Point',

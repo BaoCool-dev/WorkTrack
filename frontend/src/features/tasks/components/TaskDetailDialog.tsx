@@ -166,6 +166,20 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
       <div className="flex flex-col gap-3">
         <FormAlert message={claimError} />
         <FormAlert message={reviewError} />
+        {/* Nút nghiệm thu phụ thuộc cột của bảng: báo rõ khi bảng chưa tải xong hoặc lỗi, không ẩn im lặng. */}
+        {canEdit && task.parentId === null && board.isPending && (
+          <p role="status" className="text-sm text-ink-muted">
+            {tr.boardLoading}
+          </p>
+        )}
+        {canEdit && task.parentId === null && board.isError && (
+          <p
+            role="status"
+            className="rounded-md border border-warn-border bg-warn-bg px-3 py-2 text-sm text-warn"
+          >
+            {tr.boardError}
+          </p>
+        )}
         {inReview && hasPendingSubtasks(task) && (
           <p
             role="status"

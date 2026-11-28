@@ -96,7 +96,14 @@ export function useBoardDrag(o: Options) {
           handleError(task, err)
         },
         onSuccess: (saved) => {
-          if (!undoable) return
+          // Cảnh báo việc con chưa xong (CF-09) hiện cả khi thao tác là lần hoàn tác:
+          // người dùng vẫn cần biết việc cha đang chờ nghiệm thu khi còn việc con dở.
+          if (!undoable) {
+            if (isReviewWarning(saved, fromColumnId, to, o.columns)) {
+              toast.show(moveMessage(saved, fromColumnId, to, o.columns))
+            }
+            return
+          }
           const msg = moveMessage(saved, fromColumnId, to, o.columns)
           // Chỉ cho hoàn tác khi đường quay lại cũng hợp lệ (vd. Member không kéo ngược ra khỏi Done).
           const back = columnById.get(fromColumnId)
@@ -175,13 +182,23 @@ function moveMessage(
   columns: readonly BoardColumn[],
 ): string {
   if (fromColumnId === to.id) return t.reordered
-  if (to.id === reviewColumnId(columns) && hasPendingSubtasks(saved)) {
+  if (isReviewWarning(saved, fromColumnId, to, columns)) {
     return t.reviewSubtasksWarning(
       formatNumber(saved.subtaskDoneCount),
       formatNumber(saved.subtaskCount),
     )
   }
   return t.moved(to.name)
+}
+
+// Việc cha vừa vào cột "Chờ nghiệm thu" mà còn việc con chưa xong → cảnh báo, không chặn.
+function isReviewWarning(
+  saved: Task,
+  fromColumnId: string,
+  to: BoardColumn,
+  columns: readonly BoardColumn[],
+): boolean {
+  return fromColumnId !== to.id && to.id === reviewColumnId(columns) && hasPendingSubtasks(saved)
 }
 
 function indexInColumn(tasks: readonly Task[], task: Task): number {
