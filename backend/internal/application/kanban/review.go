@@ -67,11 +67,7 @@ func (s *ReviewService) Approve(ctx context.Context, actor authz.Principal, id u
 
 // Reject: Từ chối, bắt buộc lý do 1–500 ký tự → về cột in_progress đầu tiên, báo người nhận việc.
 func (s *ReviewService) Reject(ctx context.Context, actor authz.Principal, id uuid.UUID, in ReviewInput) (domain.Task, error) {
-	reason, err := domain.NormalizeReviewReason(in.Reason)
-	if err != nil {
-		return domain.Task{}, err
-	}
-	return s.decide(ctx, actor, id, in.Version, domain.ReviewRejected, &reason)
+	return s.decide(ctx, actor, id, in.Version, domain.ReviewRejected, &in.Reason)
 }
 
 // Reviews trả lịch sử nghiệm thu cho người xem được công việc.
@@ -87,7 +83,7 @@ func (s *ReviewService) Reviews(ctx context.Context, actor authz.Principal, id u
 }
 
 func (s *ReviewService) decide(ctx context.Context, actor authz.Principal, id uuid.UUID, version int,
-	d domain.ReviewDecision, reason *string) (domain.Task, error) {
+	d domain.ReviewDecision, rawReason *string) (domain.Task, error) {
 	task, project, err := s.board.view(ctx, actor, id)
 	if err != nil {
 		return domain.Task{}, err
@@ -95,6 +91,15 @@ func (s *ReviewService) decide(ctx context.Context, actor authz.Principal, id uu
 	// Kiểm sớm: người không có quyền nhận 403, không phải lỗi cột hay version.
 	if err := domain.CanReview(actor.UserID, actor.Role, project.ManagerID); err != nil {
 		return domain.Task{}, err
+	}
+	// Kiểm lý do sau quyền: Member gửi lý do rỗng phải nhận 403, không phải 422.
+	var reason *string
+	if rawReason != nil {
+		r, err := domain.NormalizeReviewReason(*rawReason)
+		if err != nil {
+			return domain.Task{}, err
+		}
+		reason = &r
 	}
 
 	var from, to uuid.UUID

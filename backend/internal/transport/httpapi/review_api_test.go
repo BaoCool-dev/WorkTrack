@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -147,5 +148,63 @@ func TestReviewAPI_RequiresLogin_CF09(t *testing.T) {
 		if rec.Code != http.StatusUnauthorized || f.calls != 0 {
 			t.Errorf("%s: status = %d calls=%d", p.path, rec.Code, f.calls)
 		}
+	}
+}
+
+// ---- QA bổ sung (CF-09) ----
+
+// BVA ở tầng HTTP: lý do quá 2000 ký tự bị chặn sớm (400, không gọi service); đúng 2000 vẫn chuyển cho
+// domain kiểm 1–500 (422 REVIEW_REASON_INVALID ánh xạ ở TestReviewAPI_ErrorMapping_CF09).
+func TestReviewAPI_ReasonLengthGuard_CF09(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		n      int
+		status int
+		calls  int
+	}{
+		{"2000 ký tự → tới service", 2000, http.StatusOK, 1},
+		{"2001 ký tự → 400", 2001, http.StatusBadRequest, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := &fakeReviews{}
+			body := `{"version":1,"reason":"` + strings.Repeat("ạ", c.n) + `"}`
+			rec := newReviewAPI(t, f).do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/review/reject",
+				body, withToken("valid-manager"))
+			if rec.Code != c.status || f.calls != c.calls {
+				t.Errorf("status = %d calls = %d; want %d %d", rec.Code, f.calls, c.status, c.calls)
+			}
+		})
+	}
+}
+
+// Ánh xạ lỗi cho Duyệt và lịch sử: Member/CEO → 403, Admin/người ngoài → 404; luật chuyển cột Kanban → 422.
+func TestReviewAPI_ErrorMapping_ApproveAndList_CF09(t *testing.T) {
+	for _, c := range []struct {
+		method, path string
+		err          error
+		status       int
+		code         string
+	}{
+		{http.MethodPost, "/review/approve", domain.ErrForbidden, http.StatusForbidden, "FORBIDDEN"},
+		{http.MethodPost, "/review/approve", domain.ErrTaskNotFound, http.StatusNotFound, "TASK_NOT_FOUND"},
+		{http.MethodPost, "/review/approve", domain.ErrTaskNotInReview, http.StatusConflict, "TASK_NOT_IN_REVIEW"},
+		{http.MethodPost, "/review/approve", domain.ErrTransitionNotAllowed, http.StatusUnprocessableEntity, "TRANSITION_NOT_ALLOWED"},
+		{http.MethodGet, "/reviews", domain.ErrTaskNotFound, http.StatusNotFound, "TASK_NOT_FOUND"},
+	} {
+		t.Run(c.path+" "+c.err.Error(), func(t *testing.T) {
+			rec := newReviewAPI(t, &fakeReviews{err: c.err}).do(t, c.method,
+				"/api/v1/tasks/"+uuid.NewString()+c.path, `{"version":1}`, withToken("valid-manager"))
+			if rec.Code != c.status || errCode(t, rec) != c.code {
+				t.Errorf("got %d %s; want %d %s", rec.Code, errCode(t, rec), c.status, c.code)
+			}
+		})
+	}
+}
+
+func TestReviewAPI_ListBadID_CF09(t *testing.T) {
+	f := &fakeReviews{}
+	rec := newReviewAPI(t, f).do(t, http.MethodGet, "/api/v1/tasks/abc/reviews", "", withToken("valid-member"))
+	if rec.Code != http.StatusBadRequest || f.calls != 0 {
+		t.Errorf("status = %d calls = %d", rec.Code, f.calls)
 	}
 }

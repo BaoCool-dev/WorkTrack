@@ -308,3 +308,163 @@ func TestReviews_History_CF09(t *testing.T) {
 	_, err = e.svc.Reviews(context.Background(), e.outsider, tk.ID)
 	expectErr(t, err, domain.ErrTaskNotFound)
 }
+
+// ---- QA bổ sung (CF-09) ----
+
+// Bảng quyết định vai trò: Admin không xem dự án → 404 (chống dò ID) cho cả Duyệt, Từ chối và lịch sử.
+func TestReview_AdminNotFound_CF09(t *testing.T) {
+	e := setupReview(t)
+	tk := e.addReview()
+	admin := authz.Principal{UserID: uuid.New(), Role: domain.RoleAdmin}
+
+	_, err := e.approve(admin, tk)
+	expectErr(t, err, domain.ErrTaskNotFound)
+	_, err = e.reject(admin, tk, "lý do")
+	expectErr(t, err, domain.ErrTaskNotFound)
+	_, err = e.svc.Reviews(context.Background(), admin, tk.ID)
+	expectErr(t, err, domain.ErrTaskNotFound)
+	if e.st.tasks[tk.ID].ColumnID != e.review || len(e.rs.reviews) != 0 || len(e.pub.events) != 0 {
+		t.Fatalf("Admin không được làm đổi dữ liệu")
+	}
+}
+
+// CEO chỉ xem: đọc được lịch sử nghiệm thu nhưng không Duyệt/Từ chối (đã kiểm ở OnlyResponsibleManager).
+func TestReviews_CEOCanReadHistory_CF09(t *testing.T) {
+	e := setupReview(t)
+	tk := e.addReview()
+	if _, err := e.reject(e.mgr, tk, "lý do"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := e.svc.Reviews(context.Background(), e.ceo, tk.ID)
+	if err != nil || len(got) != 1 {
+		t.Fatalf("CEO xem lịch sử = %+v, %v", got, err)
+	}
+}
+
+// Thông báo review_rejected: người nhận + người tạo (khi khác Manager), không trùng; không có ai → không ghi.
+func TestReject_NotificationRecipients_CF09(t *testing.T) {
+	t.Run("người tạo khác Manager cũng được báo", func(t *testing.T) {
+		e := setupReview(t)
+		tk := e.addReview()
+		tk.CreatedBy = e.other.UserID
+		e.st.tasks[tk.ID] = tk
+		if _, err := e.reject(e.mgr, tk, "lý do"); err != nil {
+			t.Fatal(err)
+		}
+		if len(e.rs.notes) != 1 {
+			t.Fatalf("notes = %+v", e.rs.notes)
+		}
+		ids := e.rs.notes[0].UserIDs
+		if len(ids) != 2 || ids[0] != e.member.UserID || ids[1] != e.other.UserID {
+			t.Fatalf("người nhận thông báo = %v", ids)
+		}
+		if e.rs.notes[0].ActorID != e.mgr.UserID || e.rs.notes[0].TaskID != tk.ID || e.rs.notes[0].ProjectID != e.project.ID {
+			t.Fatalf("note = %+v", e.rs.notes[0])
+		}
+	})
+	t.Run("người nhận cũng là người tạo → một người", func(t *testing.T) {
+		e := setupReview(t)
+		tk := e.addReview()
+		tk.CreatedBy = e.member.UserID
+		e.st.tasks[tk.ID] = tk
+		if _, err := e.reject(e.mgr, tk, "lý do"); err != nil {
+			t.Fatal(err)
+		}
+		if len(e.rs.notes) != 1 || len(e.rs.notes[0].UserIDs) != 1 {
+			t.Fatalf("notes = %+v", e.rs.notes)
+		}
+	})
+	t.Run("việc chưa giao ai, Manager tạo → không thông báo, vẫn từ chối được", func(t *testing.T) {
+		e := setupReview(t)
+		tk := e.add(e.review, nil)
+		tk.CreatedBy = e.mgr.UserID
+		e.st.tasks[tk.ID] = tk
+		if _, err := e.reject(e.mgr, tk, "lý do"); err != nil {
+			t.Fatal(err)
+		}
+		if len(e.rs.notes) != 0 || len(e.rs.reviews) != 1 {
+			t.Fatalf("notes = %+v reviews = %+v", e.rs.notes, e.rs.reviews)
+		}
+	})
+}
+
+// Biên WIP: người nhận đã đầy WIP (2/2). Từ chối (in_progress → in_progress) và Duyệt (→ done) không làm
+// tăng số việc đang làm nên không bị chặn bởi WIP.
+func TestReview_WIPFullDoesNotBlock_CF09(t *testing.T) {
+	for _, action := range []string{"approve", "reject"} {
+		t.Run(action, func(t *testing.T) {
+			e := setupReview(t)
+			tk := e.addReview()
+			e.add(e.doing, &e.member) // việc thứ hai → WIP 2/2 (giới hạn 2)
+			var err error
+			if action == "approve" {
+				_, err = e.approve(e.mgr, tk)
+			} else {
+				_, err = e.reject(e.mgr, tk, "lý do")
+			}
+			if err != nil {
+				t.Fatalf("%s khi WIP đầy: %v", action, err)
+			}
+		})
+	}
+}
+
+// Đoán lỗi "bấm hai lần": lần hai cùng version → 409 xung đột; version mới → không còn ở cột chờ nghiệm thu.
+func TestApprove_DoubleSubmit_CF09(t *testing.T) {
+	e := setupReview(t)
+	tk := e.addReview()
+	moved, err := e.approve(e.mgr, tk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = e.approve(e.mgr, tk)
+	expectErr(t, err, domain.ErrTaskVersionConflict)
+	_, err = e.approve(e.mgr, moved)
+	expectErr(t, err, domain.ErrTaskNotInReview)
+	if len(e.rs.reviews) != 1 {
+		t.Fatalf("chỉ được ghi 1 lần nghiệm thu, got %d", len(e.rs.reviews))
+	}
+}
+
+// Chuyển trạng thái: Từ chối → làm lại → đưa lại vào chờ nghiệm thu → Duyệt; lịch sử ghi đủ hai lần.
+func TestReview_RejectThenResubmitThenApprove_CF09(t *testing.T) {
+	e := setupReview(t)
+	tk := e.addReview()
+	back, err := e.reject(e.mgr, tk, "lý do")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Member (người nhận) tự kéo lại vào chờ nghiệm thu bằng luật Kanban thường.
+	again, err := e.move(e.member, back, e.review, 0)
+	if err != nil {
+		t.Fatalf("member đưa lại vào chờ nghiệm thu: %v", err)
+	}
+	if _, err := e.approve(e.mgr, again); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.rs.reviews) != 2 || e.rs.reviews[0].Decision != domain.ReviewRejected ||
+		e.rs.reviews[1].Decision != domain.ReviewApproved {
+		t.Fatalf("reviews = %+v", e.rs.reviews)
+	}
+}
+
+// Quyền kiểm trước lý do: người không được nghiệm thu gửi lý do rỗng vẫn nhận lỗi quyền, không phải 422.
+func TestReject_PermissionCheckedBeforeReason_CF09(t *testing.T) {
+	e := setupReview(t)
+	tk := e.addReview()
+	admin := authz.Principal{UserID: uuid.New(), Role: domain.RoleAdmin}
+	for name, c := range map[string]struct {
+		actor authz.Principal
+		want  error
+	}{
+		"member":      {e.member, domain.ErrForbidden},
+		"ceo":         {e.ceo, domain.ErrForbidden},
+		"admin":       {admin, domain.ErrTaskNotFound},
+		"ngoài dự án": {e.outsider, domain.ErrTaskNotFound},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := e.reject(c.actor, tk, "   ")
+			expectErr(t, err, c.want)
+		})
+	}
+}
