@@ -40,6 +40,7 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
   - API + hook: `approveReview`, `rejectReview`, `useTaskReviews`; `useBoard(id, enabled)`; biến thể `ok`/`bad` cho `Button`; chuỗi tiếng Việt trong `messages.ts`.
   - Kanban: kéo việc cha vào cột chờ nghiệm thu khi còn việc con chưa xong → toast cảnh báo thay cho toast thường.
   - Test: `Review.test.tsx` (11 test: nút theo vai trò, Duyệt/Từ chối, lỗi 409, lịch sử), 2 test mới trong `useBoardDrag.test.tsx`.
+- Tài liệu: `docs/testing/manual-test-guide.md` thêm §4.7 CF-09 (thao tác giao diện, curl Duyệt/Từ chối/lịch sử, các mã lỗi 400/403/404/409/422, SQL xem `task_review` và `task_move_history`), dòng `task_review` ở §5.2, dòng nghiệm thu trong ma trận quyền §4, checklist §8. `docs/decisions.md` mục C thêm 5 giả định của nhánh.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -63,3 +64,4 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
 - `go test ./internal/application/kanban/`: ok; `make lint`: 0 issues.
 - Lát API: `make lint` xanh; `make test` xanh (Go mọi gói ok, Vitest 314/314); `go test -tags=integration -run 'Review|Kanban' ./internal/infrastructure/postgres/` trên Postgres Homebrew: ok.
 - Lát giao diện: `make lint` xanh (sau Prettier); `make test` xanh (Go mọi gói ok, Vitest 335/335).
+- Tài liệu: kiểm lại tên cột, mã lỗi và chuỗi giao diện trong §4.7 với `review_handler.go`, `review_api_test.go`, `messages.ts`; `make lint` xanh. Luồng curl §4.7 chưa chạy trên API dev (cần mật khẩu tài khoản mẫu trong `.env`); các ca tương ứng đã được phủ bởi test API và test tích hợp.

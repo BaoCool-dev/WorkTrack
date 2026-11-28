@@ -362,6 +362,7 @@ Ma trận quyền tóm tắt (server kiểm tra, không chỉ ẩn nút):
 | Nhận việc (claim) | ❌ | ❌ | ❌ 403 | ✅ việc chưa giao ở nhóm Cần làm |
 | Công việc của tôi, WIP | ❌ 403 | ❌ 403 | ✅ | ✅ |
 | Nhãn, cấu hình giờ/Story Point | ✅ ghi | ✅ ghi | đọc | đọc |
+| Nghiệm thu (Duyệt/Từ chối) | ❌ 404 | ❌ 403, chỉ xem lịch sử | ✅ dự án mình phụ trách | ❌ 403, đưa việc vào Chờ nghiệm thu |
 
 Mọi lỗi API có dạng `{"error":{"code":"…","message":"…"}}`. Câu `message` là câu tiếng Việt mà UI hiển thị.
 
@@ -1069,6 +1070,110 @@ UPDATE task_move_history SET moved_at = moved_at - interval '25 hours'
 WHERE task_id = (SELECT id FROM task WHERE title = 'Con CF-08' ORDER BY created_at DESC LIMIT 1);
 ```
 
+### 4.7. CF-09 — Nghiệm thu (Duyệt / Từ chối)
+
+Nghiệm thu chỉ dành cho **công việc cha** đang ở cột **Chờ nghiệm thu**, tức cột cuối của nhóm `in_progress`. Người làm là **Manager phụ trách dự án**.
+- **Nghiệm thu**: chuyển công việc sang cột đầu của nhóm hoàn thành (Done).
+- **Từ chối**: bắt buộc có lý do (1–500 ký tự), chuyển công việc về cột đầu của nhóm `in_progress` (In Progress) và báo cho người nhận việc.
+
+Cả hai thao tác đi qua đúng luật chuyển cột Kanban (§4.4), gồm `workflow_transition`, WIP, `version` và lịch sử chuyển cột. Mỗi lần nghiệm thu ghi một dòng vào `task_review`.
+
+**Trên giao diện** (cửa sổ thường đăng nhập Manager, cửa sổ ẩn danh đăng nhập Member):
+1. Manager tạo công việc cha giao cho Member. Member thêm hai việc con (§4.5) và chỉ chuyển một việc sang Done.
+2. Member mở **Kanban** rồi kéo thẻ cha từ In Progress sang **Chờ nghiệm thu**.
+   - Mong đợi: thẻ vẫn chuyển được, toast cảnh báo "Đã chuyển sang chờ nghiệm thu, còn việc con chưa xong (1/2)." Đây chỉ là cảnh báo, không chặn.
+   - Member kéo thẻ sang Done thì bị chặn như ở §4.4.
+3. Manager mở chi tiết công việc. Khối **Nghiệm thu** hiện:
+   - dòng "Mới xong 1/2 việc con. Vẫn có thể nghiệm thu nếu phần còn lại không cần thiết.";
+   - hai nút **Nghiệm thu** và **Từ chối (kèm lý do)**;
+   - **Lịch sử nghiệm thu** ("Chưa có lần nghiệm thu nào.").
+4. Bấm **Từ chối (kèm lý do)**. Hộp **Từ chối nghiệm thu** mở ra.
+   - Bấm **Từ chối** khi ô lý do trống → lỗi "Nhập lý do từ chối."
+   - Nhập quá 500 ký tự → lỗi "Lý do tối đa 500 ký tự."
+   - Nhập lý do hợp lệ rồi bấm **Từ chối** → toast "Đã từ chối nghiệm thu, công việc trở về cột đang làm". Thẻ về In Progress ở cả hai cửa sổ (realtime). Lịch sử có dòng "Từ chối" kèm lý do, tên Manager và thời gian.
+5. Ở cửa sổ Member, chuông thông báo có "… đã từ chối nghiệm thu công việc …". Member mở chi tiết thì thấy lý do trong **Lịch sử nghiệm thu**.
+6. Member kéo lại thẻ sang **Chờ nghiệm thu**. Manager bấm **Nghiệm thu** → toast "Đã nghiệm thu công việc", thẻ sang Done, lịch sử thêm dòng "Đã duyệt".
+7. Kiểm tra theo vai trò:
+   - Member, CEO và Manager không phụ trách dự án không thấy nút **Nghiệm thu** / **Từ chối**.
+   - Khi thẻ không ở cột Chờ nghiệm thu, khối nghiệm thu chỉ hiện lịch sử.
+   - Việc con không có khối nghiệm thu.
+
+**Bằng curl** (cần `H`, `$API` ở §2.2; `SEED_PID`, `MEMBER_ID` ở §4.3 bước 1; hàm `col`, `ver`, `move` và biến `DOING`, `REVIEW` ở §4.4 bước 1):
+1. Tạo công việc cha, Member đưa vào Chờ nghiệm thu:
+   ```bash
+   R1=$(jq -n --arg a "$MEMBER_ID" '{title:"Cha CF-09", storyPoint:1, assigneeId:$a}' |
+        curl -s -X POST $API/projects/$SEED_PID/tasks -H "$(H manager)" -H 'Content-Type: application/json' -d @- | jq -r .id)
+   move member $R1 $DOING  | jq -c '{column: .column.name}'
+   move member $R1 $REVIEW | jq -c '{column: .column.name}'
+   ```
+2. Từ chối (lý do bắt buộc), rồi xem lịch sử:
+   ```bash
+   jq -n --argjson v "$(ver $R1)" '{version:$v, reason:"Thiếu kiểm thử cho ca lỗi"}' |
+     curl -s -X POST $API/tasks/$R1/review/reject -H "$(H manager)" -H 'Content-Type: application/json' -d @- |
+     jq -c '{column: .column.name, version}'
+   curl -s $API/tasks/$R1/reviews -H "$(H member)" | jq -c '.items[] | {decision, reason, reviewerName}'
+   ```
+   Mong đợi: 200, `column` = "In Progress", lịch sử có `{"decision":"rejected","reason":"Thiếu kiểm thử cho ca lỗi",…}`.
+3. Đưa lại vào Chờ nghiệm thu rồi duyệt:
+   ```bash
+   move member $R1 $REVIEW | jq -c '{column: .column.name}'
+   jq -n --argjson v "$(ver $R1)" '{version:$v}' |
+     curl -s -X POST $API/tasks/$R1/review/approve -H "$(H manager)" -H 'Content-Type: application/json' -d @- |
+     jq -c '{column: .column.name}'
+   curl -s $API/tasks/$R1/reviews -H "$(H manager)" | jq -c '[.items[].decision]'
+   ```
+   Mong đợi: `column` = "Done". Lịch sử gồm hai quyết định, mới nhất đứng trước: `["approved","rejected"]`.
+4. Các ca bị chặn:
+   ```bash
+   rv() { jq -n --argjson v "${4:-$(ver $2)}" --arg r "$3" '{version:$v, reason:$r}' |
+          curl -s -X POST $API/tasks/$2/review/$5 -H "$(H $1)" -H 'Content-Type: application/json' -d @- | jq -c .error.code; }
+   R2=$(jq -n --arg a "$MEMBER_ID" '{title:"Cha CF-09 b", assigneeId:$a}' |
+        curl -s -X POST $API/projects/$SEED_PID/tasks -H "$(H manager)" -H 'Content-Type: application/json' -d @- | jq -r .id)
+   rv manager $R2 "" "" approve        # 409 TASK_NOT_IN_REVIEW (đang ở Backlog/To Do)
+   move member $R2 $DOING >/dev/null; move member $R2 $REVIEW >/dev/null
+   rv manager $R2 "   " "" reject     # 422 REVIEW_REASON_INVALID (lý do rỗng)
+   rv manager $R2 "$(printf 'x%.0s' {1..501})" "" reject   # 422 REVIEW_REASON_INVALID (quá 500 ký tự)
+   rv manager $R2 "" 1 approve         # 409 TASK_VERSION_CONFLICT (version cũ)
+   rv member  $R2 "" "" approve        # 403 FORBIDDEN (Member không nghiệm thu)
+   rv ceo     $R2 "" "" approve        # 403 FORBIDDEN (CEO chỉ xem)
+   rv admin   $R2 "" "" approve        # 404 (Admin không thấy công việc)
+   curl -s -X POST $API/tasks/$R2/review/approve -H "$(H manager)" -H 'Content-Type: application/json' -d '{}' | jq -c .error.code   # 400: thiếu version
+   ```
+   Lưu ý: hàm `rv` nhận tham số theo thứ tự vai trò, ID, lý do, version (trống = version hiện tại), thao tác.
+
+**Xem trong CSDL:**
+```sql
+-- Lịch sử nghiệm thu mới nhất: công việc, người duyệt, quyết định, lý do, cột đi/đến
+SELECT t.title, u.full_name AS nguoi_duyet, r.decision, r.reason,
+       fc.name AS tu_cot, tc.name AS den_cot, r.created_at
+FROM task_review r
+JOIN task t ON t.id = r.task_id
+JOIN app_user u ON u.id = r.reviewer_id
+JOIN board_column fc ON fc.id = r.from_column_id
+JOIN board_column tc ON tc.id = r.to_column_id
+ORDER BY r.created_at DESC LIMIT 10;
+```
+```sql
+-- Số lần bị từ chối của từng công việc (dữ liệu cho tỷ lệ làm lại ở báo cáo)
+SELECT t.title, count(*) FILTER (WHERE r.decision = 'rejected') AS so_lan_tu_choi,
+       count(*) FILTER (WHERE r.decision = 'approved') AS so_lan_duyet
+FROM task_review r JOIN task t ON t.id = r.task_id
+GROUP BY t.title ORDER BY so_lan_tu_choi DESC;
+```
+```sql
+-- Duyệt/Từ chối cũng ghi lịch sử chuyển cột như kéo thả
+SELECT t.title, h.moved_at, fc.name AS tu_cot, tc.name AS den_cot
+FROM task_move_history h JOIN task t ON t.id = h.task_id
+LEFT JOIN board_column fc ON fc.id = h.from_column_id JOIN board_column tc ON tc.id = h.to_column_id
+WHERE t.title = 'Cha CF-09' ORDER BY h.moved_at;
+```
+```sql
+-- Ràng buộc ở CSDL: từ chối không có lý do bị chặn (chạy trong giao dịch rồi ROLLBACK)
+BEGIN;
+UPDATE task_review SET reason = NULL WHERE decision = 'rejected';   -- lỗi CHECK ck_task_review_reason (23514)
+ROLLBACK;
+```
+
 ---
 
 ## 5. Xem CSDL bằng psql và pgAdmin
@@ -1123,6 +1228,7 @@ WHERE task_id = (SELECT id FROM task WHERE title = 'Con CF-08' ORDER BY created_
 | `label`, `task_label` | Danh mục nhãn và nhãn gắn vào công việc | CF-06 |
 | `system_setting` | Tham số hệ thống: `story_point_hours` (`int_value`) | CF-06 |
 | `time_log` | Log giờ: công việc, dự án, người ghi, số phút (1–1440), mô tả, ngày làm việc; `task_view` thêm `logged_minutes`, `actual_minutes` (cha + con), số việc con | CF-08 |
+| `task_review` | Lịch sử nghiệm thu: công việc, Manager duyệt, quyết định (`approved`/`rejected`), lý do (bắt buộc khi từ chối, 1–500 ký tự), cột đi/đến; dữ liệu cho tỷ lệ làm lại | CF-09 |
 | `goose_db_version` | Lịch sử migration (goose quản lý — không sửa tay) | — |
 
 Một vài câu SQL tổng hợp:
@@ -1362,6 +1468,14 @@ Không dùng `DROP DATABASE`, không xóa thư mục dữ liệu của PostgreSQ
 - [ ] Phút ≤ 0 hoặc > 1440, mô tả rỗng, ngày tương lai → 400; CEO → 403; Admin → 404; việc không phải của mình → 403 (§4.6 curl bước 3)
 - [ ] Chỉ người ghi xóa được log của mình (§4.6 UI bước 5, curl bước 4)
 - [ ] Done quá 24 giờ → 409 `TIME_LOG_CLOSED`, hộp Log giờ hiện khối khóa (§4.6 UI bước 7, curl bước 5)
+
+### CF-09 — Nghiệm thu
+- [ ] Member đưa việc cha còn việc con dở vào Chờ nghiệm thu → toast cảnh báo, không bị chặn (§4.7 UI bước 2)
+- [ ] Manager phụ trách Từ chối: lý do trống hoặc quá 500 ký tự bị chặn; lý do hợp lệ → về In Progress, Member nhận thông báo (§4.7 UI bước 4–5, curl bước 2)
+- [ ] Manager Nghiệm thu → Done; lịch sử nghiệm thu có đủ hai quyết định (§4.7 UI bước 6, curl bước 3)
+- [ ] Không ở Chờ nghiệm thu → 409 `TASK_NOT_IN_REVIEW`; lý do sai → 422; version cũ → 409; Member/CEO → 403; Admin → 404 (§4.7 curl bước 4)
+- [ ] Member, CEO, Manager khác không thấy nút Nghiệm thu/Từ chối (§4.7 UI bước 7)
+- [ ] `task_review` và `task_move_history` có dòng tương ứng (SQL §4.7)
 
 ### Dọn dẹp
 - [ ] Chạy SQL §7.3 với `ROLLBACK` trước, rồi `COMMIT`
