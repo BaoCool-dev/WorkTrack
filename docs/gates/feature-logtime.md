@@ -29,7 +29,12 @@ Môi trường: máy không có Docker (B12). PostgreSQL chạy bằng Homebrew;
 | `gitleaks detect --no-banner` | ✅ 120 commit, no leaks found |
 | `go vet ./...` (có và không tag `integration`), golangci-lint `--build-tags=integration`, `tsc --noEmit` | ✅ 0 issues |
 | `python3 scripts/ai-log/ai_log.py check` | ⚠️ Không có lỗi nào trên các commit của nhánh này. Còn 2 lỗi cũ từ `release/v1`, không thuộc nhánh: entry `2026-11-27-01-test-cases.md` và commit `8712025` thiếu trailer `AI-Log`. Có cảnh báo mục "Phần tôi đã sửa" chưa điền |
-| `docker build`, `make test-integration` (CI) | xem mục CI bên dưới |
+| `docker build`, `make test-integration` (CI) | ✅ xem mục CI bên dưới |
+
+## CI (PR #18)
+| Lần chạy | Commit | Backend (build → lint → test, gồm integration) | Frontend | gitleaks | Docker build |
+|---|---|---|---|---|---|
+| [46089016104](https://github.com/BaoCool-dev/WorkTrack/actions/runs/46089016104) | 8e7e61f | ✅ 1m56s | ✅ 56s | ✅ 6s | ✅ 1m57s |
 
 ## Bảo mật / Validate / UX
 | Hạng mục | Ca đã kiểm | Kết quả | Test hoặc minh chứng |
