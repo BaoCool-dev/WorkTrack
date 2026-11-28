@@ -167,6 +167,10 @@ describe('Hộp Log giờ (CF-08)', () => {
     await user.click(within(form).getByRole('button', { name: tl.submit }))
     expect(await within(form).findByText(tl.closedTitle)).toBeInTheDocument()
     expect(within(form).queryByLabelText(tl.hours)).not.toBeInTheDocument()
+    // Không còn gì để hủy: nút chân hộp là "Đóng", không còn nút gửi.
+    expect(within(form).getByRole('button', { name: messages.common.close })).toBeInTheDocument()
+    expect(within(form).queryByRole('button', { name: tl.cancelDialog })).not.toBeInTheDocument()
+    expect(within(form).queryByRole('button', { name: tl.submit })).not.toBeInTheDocument()
   })
 })
 
@@ -196,6 +200,15 @@ describe('Lịch sử Log giờ (CF-08)', () => {
     mockAll()
     const { dialog } = await openDetail()
     expect(await within(dialog).findByText(tl.emptyTitle)).toBeInTheDocument()
+    expect(within(dialog).getByText(tl.emptyHint)).toBeInTheDocument()
+  })
+
+  it('trạng thái rỗng với người chỉ xem: không mời log giờ', async () => {
+    mockAll({ task: makeTask({ ...parent, assignee: { id: 'u-x', name: 'Lê Minh' } }) })
+    const { dialog } = await openDetail('ceo')
+    expect(await within(dialog).findByText(tl.emptyTitle)).toBeInTheDocument()
+    expect(within(dialog).getByText(tl.emptyHintReadOnly)).toBeInTheDocument()
+    expect(within(dialog).queryByText(tl.emptyHint)).not.toBeInTheDocument()
   })
 
   it('chỉ xóa được log của chính mình, có xác nhận', async () => {

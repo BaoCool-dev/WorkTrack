@@ -499,6 +499,8 @@ export const messages = {
       emptyTitle: 'Chưa có giờ nào được log',
       emptyHint:
         'Ghi lại thời gian bạn đã làm trên công việc này để báo cáo phản ánh đúng thực tế.',
+      // Người chỉ xem (CEO, thành viên không nhận việc) không được mời log giờ — design-system §7.
+      emptyHintReadOnly: 'Chưa có ai log giờ cho công việc này.',
       onSubtask: (title: string) => `Việc con: ${title}`,
       delete: 'Xóa',
       deleteLabel: (who: string, date: string) => `Xóa log giờ của ${who} ngày ${date}`,

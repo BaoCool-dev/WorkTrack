@@ -70,12 +70,12 @@ export function TimeLogSection({ task, canLog, onLog }: TimeLogSectionProps) {
         )}
       </div>
       {task.subtaskCount > 0 && <p className="text-sm text-ink-faint">{t.includesSubtasks}</p>}
-      <TimeLogHistory task={task} />
+      <TimeLogHistory task={task} canLog={canLog} />
     </section>
   )
 }
 
-function TimeLogHistory({ task }: { task: Task }) {
+function TimeLogHistory({ task, canLog }: { task: Task; canLog: boolean }) {
   const [page, setPage] = useState(1)
   const query = useTimeLogs(task.id, page)
 
@@ -89,7 +89,13 @@ function TimeLogHistory({ task }: { task: Task }) {
     )
   if (!query.data) return <Skeleton className="h-16 w-full" />
   if (query.data.items.length === 0)
-    return <EmptyState icon={Clock} title={t.emptyTitle} description={t.emptyHint} />
+    return (
+      <EmptyState
+        icon={Clock}
+        title={t.emptyTitle}
+        description={canLog ? t.emptyHint : t.emptyHintReadOnly}
+      />
+    )
 
   return (
     <>

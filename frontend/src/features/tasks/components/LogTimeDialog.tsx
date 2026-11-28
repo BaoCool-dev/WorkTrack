@@ -162,7 +162,8 @@ export function LogTimeDialog({ task, onClose }: LogTimeDialogProps) {
       body={body}
     >
       <Button variant="secondary" onClick={onClose}>
-        {t.cancelDialog}
+        {/* Khi việc đã khóa thì không còn gì để hủy → nút là "Đóng". */}
+        {closed ? messages.common.close : t.cancelDialog}
       </Button>
       {!closed && (
         <Button type="submit" form={formId} loading={create.isPending}>
