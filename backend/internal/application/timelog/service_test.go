@@ -3,6 +3,7 @@ package timelog_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,6 +35,9 @@ type fakeStore struct {
 	logs    []domain.TimeLog
 	locks   []string
 	failNew bool
+	// onLock chạy khi khóa công việc: giả lập thay đổi đồng thời (giao lại việc, kéo sang Done)
+	// xảy ra giữa lần kiểm tra trước giao dịch và lần kiểm lại trong giao dịch.
+	onLock func()
 }
 
 func (f *fakeStore) InTx(_ context.Context, fn func(timelog.Store) error) error {
@@ -60,6 +64,9 @@ func (f *fakeStore) LockProject(_ context.Context, _ uuid.UUID) (domain.LockedPr
 
 func (f *fakeStore) Lock(_ context.Context, id uuid.UUID) error {
 	f.locks = append(f.locks, "task")
+	if f.onLock != nil {
+		f.onLock()
+	}
 	if _, ok := f.tasks[id]; !ok {
 		return domain.ErrTaskNotFound
 	}
@@ -359,4 +366,205 @@ func TestDelete_CF08(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+}
+
+// QA bổ sung — biên giá trị đi qua service: dữ liệu biên hợp lệ được lưu đúng nguyên văn [CF-08].
+func TestCreateBoundaryValuesStored_CF08(t *testing.T) {
+	today := time.Date(2026, 11, 27, 0, 0, 0, 0, time.UTC)
+	createdDay := time.Date(2026, 11, 24, 0, 0, 0, 0, time.UTC) // setup: tạo việc lúc now − 72h
+	cases := []struct {
+		name     string
+		in       timelog.Input
+		wantNote string
+		wantDate time.Time
+	}{
+		{"1 phút", timelog.Input{Minutes: 1, Note: "x"}, "x", today},
+		{"1440 phút", timelog.Input{Minutes: 1440, Note: "x"}, "x", today},
+		{"mô tả 500 emoji", timelog.Input{Minutes: 10, Note: strings.Repeat("😀", 500)}, strings.Repeat("😀", 500), today},
+		{"HTML giữ nguyên", timelog.Input{Minutes: 10, Note: "<b>đậm</b>"}, "<b>đậm</b>", today},
+		{"ngày = hôm nay (biên trên)", timelog.Input{Minutes: 10, Note: "x", WorkDate: &today}, "x", today},
+		{"ngày = ngày tạo việc (biên dưới)", timelog.Input{Minutes: 10, Note: "x", WorkDate: &createdDay}, "x", createdDay},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := setup()
+			l, err := f.svc.Create(context.Background(), f.assignee, f.parentID, c.in)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if l.Minutes != c.in.Minutes || l.Note != c.wantNote || !l.WorkDate.Equal(c.wantDate) {
+				t.Fatalf("log = %+v", l)
+			}
+		})
+	}
+}
+
+// QA bổ sung — biên ngoài: 501 ký tự, ngày mai (đúng 1 ngày sau hôm nay giờ VN) [CF-08].
+func TestCreateValidation_JustOutside_CF08(t *testing.T) {
+	tomorrow := time.Date(2026, 11, 28, 0, 0, 0, 0, time.UTC)
+	dayBeforeCreated := time.Date(2026, 11, 23, 0, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name string
+		in   timelog.Input
+		want error
+	}{
+		{"mô tả 501 ký tự", timelog.Input{Minutes: 10, Note: strings.Repeat("ệ", 501)}, domain.ErrInvalidLogNote},
+		{"mô tả chuỗi rỗng", timelog.Input{Minutes: 10, Note: ""}, domain.ErrInvalidLogNote},
+		{"ngày mai", timelog.Input{Minutes: 10, Note: "x", WorkDate: &tomorrow}, domain.ErrInvalidLogDate},
+		{"một ngày trước ngày tạo việc", timelog.Input{Minutes: 10, Note: "x", WorkDate: &dayBeforeCreated}, domain.ErrInvalidLogDate},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := setup()
+			if _, err := f.svc.Create(context.Background(), f.assignee, f.parentID, c.in); !errors.Is(err, c.want) {
+				t.Fatalf("err = %v, want %v", err, c.want)
+			}
+			if len(f.st.logs) != 0 || len(f.pub.events) != 0 {
+				t.Fatal("dữ liệu sai không được ghi")
+			}
+		})
+	}
+}
+
+// QA bổ sung — quyền được kiểm TRƯỚC dữ liệu: người không có quyền gửi dữ liệu sai vẫn nhận 403/404,
+// không lộ luật kiểm tra cho người ngoài [CF-08].
+func TestCreate_PermissionCheckedBeforeValidation_CF08(t *testing.T) {
+	bad := timelog.Input{Minutes: -1, Note: ""}
+	cases := []struct {
+		name string
+		who  func(fixture) authz.Principal
+		want error
+	}{
+		{"CEO", func(f fixture) authz.Principal { return f.ceo }, domain.ErrForbidden},
+		{"Member khác trong dự án", func(f fixture) authz.Principal { return f.other }, domain.ErrTimeLogNotAllowed},
+		{"ngoài dự án", func(f fixture) authz.Principal { return f.outsider }, domain.ErrTaskNotFound},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := setup()
+			if _, err := f.svc.Create(context.Background(), c.who(f), f.parentID, bad); !errors.Is(err, c.want) {
+				t.Fatalf("err = %v, want %v", err, c.want)
+			}
+		})
+	}
+}
+
+// QA bổ sung — Admin (kể cả nếu bằng cách nào đó xem được dự án) không ghi giờ [CF-08].
+func TestCreate_AdminForbidden_CF08(t *testing.T) {
+	f := setup()
+	admin := authz.Principal{UserID: uuid.New(), Role: domain.RoleAdmin}
+	// Cho Admin "xem được" dự án để chắc chắn chặn ở luật vai trò chứ không chỉ ở 404.
+	f.svc = timelog.NewService(f.st, f.st, &fakeProjects{
+		pid: f.st.tasks[f.parentID].ProjectID, manager: f.pm.UserID,
+		members: map[uuid.UUID]bool{admin.UserID: true},
+	}, f.pub, func() time.Time { return now })
+	if _, err := f.svc.Create(context.Background(), admin, f.parentID, timelog.Input{Minutes: 10, Note: "x"}); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("err = %v, want ErrForbidden", err)
+	}
+}
+
+// QA bổ sung — kiểm lại trong giao dịch: Manager giao lại việc ngay lúc Member bấm lưu → chặn, không ghi [CF-08].
+func TestCreate_ReassignedDuringTx_CF08(t *testing.T) {
+	f := setup()
+	f.st.onLock = func() {
+		p := f.st.tasks[f.parentID]
+		o := f.other.UserID
+		p.AssigneeID = &o
+		f.st.tasks[f.parentID] = p
+	}
+	if _, err := f.svc.Create(context.Background(), f.assignee, f.parentID, timelog.Input{Minutes: 10, Note: "x"}); !errors.Is(err, domain.ErrTimeLogNotAllowed) {
+		t.Fatalf("err = %v, want ErrTimeLogNotAllowed", err)
+	}
+	if len(f.st.logs) != 0 || len(f.pub.events) != 0 {
+		t.Fatal("không được ghi khi người nhận đã đổi")
+	}
+}
+
+// QA bổ sung — kiểm lại trong giao dịch: việc vừa được kéo sang Done 25 giờ trước (dữ liệu khóa) → 409 [CF-08].
+func TestCreate_DoneDuringTx_CF08(t *testing.T) {
+	f := setup()
+	f.st.onLock = func() { f.setGroup(f.parentID, domain.GroupDone, now.Add(-25*time.Hour)) }
+	if _, err := f.svc.Create(context.Background(), f.assignee, f.parentID, timelog.Input{Minutes: 10, Note: "x"}); !errors.Is(err, domain.ErrTimeLogClosed) {
+		t.Fatalf("err = %v, want ErrTimeLogClosed", err)
+	}
+}
+
+// QA bổ sung — chuyển trạng thái: Done > 24h rồi bị từ chối nghiệm thu (về in_progress) → được log lại [CF-08].
+func TestCreate_ReopenedAfterDone_CF08(t *testing.T) {
+	f := setup()
+	f.setGroup(f.parentID, domain.GroupInProgress, now.Add(-72*time.Hour))
+	if _, err := f.svc.Create(context.Background(), f.assignee, f.parentID, timelog.Input{Minutes: 10, Note: "Làm lại"}); err != nil {
+		t.Fatalf("việc đã mở lại phải log được: %v", err)
+	}
+}
+
+// QA bổ sung — giao dịch lỗi thì không còn dòng log nào [CF-08].
+func TestCreateRollback_NoLogLeft_CF08(t *testing.T) {
+	f := setup()
+	f.st.failNew = true
+	_, _ = f.svc.Create(context.Background(), f.assignee, f.parentID, timelog.Input{Minutes: 10, Note: "x"})
+	if len(f.st.logs) != 0 {
+		t.Fatalf("logs = %d, muốn 0", len(f.st.logs))
+	}
+}
+
+// QA bổ sung — xóa: CEO không xóa; xóa log của việc con khi cha đã Done > 24h bị khóa;
+// Done đúng 24 giờ vẫn xóa được [CF-08].
+func TestDelete_MoreCases_CF08(t *testing.T) {
+	ctx := context.Background()
+	t.Run("CEO không xóa log của người khác", func(t *testing.T) {
+		f := setup()
+		l, _ := f.svc.Create(ctx, f.assignee, f.parentID, timelog.Input{Minutes: 10, Note: "x"})
+		if err := f.svc.Delete(ctx, f.ceo, l.ID); !errors.Is(err, domain.ErrTimeLogNotAllowed) {
+			t.Fatalf("err = %v", err)
+		}
+		if len(f.st.logs) != 1 {
+			t.Fatal("không được xóa")
+		}
+	})
+	t.Run("log việc con, cha Done 25 giờ → khóa", func(t *testing.T) {
+		f := setup()
+		l, _ := f.svc.Create(ctx, f.assignee, f.childID, timelog.Input{Minutes: 10, Note: "x"})
+		f.setGroup(f.parentID, domain.GroupDone, now.Add(-25*time.Hour))
+		if err := f.svc.Delete(ctx, f.assignee, l.ID); !errors.Is(err, domain.ErrTimeLogClosed) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("Done đúng 24 giờ → vẫn xóa được", func(t *testing.T) {
+		f := setup()
+		l, _ := f.svc.Create(ctx, f.assignee, f.parentID, timelog.Input{Minutes: 10, Note: "x"})
+		f.setGroup(f.parentID, domain.GroupDone, now.Add(-24*time.Hour))
+		if err := f.svc.Delete(ctx, f.assignee, l.ID); err != nil {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("xóa hai lần → lần hai 404", func(t *testing.T) {
+		f := setup()
+		l, _ := f.svc.Create(ctx, f.assignee, f.parentID, timelog.Input{Minutes: 10, Note: "x"})
+		if err := f.svc.Delete(ctx, f.assignee, l.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.svc.Delete(ctx, f.assignee, l.ID); !errors.Is(err, domain.ErrTimeLogNotFound) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+}
+
+// QA bổ sung — Manager ghi bù vào việc con, lịch sử của việc con chỉ gồm log của chính nó [CF-08].
+func TestListChildOnlyOwnLogs_CF08(t *testing.T) {
+	f := setup()
+	ctx := context.Background()
+	if _, err := f.svc.Create(ctx, f.pm, f.parentID, timelog.Input{Minutes: 20, Note: "Cha"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.svc.Create(ctx, f.pm, f.childID, timelog.Input{Minutes: 25, Note: "Con"}); err != nil {
+		t.Fatal(err)
+	}
+	page, err := f.svc.List(ctx, f.assignee, f.childID, domain.PageRequest{Page: 1, PageSize: 20})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != 1 || page.Items[0].Note != "Con" {
+		t.Fatalf("lịch sử con = %+v", page)
+	}
 }

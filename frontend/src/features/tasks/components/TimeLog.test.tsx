@@ -237,3 +237,66 @@ describe('Lịch sử Log giờ (CF-08)', () => {
     expect(await screen.findByText(tl.deleted)).toBeInTheDocument()
   })
 })
+
+// QA bổ sung — lỗi server khác 409, ghi chú HTML, Member không nhận việc [CF-08].
+describe('Log giờ — ca âm và đoán lỗi (QA) [CF-08]', () => {
+  it.each([
+    [403, 'TIME_LOG_NOT_ALLOWED', 'Bạn không được log giờ cho công việc này.'],
+    [422, 'TIME_LOG_DATE_INVALID', 'Ngày làm không hợp lệ.'],
+  ])(
+    'server trả %i %s: hiện thông báo lỗi trong form, giữ dữ liệu đã nhập [TC_LOG_211]',
+    async (status, code, message) => {
+      mockAll()
+      server.use(
+        mock.post(`${API}/api/v1/tasks/t-1/time-logs`, () =>
+          HttpResponse.json({ error: { code, message } }, { status }),
+        ),
+      )
+      const { user, form } = await openLogDialog()
+      await user.type(within(form).getByLabelText(tl.hours), '1')
+      await user.type(within(form).getByLabelText(tl.note), 'Bổ sung')
+      await user.click(within(form).getByRole('button', { name: tl.submit }))
+      expect(await within(form).findByText(message)).toBeInTheDocument()
+      // Không phải khối khóa: form vẫn còn để người dùng sửa lại.
+      expect(within(form).queryByText(tl.closedTitle)).not.toBeInTheDocument()
+      expect(within(form).getByLabelText(tl.hours)).toHaveValue('1')
+      expect(within(form).getByLabelText(tl.note)).toHaveValue('Bổ sung')
+    },
+  )
+
+  it('ghi chú 501 ký tự: báo lỗi, không gửi [TC_LOG_212]', async () => {
+    mockAll()
+    let posted = false
+    server.use(
+      mock.post(`${API}/api/v1/tasks/t-1/time-logs`, () => {
+        posted = true
+        return HttpResponse.json(makeTimeLog(), { status: 201 })
+      }),
+    )
+    const { user, form } = await openLogDialog()
+    await user.type(within(form).getByLabelText(tl.hours), '1')
+    // Dán thay vì gõ từng phím cho nhanh.
+    await user.click(within(form).getByLabelText(tl.note))
+    await user.paste('a'.repeat(501))
+    await user.click(within(form).getByRole('button', { name: tl.submit }))
+    expect(await within(form).findByText(tl.noteTooLong)).toBeInTheDocument()
+    expect(posted).toBe(false)
+  })
+
+  it('ghi chú chứa HTML hiển thị nguyên văn, không thành thẻ [TC_LOG_213]', async () => {
+    const html = '<img src=x onerror="alert(1)"><b>đậm</b>'
+    mockAll({ logs: [makeTimeLog({ note: html })] })
+    const { dialog } = await openDetail()
+    const list = await within(dialog).findByRole('list', { name: tl.listLabel })
+    expect(within(list).getByText(html)).toBeInTheDocument()
+    expect(list.querySelector('img, b')).toBeNull()
+  })
+
+  it('Member không phải người nhận việc: không có nút Log giờ, rỗng dạng chỉ xem [TC_LOG_214]', async () => {
+    mockAll({ task: makeTask({ ...parent, assignee: { id: 'u-x', name: 'Lê Minh' } }) })
+    const { dialog } = await openDetail('member')
+    expect(await within(dialog).findByText(tl.emptyTitle)).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: tl.log })).not.toBeInTheDocument()
+    expect(within(dialog).getByText(tl.emptyHintReadOnly)).toBeInTheDocument()
+  })
+})

@@ -52,3 +52,16 @@ describe('Thẻ Kanban — thanh so giờ (CF-08)', () => {
     expect(screen.queryByText(/con$/)).not.toBeInTheDocument()
   })
 })
+
+// QA bổ sung — BVA quanh ngưỡng định mức và 20% (dự kiến 960 phút → ngưỡng 1152) [CF-08].
+describe('Thẻ Kanban — biên mức giờ (QA) [CF-08]', () => {
+  it.each([
+    [960, 'Trong định mức'], // đúng bằng dự kiến [TC_LOG_215]
+    [961, 'Vượt nhẹ'], // vượt 1 phút
+    [1151, 'Vượt nhẹ'], // ngay dưới 20% [TC_LOG_216]
+    [1153, 'Vượt nặng'],
+  ])('thực tế %i/960 phút → %s', (actualMinutes, label) => {
+    render(<TaskCardView task={makeTask({ estimatedMinutes: 960, actualMinutes })} />)
+    expect(screen.getByRole('img', { name: label })).toBeInTheDocument()
+  })
+})

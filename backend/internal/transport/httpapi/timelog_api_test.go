@@ -249,7 +249,7 @@ func TestTimeLogAPI_PassesRawMinutesAndEmptyDate_CF08(t *testing.T) {
 		f := &fakeTimeLogs{err: domain.ErrInvalidLogMinutes}
 		body, _ := json.Marshal(map[string]any{"minutes": m, "note": "x"})
 		rec := newTimeLogAPI(t, f).do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/time-logs", string(body), withToken("valid-member"))
-		if !f.called || f.gotIn.Minutes != m || rec.Code != http.StatusBadRequest || errCode(t, rec) != "TIME_LOG_MINUTES_INVALID" {
+		if !f.called || f.gotIn.Minutes != m || rec.Code != http.StatusUnprocessableEntity || errCode(t, rec) != "TIME_LOG_MINUTES_INVALID" {
 			t.Errorf("minutes=%d: called=%v in=%+v status=%d", m, f.called, f.gotIn, rec.Code)
 		}
 	}
