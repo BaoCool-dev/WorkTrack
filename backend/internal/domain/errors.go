@@ -60,6 +60,7 @@ var (
 	ErrBoardNeedsDoneColumn       = errors.New("board needs at least one done column")
 	ErrColumnNotFound             = errors.New("column not found")
 	ErrColumnHasTasks             = errors.New("column still has tasks")
+	ErrColumnHasReviews           = errors.New("column is referenced by review history")
 	ErrInvalidColumnOrder         = errors.New("column order must list every column once")
 	ErrInvalidTransition          = errors.New("transition must connect two different columns")
 	ErrInvalidTransitionRole      = errors.New("invalid transition role")

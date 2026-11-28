@@ -70,4 +70,10 @@ func TestReviewRepo_RejectThenApprove_CF09(t *testing.T) {
 	if err := e.db.QueryRow(ctx, `SELECT count(*) FROM task_move_history WHERE task_id = $1`, tk.ID).Scan(&moves); err != nil || moves != 5 {
 		t.Fatalf("task_move_history = %d %v, want 5 (2 đi tới + Từ chối + quay lại + Duyệt)", moves, err)
 	}
+
+	// Cột "Chờ nghiệm thu" đã trống nhưng còn lịch sử nghiệm thu: FK RESTRICT chặn xóa để giữ số liệu tỷ lệ làm lại.
+	err = NewProjectRepo(e.db).DeleteColumn(ctx, e.p.ID, e.cols["Chờ nghiệm thu"])
+	if !errors.Is(err, domain.ErrColumnHasReviews) {
+		t.Fatalf("xóa cột có lịch sử nghiệm thu = %v, want ErrColumnHasReviews", err)
+	}
 }
