@@ -101,4 +101,8 @@ var (
 	ErrTimeLogClosed     = errors.New("task has been done for more than 24 hours")
 	ErrTimeLogNotAllowed = errors.New("only the project manager or the assignee can log time")
 	ErrTimeLogNotFound   = errors.New("time log not found")
+
+	// CF-09 — nghiệm thu.
+	ErrTaskNotInReview     = errors.New("task is not waiting for review")
+	ErrInvalidReviewReason = errors.New("reject reason is empty or too long")
 )

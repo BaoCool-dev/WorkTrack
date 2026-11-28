@@ -85,6 +85,9 @@ type Querier interface {
 	InsertNotifications(ctx context.Context, arg InsertNotificationsParams) error
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	InsertTaskMoveHistory(ctx context.Context, arg InsertTaskMoveHistoryParams) error
+	// CF-09 — nghiệm thu công việc cha.
+	// Ghi một lần Duyệt/Từ chối, cùng transaction với việc chuyển cột.
+	InsertTaskReview(ctx context.Context, arg InsertTaskReviewParams) error
 	IsProjectMember(ctx context.Context, arg IsProjectMemberParams) (bool, error)
 	// Mốc "đã Done" của công việc: lần gần nhất được chuyển TỪ cột ngoài nhóm done VÀO một cột nhóm done.
 	// Đổi cột trong nội bộ nhóm done (vd. "Done" → "Đã đóng") không tính, để không mở lại cửa sổ 24 giờ.
@@ -124,6 +127,8 @@ type Querier interface {
 	// Bình luận cũ trước, mới sau (đọc như hội thoại).
 	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
 	ListTaskLabels(ctx context.Context, taskIds []uuid.UUID) ([]ListTaskLabelsRow, error)
+	// Lịch sử nghiệm thu của một công việc, mới nhất trước.
+	ListTaskReviews(ctx context.Context, taskID uuid.UUID) ([]ListTaskReviewsRow, error)
 	// Lịch sử log của một công việc; với việc cha gồm cả log của các con (giờ con cộng lên cha). Mới nhất trước.
 	// IN (subquery) thay cho OR qua hai bảng để planner dùng được ix_task_parent + ix_time_log_task.
 	ListTaskTimeLogs(ctx context.Context, arg ListTaskTimeLogsParams) ([]ListTaskTimeLogsRow, error)
