@@ -211,3 +211,5 @@ Artboard dùng inline style và dữ liệu cứng: **chép bố cục, khoảng
 | Badge trạng thái bo 4px, chip đếm trạng thái trên Dashboard CEO bo 6px | Badge/chip đều **4px** |
 | Ngưỡng đúng 20% chưa rõ thuộc vàng hay đỏ | ⚠ **Chưa chốt** — hỏi người dùng; tạm `< 20%` vàng, `≥ 20%` đỏ |
 | Mã lỗi hiển thị dạng "WT-5031", API dùng mã chữ (`TASK_WIP_LIMIT`) | ⚠ **Chưa chốt** — xem `CLAUDE.md` §6 |
+| Hộp thoại Từ chối nghiệm thu (artboard 13) có checkbox "Trả thẻ về cột Đang làm…" | Bỏ checkbox: server luôn trả về cột đầu `in_progress` và báo người nhận (`docs/decisions.md` mục C) |
+| Còn việc con chưa xong: artboard 13 dùng hộp thoại "Để sau / Vẫn chuyển" | Toast cảnh báo khi kéo + dòng nhắc `warn` ở khối Nghiệm thu, không chặn (`docs/decisions.md` mục C) |

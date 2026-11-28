@@ -41,6 +41,13 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
   - Kanban: kéo việc cha vào cột chờ nghiệm thu khi còn việc con chưa xong → toast cảnh báo thay cho toast thường.
   - Test: `Review.test.tsx` (11 test: nút theo vai trò, Duyệt/Từ chối, lỗi 409, lịch sử), 2 test mới trong `useBoardDrag.test.tsx`.
 - Tài liệu: `docs/testing/manual-test-guide.md` thêm §4.7 CF-09 (thao tác giao diện, curl Duyệt/Từ chối/lịch sử, các mã lỗi 400/403/404/409/422, SQL xem `task_review` và `task_move_history`), dòng `task_review` ở §5.2, dòng nghiệm thu trong ma trận quyền §4, checklist §8. `docs/decisions.md` mục C thêm 5 giả định của nhánh.
+- Gate vòng 1 (sửa theo go-reviewer, ui-reviewer, qa-tester):
+  - Migration mới `20261128102034_restrict_task_review_column_fks.sql`: FK cột của `task_review` chuyển sang ON DELETE RESTRICT, xóa cột đã có lịch sử nghiệm thu trả 409 `COLUMN_HAS_REVIEWS` (`ErrColumnHasReviews`, `DeleteColumn` ánh xạ lỗi FK).
+  - `ReviewService.decide`: kiểm `CanReview` trước khi chuẩn hóa lý do.
+  - `useBoardDrag`: lần Hoàn tác đưa việc cha trở lại cột chờ nghiệm thu vẫn hiện cảnh báo việc con.
+  - `TaskDetailDialog`: báo đang tải / lỗi tải bảng thay vì ẩn nút Nghiệm thu im lặng (+ test).
+  - qa-tester: `review_qa_integration_test.go`, bổ sung ca biên/âm ở `review_test.go`, `review_api_test.go`, `Review.test.tsx`, `review.test.ts`; mục CF-09 trong `traceability-matrix.md`.
+  - `decisions.md` mục C + `design-system.md` §10: ghi 3 điểm lệch artboard 13 / giả định mới. Issue #19 cho các mục nhỏ còn tồn.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -58,6 +65,9 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
 | `useTaskReviews` trả nguyên `{items}` thay vì mảng | Quên bóc lớp bọc của API danh sách | `npm run typecheck` (`tsc -b`) báo lỗi kiểu; `tsc -p .` không bắt được | Bóc `items` trong hàm gọi API |
 | `Review.test.tsx` dùng khóa thông điệp không tồn tại (`tr.historyTitle`, `tr.confirm`) | Viết test theo trí nhớ, không đối chiếu `messages.ts` | Typecheck báo lỗi | Đổi sang `tr.history`, `tr.confirmReject` |
 | Ba file FE lệch định dạng Prettier | Không chạy Prettier trước `make lint` | `format:check` đỏ | `npx prettier --write` |
+| FK `task_review` → cột dùng ON DELETE CASCADE: xóa cột làm mất lịch sử nghiệm thu (dữ liệu tính tỷ lệ làm lại) | Viết migration theo mẫu bảng khác, không nghĩ tới vai trò minh chứng của bảng | go-reviewer ở gate | Migration mới chuyển sang RESTRICT + lỗi 409 `COLUMN_HAS_REVIEWS` |
+| Kiểm lý do Từ chối trước kiểm quyền: Member gửi lý do rỗng nhận 422 thay vì 403 | Đặt validate input lên đầu theo thói quen | qa-tester viết ca âm | Đưa `CanReview` lên trước `NormalizeReviewReason` |
+| Hoàn tác về cột chờ nghiệm thu không hiện cảnh báo việc con | Nhánh `!undoable` return sớm, bỏ qua cảnh báo | ui-reviewer ở gate | Gọi `isReviewWarning` cả ở nhánh hoàn tác + test |
 
 ## Kiểm chứng
 - `go test ./internal/domain/ -run CF09`: ok.
@@ -65,3 +75,4 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
 - Lát API: `make lint` xanh; `make test` xanh (Go mọi gói ok, Vitest 314/314); `go test -tags=integration -run 'Review|Kanban' ./internal/infrastructure/postgres/` trên Postgres Homebrew: ok.
 - Lát giao diện: `make lint` xanh (sau Prettier); `make test` xanh (Go mọi gói ok, Vitest 335/335).
 - Tài liệu: kiểm lại tên cột, mã lỗi và chuỗi giao diện trong §4.7 với `review_handler.go`, `review_api_test.go`, `messages.ts`; `make lint` xanh. Luồng curl §4.7 chưa chạy trên API dev (cần mật khẩu tài khoản mẫu trong `.env`); các ca tương ứng đã được phủ bởi test API và test tích hợp.
+- Gate vòng 1 sau sửa: `make lint` xanh; `make test` xanh (Go mọi gói ok, Vitest 347/347); `go test -tags=integration ./...` trên Postgres Homebrew: ok; `make cover` 89,9%; `gitleaks` 0 secret; `go vet` và `tsc --noEmit` sạch.
