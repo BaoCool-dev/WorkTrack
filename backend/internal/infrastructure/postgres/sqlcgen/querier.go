@@ -26,6 +26,7 @@ type Querier interface {
 	CountProjectWIP(ctx context.Context, arg CountProjectWIPParams) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	CountTaskComments(ctx context.Context, taskID uuid.UUID) (int64, error)
+	// IN (subquery) thay cho OR qua hai bảng để planner dùng được ix_task_parent + ix_time_log_task.
 	CountTaskTimeLogs(ctx context.Context, taskID uuid.UUID) (int64, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
@@ -85,7 +86,9 @@ type Querier interface {
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	InsertTaskMoveHistory(ctx context.Context, arg InsertTaskMoveHistoryParams) error
 	IsProjectMember(ctx context.Context, arg IsProjectMemberParams) (bool, error)
-	// Mốc "đã Done" của công việc: lần gần nhất được chuyển vào một cột nhóm done.
+	// Mốc "đã Done" của công việc: lần gần nhất được chuyển TỪ cột ngoài nhóm done VÀO một cột nhóm done.
+	// Đổi cột trong nội bộ nhóm done (vd. "Done" → "Đã đóng") không tính, để không mở lại cửa sổ 24 giờ.
+	// Cột nguồn không còn tồn tại (đã xóa) coi như ngoài nhóm done.
 	// NULL khi chưa có lịch sử (dữ liệu cũ) → tầng trên dùng updated_at.
 	LastDoneAt(ctx context.Context, taskID uuid.UUID) (pgtype.Timestamptz, error)
 	// CF-03, CF-06: task_count đếm cả việc cha và con nằm trong cột (cột còn việc không xóa được).
@@ -122,6 +125,7 @@ type Querier interface {
 	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
 	ListTaskLabels(ctx context.Context, taskIds []uuid.UUID) ([]ListTaskLabelsRow, error)
 	// Lịch sử log của một công việc; với việc cha gồm cả log của các con (giờ con cộng lên cha). Mới nhất trước.
+	// IN (subquery) thay cho OR qua hai bảng để planner dùng được ix_task_parent + ix_time_log_task.
 	ListTaskTimeLogs(ctx context.Context, arg ListTaskTimeLogsParams) ([]ListTaskTimeLogsRow, error)
 	// Một truy vấn cho cả trang danh sách (tránh N+1).
 	ListUserSkillsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]ListUserSkillsByUserIDsRow, error)

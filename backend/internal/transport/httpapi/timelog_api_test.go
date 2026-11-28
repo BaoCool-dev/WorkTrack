@@ -106,9 +106,9 @@ func TestTimeLogAPI_ErrorMapping_CF08(t *testing.T) {
 		status int
 		code   string
 	}{
-		{domain.ErrInvalidLogMinutes, http.StatusBadRequest, "TIME_LOG_MINUTES_INVALID"},
-		{domain.ErrInvalidLogNote, http.StatusBadRequest, "TIME_LOG_NOTE_INVALID"},
-		{domain.ErrInvalidLogDate, http.StatusBadRequest, "TIME_LOG_DATE_INVALID"},
+		{domain.ErrInvalidLogMinutes, http.StatusUnprocessableEntity, "TIME_LOG_MINUTES_INVALID"},
+		{domain.ErrInvalidLogNote, http.StatusUnprocessableEntity, "TIME_LOG_NOTE_INVALID"},
+		{domain.ErrInvalidLogDate, http.StatusUnprocessableEntity, "TIME_LOG_DATE_INVALID"},
 		{domain.ErrTimeLogClosed, http.StatusConflict, "TIME_LOG_CLOSED"},
 		{domain.ErrTimeLogNotAllowed, http.StatusForbidden, "TIME_LOG_NOT_ALLOWED"},
 		{domain.ErrTaskNotFound, http.StatusNotFound, "TASK_NOT_FOUND"},
@@ -165,5 +165,116 @@ func TestTimeLogAPI_BadInput_CF08(t *testing.T) {
 				t.Errorf("code = %s; want %s", errCode(t, rec), c.code)
 			}
 		})
+	}
+}
+
+// QA bổ sung — 401 khi token sai/không đúng dạng Bearer (không chỉ thiếu token) [CF-08].
+func TestTimeLogAPI_InvalidToken_Returns401_CF08(t *testing.T) {
+	for _, tok := range []string{"bad-token", "valid-boss"} {
+		f := &fakeTimeLogs{}
+		rec := newTimeLogAPI(t, f).do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/time-logs",
+			`{"minutes":30,"note":"x"}`, withToken(tok))
+		if rec.Code != http.StatusUnauthorized || f.called {
+			t.Errorf("token %q: %d called=%v", tok, rec.Code, f.called)
+		}
+	}
+}
+
+// QA bổ sung — ánh xạ lỗi theo từng endpoint: vai trò chỉ xem (CEO/Admin) → 403 FORBIDDEN,
+// IDOR (công việc/log của dự án khác) → 404, xóa log người khác → 403, xóa khi đã khóa → 409 [CF-08].
+func TestTimeLogAPI_ErrorMappingPerEndpoint_CF08(t *testing.T) {
+	tid, lid := uuid.NewString(), uuid.NewString()
+	cases := []struct {
+		name, method, path, body, tok string
+		err                           error
+		status                        int
+		code                          string
+	}{
+		{"CEO ghi giờ", http.MethodPost, "/api/v1/tasks/" + tid + "/time-logs", `{"minutes":30,"note":"x"}`, "valid-ceo", domain.ErrForbidden, 403, "FORBIDDEN"},
+		{"Admin ghi giờ (không xem được dự án)", http.MethodPost, "/api/v1/tasks/" + tid + "/time-logs", `{"minutes":30,"note":"x"}`, "valid-admin", domain.ErrTaskNotFound, 404, "TASK_NOT_FOUND"},
+		{"Member khác ghi giờ", http.MethodPost, "/api/v1/tasks/" + tid + "/time-logs", `{"minutes":30,"note":"x"}`, "valid-member", domain.ErrTimeLogNotAllowed, 403, "TIME_LOG_NOT_ALLOWED"},
+		{"IDOR xem lịch sử dự án khác", http.MethodGet, "/api/v1/tasks/" + tid + "/time-logs", "", "valid-member", domain.ErrTaskNotFound, 404, "TASK_NOT_FOUND"},
+		{"IDOR xóa log dự án khác", http.MethodDelete, "/api/v1/time-logs/" + lid, "", "valid-member", domain.ErrTimeLogNotFound, 404, "TIME_LOG_NOT_FOUND"},
+		{"xóa log của người khác", http.MethodDelete, "/api/v1/time-logs/" + lid, "", "valid-manager", domain.ErrTimeLogNotAllowed, 403, "TIME_LOG_NOT_ALLOWED"},
+		{"xóa khi việc Done quá 24 giờ", http.MethodDelete, "/api/v1/time-logs/" + lid, "", "valid-member", domain.ErrTimeLogClosed, 409, "TIME_LOG_CLOSED"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			rec := newTimeLogAPI(t, &fakeTimeLogs{err: c.err}).do(t, c.method, c.path, c.body, withToken(c.tok))
+			if rec.Code != c.status || errCode(t, rec) != c.code {
+				t.Errorf("got %d %s; want %d %s", rec.Code, errCode(t, rec), c.status, c.code)
+			}
+		})
+	}
+}
+
+// QA bổ sung — đầu vào sai ở tầng HTTP: UUID sai ở GET, phút số thực, ngày không tồn tại → 400, không gọi service [CF-08].
+func TestTimeLogAPI_BadInput_More_CF08(t *testing.T) {
+	tid := uuid.NewString()
+	cases := []struct{ name, method, path, body, code string }{
+		{"task id sai ở GET", http.MethodGet, "/api/v1/tasks/123/time-logs", "", "TASK_ID_INVALID"},
+		{"UUID thiếu ký tự", http.MethodPost, "/api/v1/tasks/" + tid[:35] + "/time-logs", `{"minutes":30,"note":"x"}`, "TASK_ID_INVALID"},
+		{"log id SQL injection", http.MethodDelete, "/api/v1/time-logs/1%27%20OR%20%271%27=%271", "", "TIME_LOG_ID_INVALID"},
+		{"phút số thực 1.5", http.MethodPost, "/api/v1/tasks/" + tid + "/time-logs", `{"minutes":1.5,"note":"x"}`, "INVALID_JSON"},
+		{"phút null", http.MethodPost, "/api/v1/tasks/" + tid + "/time-logs", `{"minutes":null,"note":"x"}`, ""},
+		{"ngày 30/02 không tồn tại", http.MethodPost, "/api/v1/tasks/" + tid + "/time-logs", `{"minutes":30,"note":"x","workDate":"2026-02-30"}`, "DATE_INVALID"},
+		{"ngày kèm giờ", http.MethodPost, "/api/v1/tasks/" + tid + "/time-logs", `{"minutes":30,"note":"x","workDate":"2026-11-27T10:00:00Z"}`, "DATE_INVALID"},
+		{"pageSize không phải số", http.MethodGet, "/api/v1/tasks/" + tid + "/time-logs?pageSize=x", "", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			f := &fakeTimeLogs{}
+			rec := newTimeLogAPI(t, f).do(t, c.method, c.path, c.body, withToken("valid-member"))
+			if c.name == "phút null" {
+				// null giải mã thành 0 → để service trả TIME_LOG_MINUTES_INVALID; ở đây chỉ kiểm handler chuyển 0 đi.
+				if !f.called || f.gotIn.Minutes != 0 {
+					t.Errorf("phút null: called=%v in=%+v", f.called, f.gotIn)
+				}
+				return
+			}
+			if rec.Code != http.StatusBadRequest || f.called {
+				t.Errorf("got %d called=%v body=%s", rec.Code, f.called, rec.Body)
+			}
+			if c.code != "" && errCode(t, rec) != c.code {
+				t.Errorf("code = %s; want %s", errCode(t, rec), c.code)
+			}
+		})
+	}
+}
+
+// QA bổ sung — phút 0/âm/1441 không bị handler chặn sớm: chuyển nguyên cho service (domain là nơi kiểm),
+// và workDate rỗng "" coi như không gửi (hôm nay) [CF-08].
+func TestTimeLogAPI_PassesRawMinutesAndEmptyDate_CF08(t *testing.T) {
+	for _, m := range []int{0, -30, 1441} {
+		f := &fakeTimeLogs{err: domain.ErrInvalidLogMinutes}
+		body, _ := json.Marshal(map[string]any{"minutes": m, "note": "x"})
+		rec := newTimeLogAPI(t, f).do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/time-logs", string(body), withToken("valid-member"))
+		if !f.called || f.gotIn.Minutes != m || rec.Code != http.StatusBadRequest || errCode(t, rec) != "TIME_LOG_MINUTES_INVALID" {
+			t.Errorf("minutes=%d: called=%v in=%+v status=%d", m, f.called, f.gotIn, rec.Code)
+		}
+	}
+	f := &fakeTimeLogs{}
+	rec := newTimeLogAPI(t, f).do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/time-logs",
+		`{"minutes":30,"note":"x","workDate":""}`, withToken("valid-member"))
+	if rec.Code != http.StatusCreated || f.gotIn.WorkDate != nil {
+		t.Errorf("workDate rỗng: %d %v", rec.Code, f.gotIn.WorkDate)
+	}
+}
+
+// QA bổ sung — mô tả tiếng Việt + emoji + HTML đi khứ hồi nguyên văn qua JSON [CF-08].
+func TestTimeLogAPI_NoteRoundTrip_CF08(t *testing.T) {
+	note := `Sửa lỗi 🐛 <script>alert("x")</script>`
+	f := &fakeTimeLogs{}
+	body, _ := json.Marshal(map[string]any{"minutes": 30, "note": note})
+	rec := newTimeLogAPI(t, f).do(t, http.MethodPost, "/api/v1/tasks/"+uuid.NewString()+"/time-logs", string(body), withToken("valid-member"))
+	if rec.Code != http.StatusCreated || f.gotIn.Note != note {
+		t.Fatalf("status=%d note vào service=%q", rec.Code, f.gotIn.Note)
+	}
+	var got timeLogResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Note != note {
+		t.Errorf("note trả về = %q", got.Note)
 	}
 }

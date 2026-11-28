@@ -127,9 +127,9 @@ var domainErrors = []struct {
 	{domain.ErrInvalidComment, httpError{http.StatusUnprocessableEntity, "COMMENT_INVALID", "Bình luận không được để trống và tối đa 2000 ký tự"}},
 	{domain.ErrNotificationNotFound, httpError{http.StatusNotFound, "NOTIFICATION_NOT_FOUND", "Không tìm thấy thông báo"}},
 	// CF-08: Log time.
-	{domain.ErrInvalidLogMinutes, httpError{http.StatusBadRequest, "TIME_LOG_MINUTES_INVALID", "Số phút phải từ 1 đến 1440"}},
-	{domain.ErrInvalidLogNote, httpError{http.StatusBadRequest, "TIME_LOG_NOTE_INVALID", "Mô tả công việc đã làm là bắt buộc, tối đa 500 ký tự"}},
-	{domain.ErrInvalidLogDate, httpError{http.StatusBadRequest, "TIME_LOG_DATE_INVALID", "Ngày làm việc không được ở tương lai hoặc trước ngày tạo công việc"}},
+	{domain.ErrInvalidLogMinutes, httpError{http.StatusUnprocessableEntity, "TIME_LOG_MINUTES_INVALID", "Số phút phải từ 1 đến 1440"}},
+	{domain.ErrInvalidLogNote, httpError{http.StatusUnprocessableEntity, "TIME_LOG_NOTE_INVALID", "Mô tả công việc đã làm là bắt buộc, tối đa 500 ký tự"}},
+	{domain.ErrInvalidLogDate, httpError{http.StatusUnprocessableEntity, "TIME_LOG_DATE_INVALID", "Ngày làm việc không được ở tương lai hoặc trước ngày tạo công việc"}},
 	{domain.ErrTimeLogClosed, httpError{http.StatusConflict, "TIME_LOG_CLOSED", "Công việc đã hoàn thành quá 24 giờ, không thể log thêm hoặc xóa giờ"}},
 	{domain.ErrTimeLogNotAllowed, httpError{http.StatusForbidden, "TIME_LOG_NOT_ALLOWED", "Bạn không có quyền log giờ hoặc xóa log này"}},
 	{domain.ErrTimeLogNotFound, httpError{http.StatusNotFound, "TIME_LOG_NOT_FOUND", "Không tìm thấy log giờ"}},

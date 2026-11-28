@@ -104,4 +104,28 @@ func TestTimeLog_ServiceFlow_CF08(t *testing.T) {
 	if _, err := logs.Create(ctx, mem, child.ID, timelog.Input{Minutes: 10, Note: "Muộn"}); !errors.Is(err, domain.ErrTimeLogClosed) {
 		t.Fatalf("log con khi cha Done > 24h: %v", err)
 	}
+
+	// Chuyển giữa hai cột cùng nhóm done (vừa xong) không được mở lại cửa sổ 24 giờ:
+	// mốc Done là lần VÀO nhóm done, không phải lần đổi cột trong nhóm.
+	_, err = pool.Exec(ctx, `
+		INSERT INTO board_column (project_id, name, position, status_group)
+		VALUES ($1, 'Đã đóng', 7, 'done')`, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = pool.Exec(ctx, `
+		WITH closed AS (SELECT id FROM board_column WHERE project_id = $2 AND name = 'Đã đóng')
+		INSERT INTO task_move_history (task_id, project_id, from_column_id, to_column_id, moved_by, moved_at)
+		SELECT $1, $2, t.column_id, (SELECT id FROM closed), $3, now() - interval '1 hour' FROM task t WHERE t.id = $1`,
+		parent.ID, p.ID, mgrID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = pool.Exec(ctx, `UPDATE task SET column_id = (SELECT id FROM board_column WHERE project_id = $1 AND name = 'Đã đóng') WHERE id = $2`, p.ID, parent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := logs.Create(ctx, mem, parent.ID, timelog.Input{Minutes: 10, Note: "Muộn"}); !errors.Is(err, domain.ErrTimeLogClosed) {
+		t.Fatalf("done→done không được mở lại cửa sổ 24 giờ: %v", err)
+	}
 }
