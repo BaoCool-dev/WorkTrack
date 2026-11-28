@@ -27,6 +27,10 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
   - `NormalizeReviewReason` chuẩn hóa lý do từ chối.
   - `CanReview`: chỉ Manager phụ trách dự án được nghiệm thu.
   - Thêm lỗi `ErrTaskNotInReview` và `ErrInvalidReviewReason`.
+- Application: `internal/application/kanban/review.go` + `review_test.go` (viết trước):
+  - `ReviewService.Approve/Reject/Reviews`; khóa project → task, kiểm lại quyền Manager phụ trách trên dòng đã khóa;
+  - chuyển cột bằng `Service.moveLocked` có sẵn (luật workflow_transition, WIP, version, lịch sử chuyển cột);
+  - ghi `task_review`, gửi thông báo `review_rejected` khi Từ chối, phát `task.moved` sau commit.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -36,7 +40,9 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
 ## Lỗi / ảo giác của AI
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
+| Test Từ chối kỳ vọng nội dung thông báo giữ nguyên xuống dòng | Không đọc lại `NotificationExcerpt` (gộp khoảng trắng thành một dấu cách) | Test đỏ khi chạy | Sửa kỳ vọng theo hành vi có sẵn của excerpt |
 | Tìm tầng HTTP ở `internal/infrastructure/httpapi` (không tồn tại) | Đoán theo cấu trúc thường gặp thay vì liệt kê thư mục | `ls` báo không có thư mục | Liệt kê `internal/`: tầng HTTP nằm ở `internal/transport/httpapi` |
 
 ## Kiểm chứng
 - `go test ./internal/domain/ -run CF09`: ok.
+- `go test ./internal/application/kanban/`: ok; `make lint`: 0 issues.
