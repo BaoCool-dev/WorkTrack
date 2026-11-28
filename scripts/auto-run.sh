@@ -142,7 +142,9 @@ last=""
 for line in open(sys.argv[1],encoding="utf-8"):
     try: d=json.loads(line)
     except Exception: continue
-    if d.get("type")=="result": last=d.get("result") or ""
+    # Lấy kết quả cuối KHÁC RỖNG: sau khi phiên chính hết giới hạn, các agent phụ chạy nền
+    # (go-reviewer, ui-reviewer) có thể ghi thêm dòng result rỗng làm che mất thông báo giới hạn.
+    if d.get("type")=="result" and (d.get("result") or "").strip(): last=d.get("result")
 print(last)
 PY2
 )"
