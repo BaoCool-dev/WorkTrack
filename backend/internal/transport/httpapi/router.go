@@ -32,6 +32,8 @@ type Deps struct {
 	Tokens        TokenVerifier
 	// CF-08
 	TimeLogs TimeLogService
+	// CF-09
+	Reviews ReviewService
 
 	// Now mặc định time.Now; test truyền đồng hồ giả.
 	Now func() time.Time
@@ -91,6 +93,7 @@ func mountHTTP(r chi.Router, d Deps) {
 	kh := &kanbanHandler{svc: d.Kanban, projects: d.Projects, validate: v}
 	ch := &collabHandler{subtasks: d.Subtasks, comments: d.Comments, notifications: d.Notifications, validate: v}
 	tlh := &timeLogHandler{svc: d.TimeLogs, validate: v}
+	rh := &reviewHandler{svc: d.Reviews, validate: v}
 	loginRL := newRateLimiter(d.LoginLimit, d.Now)
 	refreshRL := newRateLimiter(d.RefreshLimit, d.Now)
 
@@ -175,6 +178,10 @@ func mountHTTP(r chi.Router, d Deps) {
 				// CF-08: Log time (cha và con); GET của việc cha gồm cả log của việc con.
 				r.Get("/time-logs", tlh.list)
 				r.Post("/time-logs", tlh.create)
+				// CF-09: nghiệm thu — chỉ Manager phụ trách, chỉ khi thẻ ở cột "Chờ nghiệm thu".
+				r.Post("/review/approve", rh.approve)
+				r.Post("/review/reject", rh.reject)
+				r.Get("/reviews", rh.list)
 			})
 			r.Delete("/time-logs/{logID}", tlh.delete)
 			r.Post("/subtasks/{subtaskID}/move", ch.moveSubtask)

@@ -31,6 +31,8 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
   - `ReviewService.Approve/Reject/Reviews`; khóa project → task, kiểm lại quyền Manager phụ trách trên dòng đã khóa;
   - chuyển cột bằng `Service.moveLocked` có sẵn (luật workflow_transition, WIP, version, lịch sử chuyển cột);
   - ghi `task_review`, gửi thông báo `review_rejected` khi Từ chối, phát `task.moved` sau commit.
+- Postgres: `review_repo.go` (`ReviewRepo`, `ReviewTx`) và `review_integration_test.go` (Từ chối rồi Duyệt trên CSDL thật, kiểm `task_review` + lịch sử chuyển cột).
+- HTTP: `review_handler.go` gồm `POST /tasks/{id}/review/approve`, `POST /tasks/{id}/review/reject` và `GET /tasks/{id}/reviews`, cùng `review_api_test.go` (200/400/401/403/404/409/422). Bổ sung ánh xạ lỗi `TASK_NOT_IN_REVIEW` (409) và `REVIEW_REASON_INVALID` (422), wiring trong `main.go` và `router.go`.
 
 ## Phần tôi đã sửa / hoàn thiện
 [NGƯỜI DÙNG ĐIỀN]
@@ -41,8 +43,11 @@ Làm CF-09: luồng nghiệm thu công việc cha. Member đưa việc cha sang 
 | Mô tả | Nguyên nhân | Cách phát hiện | Cách sửa |
 |---|---|---|---|
 | Test Từ chối kỳ vọng nội dung thông báo giữ nguyên xuống dòng | Không đọc lại `NotificationExcerpt` (gộp khoảng trắng thành một dấu cách) | Test đỏ khi chạy | Sửa kỳ vọng theo hành vi có sẵn của excerpt |
+| Tìm `subtask_repo.go` để xem mẫu repository (file không tồn tại) | Đoán tên file theo tên gói application | `ls` không thấy | Code việc con nằm trong `collab_repo.go` |
+| Viết `review_handler.go` lệch định dạng gofmt (căn hàng hai hàm một dòng) | Viết tay bằng heredoc, không chạy gofmt trước lint | `make lint` báo gofmt | Chạy `gofmt -w` |
 | Tìm tầng HTTP ở `internal/infrastructure/httpapi` (không tồn tại) | Đoán theo cấu trúc thường gặp thay vì liệt kê thư mục | `ls` báo không có thư mục | Liệt kê `internal/`: tầng HTTP nằm ở `internal/transport/httpapi` |
 
 ## Kiểm chứng
 - `go test ./internal/domain/ -run CF09`: ok.
 - `go test ./internal/application/kanban/`: ok; `make lint`: 0 issues.
+- Lát API: `make lint` xanh; `make test` xanh (Go mọi gói ok, Vitest 314/314); `go test -tags=integration -run 'Review|Kanban' ./internal/infrastructure/postgres/` trên Postgres Homebrew: ok.
