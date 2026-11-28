@@ -93,4 +93,12 @@ var (
 	ErrSubtaskParentNotRoot = errors.New("subtask parent must be a root task")
 	ErrInvalidComment       = errors.New("comment is empty or too long")
 	ErrNotificationNotFound = errors.New("notification not found")
+
+	// CF-08 — Log time.
+	ErrInvalidLogMinutes = errors.New("logged minutes must be between 1 and 1440")
+	ErrInvalidLogNote    = errors.New("time log note is empty or too long")
+	ErrInvalidLogDate    = errors.New("work date must not be in the future or before the task was created")
+	ErrTimeLogClosed     = errors.New("task has been done for more than 24 hours")
+	ErrTimeLogNotAllowed = errors.New("only the project manager or the assignee can log time")
+	ErrTimeLogNotFound   = errors.New("time log not found")
 )

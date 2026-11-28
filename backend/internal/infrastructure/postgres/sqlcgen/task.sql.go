@@ -251,7 +251,7 @@ func (q *Queries) GetSeedTaskIDByTitle(ctx context.Context, arg GetSeedTaskIDByT
 }
 
 const getTask = `-- name: GetTask :one
-SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v WHERE v.id = $1
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version, logged_minutes, actual_minutes, subtask_count, subtask_done_count FROM task_view v WHERE v.id = $1
 `
 
 func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (TaskView, error) {
@@ -279,6 +279,10 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (TaskView, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Version,
+		&i.LoggedMinutes,
+		&i.ActualMinutes,
+		&i.SubtaskCount,
+		&i.SubtaskDoneCount,
 	)
 	return i, err
 }
@@ -308,7 +312,7 @@ func (q *Queries) InsertTaskMoveHistory(ctx context.Context, arg InsertTaskMoveH
 }
 
 const listBoardTasks = `-- name: ListBoardTasks :many
-SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version, logged_minutes, actual_minutes, subtask_count, subtask_done_count FROM task_view v
 WHERE v.project_id = $1 AND v.parent_task_id IS NULL
 ORDER BY v.column_position, v.position, v.created_at, v.id
 LIMIT $2
@@ -351,6 +355,10 @@ func (q *Queries) ListBoardTasks(ctx context.Context, arg ListBoardTasksParams) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.LoggedMinutes,
+			&i.ActualMinutes,
+			&i.SubtaskCount,
+			&i.SubtaskDoneCount,
 		); err != nil {
 			return nil, err
 		}
@@ -395,7 +403,7 @@ func (q *Queries) ListColumnTaskIDs(ctx context.Context, arg ListColumnTaskIDsPa
 }
 
 const listMyTasks = `-- name: ListMyTasks :many
-SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version, logged_minutes, actual_minutes, subtask_count, subtask_done_count FROM task_view v
 WHERE v.assignee_id = $1::uuid
   AND v.parent_task_id IS NULL
   AND EXISTS (SELECT 1 FROM project_member pm WHERE pm.project_id = v.project_id AND pm.user_id = $1)
@@ -452,6 +460,10 @@ func (q *Queries) ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]Tas
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.LoggedMinutes,
+			&i.ActualMinutes,
+			&i.SubtaskCount,
+			&i.SubtaskDoneCount,
 		); err != nil {
 			return nil, err
 		}
@@ -464,7 +476,7 @@ func (q *Queries) ListMyTasks(ctx context.Context, arg ListMyTasksParams) ([]Tas
 }
 
 const listProjectTasks = `-- name: ListProjectTasks :many
-SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version, logged_minutes, actual_minutes, subtask_count, subtask_done_count FROM task_view v
 WHERE v.project_id = $1
   AND v.parent_task_id IS NULL
   AND ($2::text IS NULL OR v.title ILIKE $2::text ESCAPE '\')
@@ -533,6 +545,10 @@ func (q *Queries) ListProjectTasks(ctx context.Context, arg ListProjectTasksPara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.LoggedMinutes,
+			&i.ActualMinutes,
+			&i.SubtaskCount,
+			&i.SubtaskDoneCount,
 		); err != nil {
 			return nil, err
 		}

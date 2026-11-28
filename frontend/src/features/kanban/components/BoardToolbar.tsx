@@ -3,11 +3,10 @@ import type { ReactNode } from 'react'
 import type { Task } from '@/features/tasks'
 import { cn } from '@/shared/lib/cn'
 import { messages } from '@/shared/lib/messages'
-import { Avatar } from '@/shared/ui'
+import { Avatar, HoursLegend } from '@/shared/ui'
 
 import { filterOptions, type BoardFilters } from '../model/boardState'
 import type { SocketStatus } from '../model/types'
-import { HoursLegend } from './HoursLevelMark'
 
 const t = messages.kanban
 

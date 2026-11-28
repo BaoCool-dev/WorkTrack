@@ -1,4 +1,4 @@
-import type { Comment, Label, Task } from './model/types'
+import type { Comment, Label, Task, TimeLog } from './model/types'
 
 export function makeTask(over: Partial<Task> = {}): Task {
   return {
@@ -17,6 +17,10 @@ export function makeTask(over: Partial<Task> = {}): Task {
     createdBy: { id: 'u-manager', name: 'Trần Bình' },
     position: 0,
     version: 1,
+    loggedMinutes: 0,
+    actualMinutes: 0,
+    subtaskCount: 0,
+    subtaskDoneCount: 0,
     createdAt: '2026-11-20T02:00:00Z',
     updatedAt: '2026-11-20T02:00:00Z',
     ...over,
@@ -53,6 +57,21 @@ export function makeComment(over: Partial<Comment> = {}): Comment {
     author: { id: 'u-manager', name: 'Nguyễn Văn An' },
     body: 'Nhớ thêm rate limit.',
     createdAt: '2026-11-27T03:00:00Z',
+    ...over,
+  }
+}
+
+export function makeTimeLog(over: Partial<TimeLog> = {}): TimeLog {
+  return {
+    id: 'tl-1',
+    taskId: 't-1',
+    taskTitle: 'Thiết kế API đăng nhập',
+    parentId: null,
+    user: { id: 'u-member', name: 'Đỗ Thu Hà' },
+    minutes: 90,
+    note: 'Viết handler và test.',
+    workDate: '2026-11-26',
+    createdAt: '2026-11-26T09:00:00Z',
     ...over,
   }
 }

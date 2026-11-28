@@ -59,7 +59,7 @@ func (q *Queries) DeleteSubtask(ctx context.Context, id uuid.UUID) (int64, error
 
 const listSubtasks = `-- name: ListSubtasks :many
 
-SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version FROM task_view v
+SELECT id, project_id, project_name, column_id, column_name, status_group, column_position, parent_task_id, title, description, story_point, estimated_minutes, assignee_id, assignee_name, due_date, position, created_by, created_by_name, created_at, updated_at, version, logged_minutes, actual_minutes, subtask_count, subtask_done_count FROM task_view v
 WHERE v.parent_task_id = $1
 ORDER BY v.created_at, v.id
 `
@@ -97,6 +97,10 @@ func (q *Queries) ListSubtasks(ctx context.Context, parentTaskID uuid.NullUUID) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Version,
+			&i.LoggedMinutes,
+			&i.ActualMinutes,
+			&i.SubtaskCount,
+			&i.SubtaskDoneCount,
 		); err != nil {
 			return nil, err
 		}

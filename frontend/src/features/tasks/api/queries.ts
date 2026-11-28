@@ -6,7 +6,15 @@ import {
   type QueryClient,
 } from '@tanstack/react-query'
 import { projectKeys } from '@/features/projects'
-import { COMMENT_PAGE_SIZE, type SubtaskInput, type Task, type TaskInput } from '../model/types'
+import {
+  COMMENT_PAGE_SIZE,
+  TIME_LOG_PAGE_SIZE,
+  type SubtaskInput,
+  type Task,
+  type TaskInput,
+  type TimeLog,
+  type TimeLogInput,
+} from '../model/types'
 import { tasksApi, type MyTaskListParams, type TaskListParams } from './tasksApi'
 
 export const taskKeys = {
@@ -19,6 +27,8 @@ export const taskKeys = {
   subtasks: (parentId: string) => [...taskKeys.detail(parentId), 'subtasks'] as const,
   comments: (taskId: string) => [...taskKeys.detail(taskId), 'comments'] as const,
   commentPage: (taskId: string, page: number) => [...taskKeys.comments(taskId), page] as const,
+  timeLogs: (taskId: string) => [...taskKeys.detail(taskId), 'timeLogs'] as const,
+  timeLogPage: (taskId: string, page: number) => [...taskKeys.timeLogs(taskId), page] as const,
   mine: () => [...taskKeys.all, 'mine'] as const,
   mineList: (p: MyTaskListParams) => [...taskKeys.mine(), 'list', p] as const,
   wip: () => [...taskKeys.mine(), 'wip'] as const,
@@ -43,8 +53,8 @@ export function useProjectTasks(projectId: string, params: TaskListParams) {
   })
 }
 
-export function useTask(id: string) {
-  return useQuery({ queryKey: taskKeys.detail(id), queryFn: () => tasksApi.get(id) })
+export function useTask(id: string, enabled = true) {
+  return useQuery({ queryKey: taskKeys.detail(id), queryFn: () => tasksApi.get(id), enabled })
 }
 
 export function useCreateTask(projectId: string) {
@@ -186,5 +196,57 @@ export function useCreateComment(taskId: string) {
   return useMutation({
     mutationFn: (body: string) => tasksApi.createComment(taskId, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: taskKeys.comments(taskId) }),
+  })
+}
+
+// ---- CF-08: Log time ----
+
+/**
+ * Sau khi ghi/xóa log: giờ thực tế đổi ở chính việc, ở việc cha (giờ con cộng lên cha),
+ * ở danh sách con, danh sách công việc và thẻ trên bảng Kanban.
+ * detail(...) bao cả lịch sử log nên chỉ cần làm mới theo tiền tố.
+ */
+function afterTimeLogWrite(qc: QueryClient, task: Task) {
+  void qc.invalidateQueries({ queryKey: taskKeys.detail(task.id) })
+  if (task.parentId) {
+    void qc.invalidateQueries({ queryKey: taskKeys.detail(task.parentId) })
+  }
+  void qc.invalidateQueries({ queryKey: taskKeys.project(task.projectId) })
+  void qc.invalidateQueries({ queryKey: taskKeys.mine() })
+  void qc.invalidateQueries({ queryKey: projectKeys.board(task.projectId) })
+}
+
+export function useTimeLogs(taskId: string, page: number) {
+  return useQuery({
+    queryKey: taskKeys.timeLogPage(taskId, page),
+    queryFn: () => tasksApi.timeLogs(taskId, page, TIME_LOG_PAGE_SIZE),
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * task là công việc đang mở trong hộp chi tiết; đích ghi có thể là chính nó hoặc một việc con
+ * (chọn trong hộp Log giờ) nên taskId đi kèm biến của mutation.
+ */
+export function useCreateTimeLog(task: Task) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ taskId, ...body }: TimeLogInput & { taskId: string }) =>
+      tasksApi.createTimeLog(taskId, body),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: taskKeys.detail(vars.taskId) })
+      afterTimeLogWrite(qc, task)
+    },
+  })
+}
+
+export function useDeleteTimeLog(task: Task) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (log: TimeLog) => tasksApi.deleteTimeLog(log.id),
+    onSuccess: (_data, log) => {
+      void qc.invalidateQueries({ queryKey: taskKeys.detail(log.taskId) })
+      afterTimeLogWrite(qc, task)
+    },
   })
 }

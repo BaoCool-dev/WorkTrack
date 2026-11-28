@@ -2,7 +2,7 @@ import { cn } from '@/shared/lib/cn'
 import type { HoursLevel } from '@/shared/lib/hoursLevel'
 import { messages } from '@/shared/lib/messages'
 
-import { toneClass } from '../model/hoursTone'
+import { toneClass } from './hoursTone'
 
 const t = messages.kanban.hoursLevel
 

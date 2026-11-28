@@ -92,8 +92,13 @@ type taskResponse struct {
 	CreatedBy        refResponse        `json:"createdBy"`
 	Position         int                `json:"position"`
 	Version          int                `json:"version"` // client gửi lại khi kéo thả để chống ghi đè
-	CreatedAt        time.Time          `json:"createdAt"`
-	UpdatedAt        time.Time          `json:"updatedAt"`
+	// CF-08: giờ đã log trên chính công việc và giờ thực tế (cha + con, R: báo cáo cộng giờ con lên cha), đơn vị phút.
+	LoggedMinutes    int       `json:"loggedMinutes"`
+	ActualMinutes    int       `json:"actualMinutes"`
+	SubtaskCount     int       `json:"subtaskCount"`
+	SubtaskDoneCount int       `json:"subtaskDoneCount"`
+	CreatedAt        time.Time `json:"createdAt"`
+	UpdatedAt        time.Time `json:"updatedAt"`
 }
 
 type labelResponse struct {
@@ -123,6 +128,8 @@ func toTaskResponse(t domain.Task) taskResponse {
 		Assignee: toRef(t.AssigneeID, t.AssigneeName), DueDate: formatDate(t.DueDate), Labels: labels,
 		CreatedBy: refResponse{ID: t.CreatedBy.String(), Name: t.CreatedByName},
 		Position:  t.Position, Version: t.Version,
+		LoggedMinutes: t.LoggedMinutes, ActualMinutes: t.ActualMinutes,
+		SubtaskCount: t.SubtaskCount, SubtaskDoneCount: t.SubtaskDoneCount,
 		CreatedAt: t.CreatedAt, UpdatedAt: t.UpdatedAt,
 	}
 }

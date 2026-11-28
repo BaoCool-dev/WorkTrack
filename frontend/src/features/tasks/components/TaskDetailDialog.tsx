@@ -1,6 +1,6 @@
 import { SearchX } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { useCan } from '@/features/auth'
+import { useAuth, useCan } from '@/features/auth'
 import { statusGroupTone } from '@/features/projects'
 import { ApiError } from '@/shared/api/http'
 import {
@@ -24,8 +24,10 @@ import {
 import { useClaimTask, useTask, useUpdateTask } from '../api/queries'
 import type { Task } from '../model/types'
 import { CommentsSection } from './CommentsSection'
+import { LogTimeDialog } from './LogTimeDialog'
 import { SubtasksSection } from './SubtasksSection'
 import { TaskFormDialog } from './TaskFormDialog'
+import { TimeLogSection } from './TimeLogSection'
 
 const t = messages.tasks.detail
 const tl = messages.tasks
@@ -47,17 +49,36 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-/** Chi tiết công việc (CF-06) kèm việc con và bình luận (CF-07). Log time thuộc nhánh sau. */
+/** Chi tiết công việc (CF-06) kèm việc con, bình luận (CF-07) và giờ làm thực tế (CF-08). */
 export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialogProps) {
   const query = useTask(initial.id)
   const claim = useClaimTask()
   const update = useUpdateTask(initial.id)
   const canClaimPerm = useCan('tasks.claim')
   const toast = useToast()
+  const { user } = useAuth()
   const [editing, setEditing] = useState(false)
+  const [logging, setLogging] = useState(false)
   const [claimError, setClaimError] = useState<string | null>(null)
 
   const task = query.data
+  // Việc con được log bởi người phụ trách việc cha → cần tải việc cha (đã có trong cache khi mở từ cha).
+  const parent = useTask(task?.parentId ?? '', Boolean(task?.parentId))
+  const owner = task?.parentId ? parent.data?.assignee : task?.assignee
+  // Chỉ để ẩn/hiện nút — server kiểm lại quyền log (CheckTimeLog).
+  const canLog =
+    (user?.role === 'manager' || user?.role === 'member') &&
+    (canEdit || (owner !== undefined && owner !== null && owner.id === user.id))
+
+  if (logging && task)
+    return (
+      <LogTimeDialog
+        task={task}
+        onClose={() => {
+          setLogging(false)
+        }}
+      />
+    )
   if (editing && task)
     return (
       <TaskFormDialog
@@ -162,10 +183,14 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
         </section>
         {/* Con chỉ 1 cấp: chi tiết của một việc con không có khối việc con. */}
         {task.parentId === null && <SubtasksSection task={task} canEdit={canEdit} />}
+        <TimeLogSection
+          task={task}
+          canLog={canLog}
+          onLog={() => {
+            setLogging(true)
+          }}
+        />
         <CommentsSection taskId={task.id} />
-        <p className="rounded-md border border-line bg-subtle p-3 text-sm text-ink-muted">
-          {t.later}
-        </p>
       </div>
     )
 

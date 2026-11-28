@@ -26,6 +26,8 @@ type Querier interface {
 	CountProjectWIP(ctx context.Context, arg CountProjectWIPParams) (int64, error)
 	CountProjects(ctx context.Context, arg CountProjectsParams) (int64, error)
 	CountTaskComments(ctx context.Context, taskID uuid.UUID) (int64, error)
+	// IN (subquery) thay cho OR qua hai bảng để planner dùng được ix_task_parent + ix_time_log_task.
+	CountTaskTimeLogs(ctx context.Context, taskID uuid.UUID) (int64, error)
 	CountUnreadNotifications(ctx context.Context, userID uuid.UUID) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
 	// WIP: số công việc cha nhóm in_progress của một người trên mọi dự án (CLAUDE.md §5.6). Chỉ để hiển thị;
@@ -41,6 +43,8 @@ type Querier interface {
 	CreateSubtask(ctx context.Context, arg CreateSubtaskParams) (uuid.UUID, error)
 	CreateTask(ctx context.Context, arg CreateTaskParams) (uuid.UUID, error)
 	CreateTaskComment(ctx context.Context, arg CreateTaskCommentParams) (CreateTaskCommentRow, error)
+	// CF-08 — Log time trên công việc cha và con.
+	CreateTimeLog(ctx context.Context, arg CreateTimeLogParams) (uuid.UUID, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (uuid.UUID, error)
 	CreateWorkflowTransition(ctx context.Context, arg CreateWorkflowTransitionParams) error
 	DeleteBoardColumn(ctx context.Context, arg DeleteBoardColumnParams) (int64, error)
@@ -50,6 +54,7 @@ type Querier interface {
 	DeleteSkill(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteSubtask(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteTaskLabels(ctx context.Context, taskID uuid.UUID) error
+	DeleteTimeLog(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteWorkflowTransitions(ctx context.Context, projectID uuid.UUID) error
 	// Công việc mới nằm ở cột đầu tiên thuộc nhóm todo.
 	FirstTodoColumn(ctx context.Context, projectID uuid.UUID) (uuid.UUID, error)
@@ -69,6 +74,7 @@ type Querier interface {
 	GetSeedTaskIDByTitle(ctx context.Context, arg GetSeedTaskIDByTitleParams) (uuid.UUID, error)
 	GetTask(ctx context.Context, id uuid.UUID) (TaskView, error)
 	GetTaskComment(ctx context.Context, id uuid.UUID) (GetTaskCommentRow, error)
+	GetTimeLog(ctx context.Context, id uuid.UUID) (GetTimeLogRow, error)
 	GetUserByActivationTokenHash(ctx context.Context, tokenHash []byte) (GetUserByActivationTokenHashRow, error)
 	GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error)
@@ -80,6 +86,11 @@ type Querier interface {
 	InsertRefreshToken(ctx context.Context, arg InsertRefreshTokenParams) error
 	InsertTaskMoveHistory(ctx context.Context, arg InsertTaskMoveHistoryParams) error
 	IsProjectMember(ctx context.Context, arg IsProjectMemberParams) (bool, error)
+	// Mốc "đã Done" của công việc: lần gần nhất được chuyển TỪ cột ngoài nhóm done VÀO một cột nhóm done.
+	// Đổi cột trong nội bộ nhóm done (vd. "Done" → "Đã đóng") không tính, để không mở lại cửa sổ 24 giờ.
+	// Cột nguồn không còn tồn tại (đã xóa) coi như ngoài nhóm done.
+	// NULL khi chưa có lịch sử (dữ liệu cũ) → tầng trên dùng updated_at.
+	LastDoneAt(ctx context.Context, taskID uuid.UUID) (pgtype.Timestamptz, error)
 	// CF-03, CF-06: task_count đếm cả việc cha và con nằm trong cột (cột còn việc không xóa được).
 	ListBoardColumns(ctx context.Context, projectID uuid.UUID) ([]ListBoardColumnsRow, error)
 	// Toàn bộ công việc cha của bảng Kanban (lọc nhãn/người nhận làm ở client). Giới hạn an toàn @max_rows.
@@ -113,6 +124,9 @@ type Querier interface {
 	// Bình luận cũ trước, mới sau (đọc như hội thoại).
 	ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error)
 	ListTaskLabels(ctx context.Context, taskIds []uuid.UUID) ([]ListTaskLabelsRow, error)
+	// Lịch sử log của một công việc; với việc cha gồm cả log của các con (giờ con cộng lên cha). Mới nhất trước.
+	// IN (subquery) thay cho OR qua hai bảng để planner dùng được ix_task_parent + ix_time_log_task.
+	ListTaskTimeLogs(ctx context.Context, arg ListTaskTimeLogsParams) ([]ListTaskTimeLogsRow, error)
 	// Một truy vấn cho cả trang danh sách (tránh N+1).
 	ListUserSkillsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]ListUserSkillsByUserIDsRow, error)
 	// B9: phân trang offset; mới tạo trước. CF-02: lọc theo từ khóa (họ tên/email), vai trò, trạng thái,

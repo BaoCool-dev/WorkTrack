@@ -967,6 +967,108 @@ FROM notification n JOIN app_user u ON u.id = n.user_id
 ORDER BY n.created_at DESC LIMIT 10;
 ```
 
+### 4.6. CF-08 — Log time trên công việc cha và con
+
+**Trên giao diện** (cửa sổ thường đăng nhập Manager, cửa sổ ẩn danh đăng nhập Member):
+1. Manager tạo một công việc cha có **ước lượng** (vd. Story Point 2 → 16 giờ) và giao cho Member. Member mở công việc
+   trong **Công việc của tôi** → hộp chi tiết có khối **Giờ làm thực tế** ("0/16h", chưa có log: "Chưa có giờ nào được log").
+2. Bấm **Log giờ** → hộp **Log giờ** mở ra: ngày mặc định hôm nay (không chọn được ngày tương lai), ô **Số giờ** (gợi ý "Ví dụ 1,5 = 1 giờ 30 phút."),
+   ô **Ghi chú** có bộ đếm (tối đa 500 ký tự).
+   - Bấm **Log giờ** khi chưa nhập gì → lỗi ngay dưới ô Số giờ và ô Ghi chú ("Vui lòng nhập ghi chú.").
+   - Nhập `-1` → "Không được log số giờ âm."; `0` hoặc chữ → "Số giờ không hợp lệ."; `25` → "Tối đa 24 giờ cho một lần log."
+   - Nhập `1,5` (dấu phẩy) và ghi chú → **Log giờ** → toast, quay lại chi tiết, tổng thành "1,5/16h", log mới ở đầu lịch sử.
+3. Thêm một việc con (§4.5 UI bước 3). Bấm **Log giờ** ở việc cha → ô **Công việc** có cả việc cha và "Việc con: …"; chọn việc con,
+   nhập `2` giờ → **Log giờ**. Tổng ở việc cha thành "3,5/16h" kèm dòng "Đã gồm giờ của các công việc con."; dòng log có chữ "Việc con: …".
+4. Mở **Kanban** của dự án → thẻ công việc cha có thanh giờ "3,5/16h" và "0/1 con". Log thêm cho tới khi vượt ước lượng:
+   thanh đổi màu cảnh báo rồi màu đỏ theo ngưỡng (B5, design-system §6), kèm dấu mức giờ (không chỉ dựa vào màu).
+5. Ở lịch sử log, Member chỉ thấy nút xóa trên **log của chính mình** → bấm → "Xóa log giờ này?" ngay trong dòng → **Xóa** → toast "Đã xóa log giờ",
+   tổng giờ giảm. Manager không thấy nút xóa trên log của Member.
+6. Manager phụ trách dự án log được cho mọi công việc trong dự án. Member mở một công việc **không giao cho mình**: không có
+   nút **Log giờ**, vẫn xem được lịch sử. CEO mở chi tiết (Dự án → tab Công việc): chỉ xem, không có nút **Log giờ**.
+7. Chuyển công việc sang Done, rồi dùng SQL "giả Done quá 24 giờ" bên dưới → mở lại **Log giờ** → nhập và bấm **Log giờ** → hộp hiện khối
+   khóa "Không thể log giờ" ("Công việc đã hoàn thành quá 24 giờ…") thay cho form.
+
+**Bằng curl** (cần `H`, `$API` ở §2.2; `SEED_PID`, `MEMBER_ID` ở §4.3 bước 1; hàm `col` ở §4.4 bước 1):
+1. Manager tạo việc cha giao cho Member, Member tạo việc con, rồi log giờ cho cả hai:
+   ```bash
+   L1=$(jq -n --arg a "$MEMBER_ID" '{title:"Cha CF-08", storyPoint:2, assigneeId:$a}' |
+        curl -s -X POST $API/projects/$SEED_PID/tasks -H "$(H manager)" -H 'Content-Type: application/json' -d @- | jq -r .id)
+   LS=$(curl -s -X POST $API/tasks/$L1/subtasks -H "$(H member)" -H 'Content-Type: application/json' \
+        -d '{"title":"Con CF-08","description":""}' | jq -r .id)
+   curl -s -X POST $API/tasks/$L1/time-logs -H "$(H member)" -H 'Content-Type: application/json' \
+     -d '{"minutes":90,"note":"Thiết kế API"}' | jq -c '{taskTitle, minutes, workDate, user: .user.name}'
+   curl -s -X POST $API/tasks/$LS/time-logs -H "$(H member)" -H 'Content-Type: application/json' \
+     -d '{"minutes":120,"note":"Viết test"}' | jq -c '{taskTitle, parentId, minutes}'
+   ```
+   Mong đợi: 201; `workDate` bỏ trống thành hôm nay theo giờ Việt Nam; log ở con có `parentId` = `$L1`.
+2. Xem tổng giờ và lịch sử:
+   ```bash
+   curl -s $API/tasks/$L1 -H "$(H member)" | jq -c '{loggedMinutes, actualMinutes, estimatedMinutes, subtaskCount}'
+   curl -s $API/tasks/$L1/time-logs -H "$(H manager)" | jq -c '{total, items: [.items[] | {taskTitle, minutes}]}'
+   curl -s $API/tasks/$LS/time-logs -H "$(H manager)" | jq -c '{total}'
+   ```
+   Mong đợi: `loggedMinutes` = 90, `actualMinutes` = 210 (cha + con); lịch sử của cha có 2 dòng (gồm log của con), của con có 1.
+3. Các ca bị chặn:
+   ```bash
+   # Phút ≤ 0 hoặc > 1440 → 400 TIME_LOG_MINUTES_INVALID
+   for m in 0 -30 1441; do
+     curl -s -X POST $API/tasks/$L1/time-logs -H "$(H member)" -H 'Content-Type: application/json' \
+       -d "{\"minutes\":$m,\"note\":\"x\"}" | jq -c .error.code
+   done
+   # Mô tả rỗng → 400 TIME_LOG_NOTE_INVALID
+   curl -s -X POST $API/tasks/$L1/time-logs -H "$(H member)" -H 'Content-Type: application/json' -d '{"minutes":30,"note":"  "}' | jq -c .error.code
+   # Ngày tương lai hoặc trước ngày tạo công việc → 400 TIME_LOG_DATE_INVALID
+   curl -s -X POST $API/tasks/$L1/time-logs -H "$(H member)" -H 'Content-Type: application/json' -d '{"minutes":30,"note":"x","workDate":"2099-01-01"}' | jq -c .error.code
+   curl -s -X POST $API/tasks/$L1/time-logs -H "$(H member)" -H 'Content-Type: application/json' -d '{"minutes":30,"note":"x","workDate":"2000-01-01"}' | jq -c .error.code
+   # Việc không giao cho Member → 403 TIME_LOG_NOT_ALLOWED
+   K4=$(curl -s -X POST $API/projects/$SEED_PID/tasks -H "$(H manager)" -H 'Content-Type: application/json' -d '{"title":"Không phải của Member"}' | jq -r .id)
+   curl -s -X POST $API/tasks/$K4/time-logs -H "$(H member)" -H 'Content-Type: application/json' -d '{"minutes":30,"note":"x"}' | jq -c .error.code
+   # CEO chỉ xem → 403; Admin không thấy dự án → 404
+   curl -s -X POST $API/tasks/$L1/time-logs -H "$(H ceo)"   -H 'Content-Type: application/json' -d '{"minutes":30,"note":"x"}' | jq -c .error.code
+   curl -s -X POST $API/tasks/$L1/time-logs -H "$(H admin)" -H 'Content-Type: application/json' -d '{"minutes":30,"note":"x"}' | jq -c .error.code
+   ```
+4. Xóa log:
+   ```bash
+   LG=$(curl -s $API/tasks/$L1/time-logs -H "$(H member)" | jq -r '.items[0].id')
+   curl -s -X DELETE $API/time-logs/$LG -H "$(H manager)" | jq -c .error.code                         # 403: không phải người ghi
+   curl -s -o /dev/null -w '%{http_code}\n' -X DELETE $API/time-logs/$LG -H "$(H member)"             # 204
+   curl -s -X DELETE $API/time-logs/$LG -H "$(H member)" | jq -c .error.code                          # 404 TIME_LOG_NOT_FOUND
+   ```
+5. Đã Done quá 24 giờ → 409 `TIME_LOG_CLOSED` (cho cả việc cha và việc con của nó):
+   ```bash
+   DONE=$(col Done)
+   jq -n --arg c "$DONE" '{columnId:$c}' | curl -s -X POST $API/subtasks/$LS/move -H "$(H member)" \
+     -H 'Content-Type: application/json' -d @- | jq -c '{column: .column.name}'
+   # Chạy SQL "giả Done quá 24 giờ" bên dưới cho việc con, rồi:
+   curl -s -X POST $API/tasks/$LS/time-logs -H "$(H member)" -H 'Content-Type: application/json' -d '{"minutes":30,"note":"x"}' | jq -c .error.code
+   ```
+   Mong đợi: trong 24 giờ đầu sau khi Done vẫn log được; sau khi lùi mốc thì `"TIME_LOG_CLOSED"`.
+
+**Xem trong CSDL:**
+```sql
+-- Log giờ mới nhất: công việc, người ghi, số phút, ngày làm việc
+SELECT t.title, (t.parent_task_id IS NOT NULL) AS la_con, u.full_name, l.minutes, l.note, l.work_date, l.created_at
+FROM time_log l JOIN task t ON t.id = l.task_id JOIN app_user u ON u.id = l.user_id
+ORDER BY l.created_at DESC LIMIT 10;
+```
+```sql
+-- Giờ thực tế của việc cha = giờ của nó + tổng giờ các con (view task_view)
+SELECT title, estimated_minutes, logged_minutes, actual_minutes, subtask_count, subtask_done_count
+FROM task_view WHERE parent_task_id IS NULL AND actual_minutes > 0
+ORDER BY updated_at DESC LIMIT 10;
+```
+```sql
+-- Ràng buộc ở CSDL: phút ngoài 1..1440 bị chặn (chạy trong giao dịch rồi ROLLBACK)
+BEGIN;
+UPDATE time_log SET minutes = 0 WHERE id = (SELECT id FROM time_log LIMIT 1);   -- lỗi CHECK ck_time_log_minutes (23514)
+ROLLBACK;
+```
+```sql
+-- Giả Done quá 24 giờ (chỉ dùng trên CSDL dev): lùi mốc chuyển vào cột Done 25 giờ
+UPDATE task_move_history SET moved_at = moved_at - interval '25 hours'
+WHERE task_id = (SELECT id FROM task WHERE title = 'Con CF-08' ORDER BY created_at DESC LIMIT 1);
+```
+
 ---
 
 ## 5. Xem CSDL bằng psql và pgAdmin
@@ -1020,6 +1122,7 @@ ORDER BY n.created_at DESC LIMIT 10;
 | `task_view` (view) | `task` kèm tên dự án, tên/nhóm cột, tên người nhận | CF-06 |
 | `label`, `task_label` | Danh mục nhãn và nhãn gắn vào công việc | CF-06 |
 | `system_setting` | Tham số hệ thống: `story_point_hours` (`int_value`) | CF-06 |
+| `time_log` | Log giờ: công việc, dự án, người ghi, số phút (1–1440), mô tả, ngày làm việc; `task_view` thêm `logged_minutes`, `actual_minutes` (cha + con), số việc con | CF-08 |
 | `goose_db_version` | Lịch sử migration (goose quản lý — không sửa tay) | — |
 
 Một vài câu SQL tổng hợp:
@@ -1252,6 +1355,13 @@ Không dùng `DROP DATABASE`, không xóa thư mục dữ liệu của PostgreSQ
 - [ ] Bình luận ở việc con → người nhận **hiện tại của việc cha** được báo (giao lại cha rồi bình luận ở con để thử)
 - [ ] Đánh dấu đọc thông báo của người khác → 404 `NOTIFICATION_NOT_FOUND` (§4.5 curl bước 5)
 - [ ] CSDL chặn Story Point ở việc con (SQL §4.5)
+
+### CF-08 — Log time
+- [ ] Log giờ cho việc cha và việc con; số giờ dấu phẩy (`1,5`) được nhận (§4.6 UI bước 2–3, curl bước 1)
+- [ ] Giờ thực tế việc cha = cha + con, ở chi tiết và trên thẻ Kanban; thanh giờ đổi mức khi vượt ước lượng (§4.6 UI bước 4, curl bước 2)
+- [ ] Phút ≤ 0 hoặc > 1440, mô tả rỗng, ngày tương lai → 400; CEO → 403; Admin → 404; việc không phải của mình → 403 (§4.6 curl bước 3)
+- [ ] Chỉ người ghi xóa được log của mình (§4.6 UI bước 5, curl bước 4)
+- [ ] Done quá 24 giờ → 409 `TIME_LOG_CLOSED`, hộp Log giờ hiện khối khóa (§4.6 UI bước 7, curl bước 5)
 
 ### Dọn dẹp
 - [ ] Chạy SQL §7.3 với `ROLLBACK` trước, rồi `COMMIT`
