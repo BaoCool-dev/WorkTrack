@@ -8,6 +8,7 @@ import type {
   SubtaskInput,
   Task,
   TaskFilters,
+  TaskReview,
   TaskInput,
   TimeLog,
   TimeLogInput,
@@ -81,6 +82,14 @@ export const tasksApi = {
     http<TimeLog>(`/api/v1/tasks/${id(taskId)}/time-logs`, { method: 'POST', json: body }),
   deleteTimeLog: (logId: string) =>
     http<undefined>(`/api/v1/time-logs/${id(logId)}`, { method: 'DELETE' }),
+  approve: (taskId: string, version: number) =>
+    http<Task>(`/api/v1/tasks/${id(taskId)}/review/approve`, { method: 'POST', json: { version } }),
+  reject: (taskId: string, version: number, reason: string) =>
+    http<Task>(`/api/v1/tasks/${id(taskId)}/review/reject`, {
+      method: 'POST',
+      json: { version, reason },
+    }),
+  reviews: (taskId: string) => http<{ items: TaskReview[] }>(`/api/v1/tasks/${id(taskId)}/reviews`),
   settings: () => http<Settings>('/api/v1/settings'),
   updateSettings: (body: { storyPointHours: number }) =>
     http<Settings>('/api/v1/settings', { method: 'PUT', json: body }),

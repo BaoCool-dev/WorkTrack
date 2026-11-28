@@ -2,8 +2,9 @@ import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
 import { useState } from 'react'
 
 import type { BoardColumn, Transition } from '@/features/projects'
-import type { Task } from '@/features/tasks'
+import { hasPendingSubtasks, reviewColumnId, type Task } from '@/features/tasks'
 import { ApiError } from '@/shared/api/http'
+import { formatNumber } from '@/shared/lib/format'
 import { messages } from '@/shared/lib/messages'
 import { useToast } from '@/shared/ui'
 
@@ -95,8 +96,15 @@ export function useBoardDrag(o: Options) {
           handleError(task, err)
         },
         onSuccess: (saved) => {
-          if (!undoable) return
-          const msg = fromColumnId === to.id ? t.reordered : t.moved(to.name)
+          // Cảnh báo việc con chưa xong (CF-09) hiện cả khi thao tác là lần hoàn tác:
+          // người dùng vẫn cần biết việc cha đang chờ nghiệm thu khi còn việc con dở.
+          if (!undoable) {
+            if (isReviewWarning(saved, fromColumnId, to, o.columns)) {
+              toast.show(moveMessage(saved, fromColumnId, to, o.columns))
+            }
+            return
+          }
+          const msg = moveMessage(saved, fromColumnId, to, o.columns)
           // Chỉ cho hoàn tác khi đường quay lại cũng hợp lệ (vd. Member không kéo ngược ra khỏi Done).
           const back = columnById.get(fromColumnId)
           const canUndo = back !== undefined && check(saved, fromColumnId).ok
@@ -161,6 +169,36 @@ export function useBoardDrag(o: Options) {
       setActiveId(null)
     },
   }
+}
+
+/**
+ * Câu toast sau khi lưu. CF-09: đưa việc cha vào cột chờ nghiệm thu khi còn việc con chưa xong
+ * thì vẫn cho chuyển (không chặn) nhưng nhắc rõ — Manager sẽ cân nhắc khi nghiệm thu.
+ */
+function moveMessage(
+  saved: Task,
+  fromColumnId: string,
+  to: BoardColumn,
+  columns: readonly BoardColumn[],
+): string {
+  if (fromColumnId === to.id) return t.reordered
+  if (isReviewWarning(saved, fromColumnId, to, columns)) {
+    return t.reviewSubtasksWarning(
+      formatNumber(saved.subtaskDoneCount),
+      formatNumber(saved.subtaskCount),
+    )
+  }
+  return t.moved(to.name)
+}
+
+// Việc cha vừa vào cột "Chờ nghiệm thu" mà còn việc con chưa xong → cảnh báo, không chặn.
+function isReviewWarning(
+  saved: Task,
+  fromColumnId: string,
+  to: BoardColumn,
+  columns: readonly BoardColumn[],
+): boolean {
+  return fromColumnId !== to.id && to.id === reviewColumnId(columns) && hasPendingSubtasks(saved)
 }
 
 function indexInColumn(tasks: readonly Task[], task: Task): number {

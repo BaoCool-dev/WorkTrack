@@ -146,6 +146,8 @@ func buildDeps(cfg config, pool *pgxpool.Pool) (httpapi.Deps, error) {
 		Hub:           hub,
 		// CF-08
 		TimeLogs: timelog.NewService(postgres.NewTimeLogRepo(pool), postgres.NewTimeLogTx(pool), projects, hub, time.Now),
+		// CF-09: nghiệm thu dùng lại luật chuyển cột của kanban.Service.
+		Reviews:  kanban.NewReviewService(postgres.NewReviewRepo(pool), postgres.NewReviewTx(pool), projects, hub),
 		Labels:   label.NewService(postgres.NewLabelRepo(pool)),
 		Settings: settings,
 		Tokens:   jwt,

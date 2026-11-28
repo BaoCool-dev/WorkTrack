@@ -119,3 +119,16 @@ export interface TimeLogInput {
   note: string
   workDate?: string
 }
+
+/** Khớp domain/review.go (CF-09): lý do từ chối 1–500 ký tự sau khi bỏ khoảng trắng. */
+export const REVIEW_REASON_MAX = 500
+
+/** Một lần nghiệm thu: Manager duyệt hoặc từ chối (kèm lý do). */
+export interface TaskReview {
+  id: string
+  reviewerId: string
+  reviewerName: string
+  decision: 'approved' | 'rejected'
+  reason: string | null
+  createdAt: string
+}

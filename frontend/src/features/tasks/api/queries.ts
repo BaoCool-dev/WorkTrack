@@ -29,6 +29,7 @@ export const taskKeys = {
   commentPage: (taskId: string, page: number) => [...taskKeys.comments(taskId), page] as const,
   timeLogs: (taskId: string) => [...taskKeys.detail(taskId), 'timeLogs'] as const,
   timeLogPage: (taskId: string, page: number) => [...taskKeys.timeLogs(taskId), page] as const,
+  reviews: (taskId: string) => [...taskKeys.detail(taskId), 'reviews'] as const,
   mine: () => [...taskKeys.all, 'mine'] as const,
   mineList: (p: MyTaskListParams) => [...taskKeys.mine(), 'list', p] as const,
   wip: () => [...taskKeys.mine(), 'wip'] as const,
@@ -247,6 +248,42 @@ export function useDeleteTimeLog(task: Task) {
     onSuccess: (_data, log) => {
       void qc.invalidateQueries({ queryKey: taskKeys.detail(log.taskId) })
       afterTimeLogWrite(qc, task)
+    },
+  })
+}
+
+// ---- Nghiệm thu (CF-09) ----
+
+export function useTaskReviews(taskId: string) {
+  return useQuery({
+    queryKey: taskKeys.reviews(taskId),
+    queryFn: async () => (await tasksApi.reviews(taskId)).items,
+  })
+}
+
+/** Sau Duyệt/Từ chối: thẻ đổi cột nên làm mới chi tiết, danh sách, bảng và lịch sử nghiệm thu. */
+function afterReview(qc: QueryClient, task: Task) {
+  afterTaskWrite(qc, task)
+  void qc.invalidateQueries({ queryKey: taskKeys.reviews(task.id) })
+}
+
+export function useApproveTask() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (task: Task) => tasksApi.approve(task.id, task.version),
+    onSuccess: (t) => {
+      afterReview(qc, t)
+    },
+  })
+}
+
+export function useRejectTask() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ task, reason }: { task: Task; reason: string }) =>
+      tasksApi.reject(task.id, task.version, reason),
+    onSuccess: (t) => {
+      afterReview(qc, t)
     },
   })
 }

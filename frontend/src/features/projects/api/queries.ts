@@ -41,8 +41,12 @@ export function useMemberCandidates(id: string, search: string, enabled: boolean
   })
 }
 
-export function useBoard(id: string) {
-  return useQuery({ queryKey: projectKeys.board(id), queryFn: () => projectsApi.board(id) })
+export function useBoard(id: string, enabled = true) {
+  return useQuery({
+    queryKey: projectKeys.board(id),
+    queryFn: () => projectsApi.board(id),
+    enabled,
+  })
 }
 
 export function useCreateProject() {

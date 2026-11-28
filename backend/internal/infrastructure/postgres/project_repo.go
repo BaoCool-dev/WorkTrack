@@ -308,6 +308,10 @@ func (r *ProjectRepo) DeleteColumn(ctx context.Context, projectID, id uuid.UUID)
 	if fkViolation(err) == "fk_task_column" { // việc được thêm vào cột giữa lúc kiểm và lúc xóa
 		return domain.ErrColumnHasTasks
 	}
+	// task_review giữ bằng chứng nghiệm thu (CF-09) nên FK là RESTRICT: không xóa cột để mất lịch sử.
+	if c := fkViolation(err); c == "fk_task_review_from_column" || c == "fk_task_review_to_column" {
+		return domain.ErrColumnHasReviews
+	}
 	if err != nil {
 		return fmt.Errorf("postgres.ProjectRepo delete column: %w", err)
 	}

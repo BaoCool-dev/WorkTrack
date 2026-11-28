@@ -60,6 +60,7 @@ var (
 	ErrBoardNeedsDoneColumn       = errors.New("board needs at least one done column")
 	ErrColumnNotFound             = errors.New("column not found")
 	ErrColumnHasTasks             = errors.New("column still has tasks")
+	ErrColumnHasReviews           = errors.New("column is referenced by review history")
 	ErrInvalidColumnOrder         = errors.New("column order must list every column once")
 	ErrInvalidTransition          = errors.New("transition must connect two different columns")
 	ErrInvalidTransitionRole      = errors.New("invalid transition role")
@@ -101,4 +102,8 @@ var (
 	ErrTimeLogClosed     = errors.New("task has been done for more than 24 hours")
 	ErrTimeLogNotAllowed = errors.New("only the project manager or the assignee can log time")
 	ErrTimeLogNotFound   = errors.New("time log not found")
+
+	// CF-09 — nghiệm thu.
+	ErrTaskNotInReview     = errors.New("task is not waiting for review")
+	ErrInvalidReviewReason = errors.New("reject reason is empty or too long")
 )

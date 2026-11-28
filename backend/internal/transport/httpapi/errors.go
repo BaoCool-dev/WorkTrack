@@ -96,6 +96,7 @@ var domainErrors = []struct {
 	{domain.ErrBoardNeedsDoneColumn, httpError{http.StatusUnprocessableEntity, "BOARD_NEEDS_DONE_COLUMN", "Bảng phải còn ít nhất một cột thuộc nhóm Hoàn thành"}},
 	{domain.ErrColumnNotFound, httpError{http.StatusNotFound, "COLUMN_NOT_FOUND", "Không tìm thấy cột"}},
 	{domain.ErrColumnHasTasks, httpError{http.StatusConflict, "COLUMN_HAS_TASKS", "Cột còn công việc, hãy chuyển công việc sang cột khác trước khi xóa"}},
+	{domain.ErrColumnHasReviews, httpError{http.StatusConflict, "COLUMN_HAS_REVIEWS", "Cột đã có lịch sử nghiệm thu, không thể xóa để giữ số liệu tỷ lệ làm lại"}},
 	{domain.ErrInvalidColumnOrder, httpError{http.StatusUnprocessableEntity, "COLUMN_ORDER_INVALID", "Thứ tự cột phải liệt kê đủ mỗi cột một lần"}},
 	{domain.ErrInvalidTransition, httpError{http.StatusUnprocessableEntity, "TRANSITION_INVALID", "Luật chuyển phải nối hai cột khác nhau của bảng"}},
 	{domain.ErrInvalidTransitionRole, httpError{http.StatusUnprocessableEntity, "TRANSITION_ROLE_INVALID", "Vai trò của luật chuyển phải là Manager hoặc Member"}},
@@ -133,6 +134,9 @@ var domainErrors = []struct {
 	{domain.ErrTimeLogClosed, httpError{http.StatusConflict, "TIME_LOG_CLOSED", "Công việc đã hoàn thành quá 24 giờ, không thể log thêm hoặc xóa giờ"}},
 	{domain.ErrTimeLogNotAllowed, httpError{http.StatusForbidden, "TIME_LOG_NOT_ALLOWED", "Bạn không có quyền log giờ hoặc xóa log này"}},
 	{domain.ErrTimeLogNotFound, httpError{http.StatusNotFound, "TIME_LOG_NOT_FOUND", "Không tìm thấy log giờ"}},
+	// CF-09: nghiệm thu.
+	{domain.ErrTaskNotInReview, httpError{http.StatusConflict, "TASK_NOT_IN_REVIEW", "Công việc không ở cột Chờ nghiệm thu, bảng đã tải lại bản mới nhất"}},
+	{domain.ErrInvalidReviewReason, httpError{http.StatusUnprocessableEntity, "REVIEW_REASON_INVALID", "Lý do từ chối là bắt buộc, tối đa 500 ký tự"}},
 	{domain.ErrCannotChangeOwnRole, httpError{http.StatusUnprocessableEntity, "USER_CANNOT_CHANGE_OWN_ROLE", "Bạn không thể tự đổi vai trò của chính mình"}},
 }
 

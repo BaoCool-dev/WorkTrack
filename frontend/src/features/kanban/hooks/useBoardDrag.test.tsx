@@ -5,8 +5,10 @@ import userEvent from '@testing-library/user-event'
 import { http as mock, HttpResponse } from 'msw'
 import type { ReactNode } from 'react'
 
+import type { BoardColumn, Transition } from '@/features/projects'
 import { makeBoard } from '@/features/projects/test-data'
 import type { Task } from '@/features/tasks'
+import { formatNumber } from '@/shared/lib/format'
 import { messages } from '@/shared/lib/messages'
 import { ToastProvider } from '@/shared/ui'
 import { API, server } from '@/test/server'
@@ -41,6 +43,8 @@ function setup(
     wipLimit?: number
     tasks?: Task[]
     backRule?: boolean
+    columns?: BoardColumn[]
+    transitions?: Transition[]
   } = {},
 ) {
   const onWipFull = vi.fn()
@@ -55,14 +59,16 @@ function setup(
       const drag = useBoardDrag({
         projectId: 'p-1',
         tasks,
-        columns: board.columns,
+        columns: opts.columns ?? board.columns,
         // backRule: thêm luật c-2 → c-1 để đường hoàn tác hợp lệ.
-        transitions: opts.backRule
-          ? [
-              ...board.transitions,
-              { fromColumnId: 'c-2', toColumnId: 'c-1', role: 'manager' as const },
-            ]
-          : board.transitions,
+        transitions: opts.transitions
+          ? opts.transitions
+          : opts.backRule
+            ? [
+                ...board.transitions,
+                { fromColumnId: 'c-2', toColumnId: 'c-1', role: 'manager' as const },
+              ]
+            : board.transitions,
         boardRole: opts.role ?? 'manager',
         viewerId: opts.viewerId ?? 'u-manager',
         wipLimit: opts.wipLimit ?? 5,
@@ -258,5 +264,88 @@ describe('useBoardDrag — kéo thả có luật, lạc quan, hoàn tác (CF-04,
     })
     dragTo(result, 't-2', 'c-1') // đã ở cuối cột → vị trí không đổi; không có handler POST → MSW sẽ báo nếu gọi
     expect(screen.queryByText(t.reordered)).not.toBeInTheDocument()
+  })
+})
+
+describe('useBoardDrag — đưa vào cột chờ nghiệm thu (CF-09)', () => {
+  // Cột chờ nghiệm thu = cột in_progress cuối cùng (c-r), đứng trước Done.
+  const columns: BoardColumn[] = [
+    ...board.columns.filter((c) => c.id !== 'c-3'),
+    { id: 'c-r', name: 'Chờ nghiệm thu', position: 2, statusGroup: 'in_progress', taskCount: 0 },
+    { ...col('c-3'), position: 3 },
+  ]
+  const transitions: Transition[] = [{ fromColumnId: 'c-2', toColumnId: 'c-r', role: 'manager' }]
+  const review = { id: 'c-r', name: 'Chờ nghiệm thu', statusGroup: 'in_progress' as const }
+
+  function withSubtasks(done: number, total: number): Task[] {
+    return boardTasks().map((x) =>
+      x.id === 't-3' ? { ...x, subtaskCount: total, subtaskDoneCount: done } : x,
+    )
+  }
+
+  function mockMove(tasks: Task[]) {
+    server.use(
+      mock.post(`${API}/api/v1/tasks/t-3/move`, () => {
+        const t3 = tasks.find((x) => x.id === 't-3')
+        return HttpResponse.json({ ...t3, column: review, position: 0, version: 2 })
+      }),
+    )
+  }
+
+  it('còn việc con chưa xong: vẫn chuyển, toast cảnh báo thay vì chặn', async () => {
+    const tasks = withSubtasks(1, 3)
+    mockMove(tasks)
+    const { result } = setup({ tasks, columns, transitions })
+    await waitFor(() => {
+      expect(result.current.tasks).toHaveLength(3)
+    })
+    dragTo(result, 't-3', 'c-r')
+    expect(
+      await screen.findByText(t.reviewSubtasksWarning(formatNumber(1), formatNumber(3))),
+    ).toBeInTheDocument()
+    expect(columnOf(result.current.tasks, 't-3')).toBe('c-r')
+  })
+
+  it('việc con đã xong hết: toast thường', async () => {
+    const tasks = withSubtasks(2, 2)
+    mockMove(tasks)
+    const { result } = setup({ tasks, columns, transitions })
+    await waitFor(() => {
+      expect(result.current.tasks).toHaveLength(3)
+    })
+    dragTo(result, 't-3', 'c-r')
+    expect(await screen.findByText(t.moved('Chờ nghiệm thu'))).toBeInTheDocument()
+  })
+
+  it('hoàn tác đưa việc cha trở lại cột chờ nghiệm thu: vẫn hiện cảnh báo việc con', async () => {
+    const tasks = withSubtasks(1, 3).map((x) =>
+      x.id === 't-3' ? { ...x, column: review, position: 0 } : x,
+    )
+    const both: Transition[] = [
+      { fromColumnId: 'c-r', toColumnId: 'c-2', role: 'manager' },
+      { fromColumnId: 'c-2', toColumnId: 'c-r', role: 'manager' },
+    ]
+    server.use(
+      mock.post(`${API}/api/v1/tasks/t-3/move`, async ({ request }) => {
+        const body = (await request.json()) as { columnId: string; version: number }
+        const to = columns.find((c) => c.id === body.columnId)
+        const t3 = tasks.find((x) => x.id === 't-3')
+        return HttpResponse.json({
+          ...t3,
+          column: to && { id: to.id, name: to.name, statusGroup: to.statusGroup },
+          position: 0,
+          version: body.version + 1,
+        })
+      }),
+    )
+    const { result } = setup({ tasks, columns, transitions: both })
+    await waitFor(() => {
+      expect(result.current.tasks).toHaveLength(3)
+    })
+    dragTo(result, 't-3', 'c-2')
+    await userEvent.setup().click(await screen.findByRole('button', { name: t.undo }))
+    expect(
+      await screen.findByText(t.reviewSubtasksWarning(formatNumber(1), formatNumber(3))),
+    ).toBeInTheDocument()
   })
 })

@@ -160,6 +160,18 @@ type TaskMoveHistory struct {
 	MovedAt      pgtype.Timestamptz `json:"movedAt"`
 }
 
+type TaskReview struct {
+	ID           uuid.UUID          `json:"id"`
+	TaskID       uuid.UUID          `json:"taskId"`
+	ProjectID    uuid.UUID          `json:"projectId"`
+	ReviewerID   uuid.UUID          `json:"reviewerId"`
+	Decision     string             `json:"decision"`
+	Reason       pgtype.Text        `json:"reason"`
+	FromColumnID uuid.UUID          `json:"fromColumnId"`
+	ToColumnID   uuid.UUID          `json:"toColumnId"`
+	CreatedAt    pgtype.Timestamptz `json:"createdAt"`
+}
+
 type TaskView struct {
 	ID               uuid.UUID          `json:"id"`
 	ProjectID        uuid.UUID          `json:"projectId"`
