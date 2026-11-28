@@ -2,7 +2,7 @@ import { LoaderCircle } from 'lucide-react'
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { cn } from '@/shared/lib/cn'
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'ok' | 'bad'
 
 const variants: Record<Variant, string> = {
   primary:
@@ -10,6 +10,10 @@ const variants: Record<Variant, string> = {
   secondary: 'bg-surface text-ink border border-line-strong hover:bg-subtle',
   ghost: 'bg-transparent text-ink-muted border border-transparent hover:bg-subtle',
   danger: 'bg-surface text-bad border border-bad-border hover:bg-bad-bg',
+  /** §5 "Nghiệm thu": nền ok, chữ trắng. */
+  ok: 'bg-ok text-white border border-ok hover:opacity-90',
+  /** §7: nút xác nhận "Từ chối" trong hộp cảnh báo nghiệm thu: nền bad. */
+  bad: 'bg-bad text-white border border-bad hover:opacity-90',
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {

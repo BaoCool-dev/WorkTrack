@@ -1,4 +1,4 @@
-import type { Comment, Label, Task, TimeLog } from './model/types'
+import type { Comment, Label, Task, TaskReview, TimeLog } from './model/types'
 
 export function makeTask(over: Partial<Task> = {}): Task {
   return {
@@ -72,6 +72,18 @@ export function makeTimeLog(over: Partial<TimeLog> = {}): TimeLog {
     note: 'Viết handler và test.',
     workDate: '2026-11-26',
     createdAt: '2026-11-26T09:00:00Z',
+    ...over,
+  }
+}
+
+export function makeReview(over: Partial<TaskReview> = {}): TaskReview {
+  return {
+    id: 'rv-1',
+    reviewerId: 'u-manager',
+    reviewerName: 'Trần Bình',
+    decision: 'rejected',
+    reason: 'Thiếu test.',
+    createdAt: '2026-11-28T03:00:00Z',
     ...over,
   }
 }

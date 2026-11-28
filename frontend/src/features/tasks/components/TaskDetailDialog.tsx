@@ -1,7 +1,7 @@
 import { SearchX } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import { useAuth, useCan } from '@/features/auth'
-import { statusGroupTone } from '@/features/projects'
+import { statusGroupTone, useBoard } from '@/features/projects'
 import { ApiError } from '@/shared/api/http'
 import {
   formatDate,
@@ -21,16 +21,20 @@ import {
   Skeleton,
   useToast,
 } from '@/shared/ui'
-import { useClaimTask, useTask, useUpdateTask } from '../api/queries'
+import { useApproveTask, useClaimTask, useTask, useUpdateTask } from '../api/queries'
+import { hasPendingSubtasks, reviewColumnId } from '../model/review'
 import type { Task } from '../model/types'
 import { CommentsSection } from './CommentsSection'
 import { LogTimeDialog } from './LogTimeDialog'
+import { RejectReviewDialog } from './RejectReviewDialog'
+import { ReviewSection } from './ReviewSection'
 import { SubtasksSection } from './SubtasksSection'
 import { TaskFormDialog } from './TaskFormDialog'
 import { TimeLogSection } from './TimeLogSection'
 
 const t = messages.tasks.detail
 const tl = messages.tasks
+const tr = messages.tasks.review
 
 export interface TaskDetailDialogProps {
   /** Dòng trong bảng — hiện ngay tiêu đề trong lúc tải chi tiết. */
@@ -49,7 +53,10 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   )
 }
 
-/** Chi tiết công việc (CF-06) kèm việc con, bình luận (CF-07) và giờ làm thực tế (CF-08). */
+/**
+ * Chi tiết công việc (CF-06) kèm việc con, bình luận (CF-07), giờ làm thực tế (CF-08)
+ * và nghiệm thu (CF-09).
+ */
 export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialogProps) {
   const query = useTask(initial.id)
   const claim = useClaimTask()
@@ -60,8 +67,17 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
   const [editing, setEditing] = useState(false)
   const [logging, setLogging] = useState(false)
   const [claimError, setClaimError] = useState<string | null>(null)
+  const [rejecting, setRejecting] = useState(false)
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const approve = useApproveTask()
 
   const task = query.data
+  // Nút nghiệm thu chỉ cho Manager phụ trách (canEdit) và chỉ với việc cha đang ở cột chờ nghiệm thu.
+  // Bảng chỉ tải khi có quyền; server vẫn kiểm lại (CanReview + ReviewTargets).
+  const board = useBoard(initial.projectId, canEdit)
+  const reviewColumn = board.data ? reviewColumnId(board.data.columns) : null
+  const inReview =
+    canEdit && task !== undefined && task.parentId === null && task.column.id === reviewColumn
   // Việc con được log bởi người phụ trách việc cha → cần tải việc cha (đã có trong cache khi mở từ cha).
   const parent = useTask(task?.parentId ?? '', Boolean(task?.parentId))
   const owner = task?.parentId ? parent.data?.assignee : task?.assignee
@@ -76,6 +92,15 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
         task={task}
         onClose={() => {
           setLogging(false)
+        }}
+      />
+    )
+  if (rejecting && task)
+    return (
+      <RejectReviewDialog
+        task={task}
+        onClose={() => {
+          setRejecting(false)
         }}
       />
     )
@@ -108,6 +133,16 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
     }
   }
 
+  const onApprove = async (current: Task) => {
+    setReviewError(null)
+    try {
+      await approve.mutateAsync(current)
+      toast.show(tr.approved)
+    } catch (err) {
+      setReviewError(err instanceof ApiError ? err.message : messages.errors.unknown)
+    }
+  }
+
   let body: ReactNode
   if (notFound)
     body = <EmptyState icon={SearchX} title={t.notFoundTitle} description={t.notFoundHint} />
@@ -130,6 +165,18 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
     body = (
       <div className="flex flex-col gap-3">
         <FormAlert message={claimError} />
+        <FormAlert message={reviewError} />
+        {inReview && hasPendingSubtasks(task) && (
+          <p
+            role="status"
+            className="rounded-md border border-warn-border bg-warn-bg px-3 py-2 text-sm text-warn"
+          >
+            {tr.subtasksPending(
+              formatNumber(task.subtaskDoneCount),
+              formatNumber(task.subtaskCount),
+            )}
+          </p>
+        )}
         <dl className="grid grid-cols-3 gap-3 rounded-md border border-line bg-surface p-3">
           <Field label={t.project}>{task.projectName}</Field>
           <Field label={t.column}>
@@ -190,6 +237,7 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
             setLogging(true)
           }}
         />
+        {task.parentId === null && <ReviewSection taskId={task.id} />}
         <CommentsSection taskId={task.id} />
       </div>
     )
@@ -208,6 +256,21 @@ export function TaskDetailDialog({ initial, canEdit, onClose }: TaskDetailDialog
         >
           {t.edit}
         </Button>
+      )}
+      {inReview && (
+        <>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setRejecting(true)
+            }}
+          >
+            {tr.reject}
+          </Button>
+          <Button variant="ok" loading={approve.isPending} onClick={() => void onApprove(task)}>
+            {tr.approve}
+          </Button>
+        </>
       )}
       {claimable && (
         <Button loading={claim.isPending} onClick={() => void onClaim()}>

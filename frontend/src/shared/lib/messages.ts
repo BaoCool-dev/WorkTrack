@@ -581,6 +581,30 @@ export const messages = {
       emptyTitle: 'Chưa có nhãn nào',
       emptyHint: 'Thêm nhãn như Backend, Frontend, Bug để phân loại công việc.',
     },
+    review: {
+      title: 'Nghiệm thu',
+      approve: 'Nghiệm thu',
+      reject: 'Từ chối (kèm lý do)',
+      approved: 'Đã nghiệm thu công việc',
+      rejected: 'Đã từ chối nghiệm thu, công việc trở về cột đang làm',
+      dialogTitle: 'Từ chối nghiệm thu',
+      dialogDescription:
+        'Công việc sẽ trở về cột đang làm và tính vào tỷ lệ làm lại. Người nhận việc xem được lý do trong lịch sử nghiệm thu.',
+      reason: 'Lý do từ chối',
+      reasonPlaceholder: 'Ví dụ: Thiếu kiểm thử cho trường hợp thanh toán thất bại.',
+      reasonRequired: 'Nhập lý do từ chối.',
+      reasonTooLong: 'Lý do tối đa 500 ký tự.',
+      confirmReject: 'Từ chối',
+      cancel: 'Hủy',
+      history: 'Lịch sử nghiệm thu',
+      historyEmpty: 'Chưa có lần nghiệm thu nào.',
+      historyError: 'Không tải được lịch sử nghiệm thu',
+      decisionApproved: 'Đã duyệt',
+      decisionRejected: 'Từ chối',
+      by: (name: string, date: string) => `${name} · ${date}`,
+      subtasksPending: (done: string, total: string) =>
+        `Mới xong ${done}/${total} việc con. Vẫn có thể nghiệm thu nếu phần còn lại không cần thiết.`,
+    },
     settings: {
       title: 'Quy đổi Story Point',
       intro:
@@ -696,6 +720,9 @@ export const messages = {
       /** Lỗi nghiệp vụ từ server (xung đột version, luật chuyển…): giữ câu của server, nói rõ thẻ đã về chỗ cũ. */
       reverted: (serverMessage: string) => `${serverMessage} Thẻ đã trở về cột cũ.`,
       dismiss: 'Đóng thông báo',
+      /** CF-09: chỉ cảnh báo, không chặn — Manager quyết định khi nghiệm thu. */
+      reviewSubtasksWarning: (done: string, total: string) =>
+        `Đã chuyển sang chờ nghiệm thu, còn việc con chưa xong (${done}/${total}).`,
     },
   },
   placeholder: {
