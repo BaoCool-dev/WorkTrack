@@ -38,10 +38,12 @@ Làm CF-08: Log time trên công việc cha và con (phút > 0, không log vào 
 | Test API cho rằng `?page=0` bị từ chối 400 | Đoán hành vi `pageFrom` thay vì đọc code (thực tế chuẩn hóa về trang 1) | Test `TestTimeLogAPI_BadInput_CF08/page` đỏ (200) | Đổi ca test sang `page=abc` (không phải số → 400) |
 | Test UI cho CEO mở chi tiết từ `/my-tasks` | Quên guard route: CEO không có trang "Việc của tôi" (TC_TASK_042) | Test "CEO chỉ xem" đỏ: không tìm thấy nút mở chi tiết | CEO mở chi tiết từ tab Công việc của dự án |
 | Test dùng `buttons[0]` (kiểu `HTMLElement \| undefined`) | Quên `noUncheckedIndexedAccess` của tsconfig strict | `tsc --noEmit` báo TS2345 | Dùng `getByRole` trả một phần tử |
+| `timeLogForm.test.ts` (test bổ sung của QA) sai định dạng Prettier | Viết test mới mà không chạy `prettier --write` | `make lint` (bước `prettier --check`) đỏ | `npx prettier --write` rồi amend commit |
 
 ## Kiểm chứng
 - `go test ./internal/domain/ ./internal/application/timelog/` xanh.
 - `go test ./...` và `golangci-lint run` (backend): xanh, 0 issues.
 - Test tích hợp `go test -tags=integration ./internal/infrastructure/postgres/` trên PostgreSQL Homebrew (B12, DB `worktrack_it_logtime`, schema tạm): ok; CI chạy lại.
-- Frontend: `npx vitest run` 278/278 xanh; `eslint`, `tsc --noEmit`, `prettier --check` xanh (`make lint`, `make test` từ gốc repo).
+- Sau review (go-reviewer, ui-reviewer) và QA bổ sung test (aa7e978, 477d8cc, 33ecab2): `make lint`, `make test` xanh lại; Frontend 314/314 (28 file); `make cover` 89,7% (gói timelog 86,1%); gitleaks 0 secret. Báo cáo cổng: `docs/gates/feature-logtime.md`.
+- Lần chạy đầu — Frontend: `npx vitest run` 278/278 xanh; `eslint`, `tsc --noEmit`, `prettier --check` xanh (`make lint`, `make test` từ gốc repo).
 - Hướng dẫn kiểm thử thủ công: câu chữ UI đối chiếu với `messages.ts`, đường dẫn/mã lỗi đối chiếu với `router.go` và `errors.go`; chưa chạy curl trực tiếp (app dev không chạy, `make seed` sẽ đặt lại mật khẩu dev).
